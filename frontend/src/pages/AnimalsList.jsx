@@ -40,11 +40,30 @@ export default function AnimalsList() {
     loadAnimals();
   }, []);
 
-  const loadAnimals = async () => {
+  const handleModalUpdate = async (updatedAnimal) => {
+    if (updatedAnimal) {
+      setSelectedAnimal(updatedAnimal);
+      setAnimals((prev) =>
+        prev.map((a) =>
+          (a._id === updatedAnimal._id || a.id === updatedAnimal.id || a.tagId === updatedAnimal.tagId)
+            ? updatedAnimal
+            : a
+        )
+      );
+    }
+    await loadAnimals(updatedAnimal?._id || selectedAnimal?._id);
+  };
+
+  const loadAnimals = async (targetId) => {
     try {
       setLoading(false);
       const data = await animalService.getAnimals();
-      setAnimals(data);
+      setAnimals(data || []);
+      const activeId = targetId || selectedAnimal?._id || selectedAnimal?.id;
+      if (activeId && data) {
+        const found = data.find((a) => a._id === activeId || a.id === activeId || a.tagId === activeId);
+        if (found) setSelectedAnimal(found);
+      }
     } catch (err) {
       console.error('Error fetching animals:', err);
     }
@@ -147,69 +166,85 @@ export default function AnimalsList() {
         </div>
       </div>
 
-      {/* Animals Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredAnimals.map((animal) => (
-          <div
-            key={animal._id}
-            className="bg-white rounded-3xl border border-stone-200 p-6 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all flex flex-col justify-between space-y-4"
+      {/* Animals Grid or Empty State */}
+      {filteredAnimals.length === 0 ? (
+        <div className="py-16 text-center bg-white rounded-3xl border border-stone-200 p-8 space-y-3">
+          <span className="text-4xl block">🐄</span>
+          <h3 className="font-black text-slate-800 text-base">कोई पशु नहीं मिला (No Animals Found)</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            आपके खाते में कोई पंजीकृत पशु नहीं है। नीचे दिए गए बटन से अपने पशु को जोड़ें।
+          </p>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
           >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl shadow-inner">
-                    {animal.species === 'Buffalo' ? '🦬' : animal.species === 'Goat' ? '🐐' : '🐄'}
+            <Plus className="w-4 h-4" /> नया पशु पंजीकृत करें (Add Animal)
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredAnimals.map((animal) => (
+            <div
+              key={animal._id}
+              className="bg-white rounded-3xl border border-stone-200 p-6 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all flex flex-col justify-between space-y-4"
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl shadow-inner">
+                      {animal.species === 'Buffalo' ? '🦬' : animal.species === 'Goat' ? '🐐' : '🐄'}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900">{animal.name}</h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        {animal.species} • {animal.breed}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900">{animal.name}</h3>
-                    <p className="text-xs text-slate-500 font-medium">
-                      {animal.species} • {animal.breed}
-                    </p>
-                  </div>
-                </div>
 
-                <span
-                  className={`text-xs font-black px-2.5 py-1 rounded-full border ${
-                    animal.healthStatus === 'Healthy'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                      : animal.healthStatus === 'Needs Attention'
-                      ? 'bg-amber-50 text-amber-800 border-amber-300'
-                      : 'bg-red-50 text-red-800 border-red-300'
-                  }`}
-                >
-                  ● {animal.healthStatus}
-                </span>
-              </div>
-
-              <div className="bg-stone-50 rounded-2xl p-3 border border-stone-200/70 text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tag ID:</span>
-                  <span className="font-mono font-bold text-slate-900">{animal.tagId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{t('farmer_dash.age_gender')}:</span>
-                  <span className="font-semibold text-slate-800">
-                    {animal.age} {t('farmer_dash.years')} • {animal.gender === 'Female' ? t('farmer_dash.female') : t('farmer_dash.male')}
+                  <span
+                    className={`text-xs font-black px-2.5 py-1 rounded-full border ${
+                      animal.healthStatus === 'Healthy'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : animal.healthStatus === 'Needs Attention'
+                        ? 'bg-amber-50 text-amber-800 border-amber-300'
+                        : 'bg-red-50 text-red-800 border-red-300'
+                    }`}
+                  >
+                    ● {animal.healthStatus}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{t('farmer_dash.milk_yield')}:</span>
-                  <span className="font-bold text-emerald-700">{animal.milkYieldDaily || '12.0 L'}</span>
+
+                <div className="bg-stone-50 rounded-2xl p-3 border border-stone-200/70 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Tag ID:</span>
+                    <span className="font-mono font-bold text-slate-900">{animal.tagId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">{t('farmer_dash.age_gender')}:</span>
+                    <span className="font-semibold text-slate-800">
+                      {animal.age} {t('farmer_dash.years')} • {animal.gender === 'Female' ? t('farmer_dash.female') : t('farmer_dash.male')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">{t('farmer_dash.milk_yield')}:</span>
+                    <span className="font-bold text-emerald-700">{animal.milkYieldDaily || '12.0 L'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-2 border-t border-stone-100 flex gap-2">
-              <button
-                onClick={() => setSelectedAnimal(animal)}
-                className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-xs cursor-pointer"
-              >
-                {t('farmer_dash.view_details')}
-              </button>
+              <div className="pt-2 border-t border-stone-100 flex gap-2">
+                <button
+                  onClick={() => setSelectedAnimal(animal)}
+                  className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                >
+                  {t('farmer_dash.view_details')}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Add Animal Modal */}
       {modalOpen && (
@@ -308,7 +343,7 @@ export default function AnimalsList() {
         <AnimalDetailModal
           animal={selectedAnimal}
           onClose={() => setSelectedAnimal(null)}
-          onUpdate={loadAnimals}
+          onUpdate={handleModalUpdate}
         />
       )}
     </div>

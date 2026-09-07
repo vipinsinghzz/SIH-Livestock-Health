@@ -72,7 +72,23 @@ exports.getAnimalById = async (req, res, next) => {
 // @access  Private
 exports.createAnimal = async (req, res, next) => {
   try {
-    const { tagId, species, breed, age, ownerId, village, block, district, vaccinationHistory, treatmentHistory } = req.body;
+    const {
+      tagId,
+      name,
+      species,
+      breed,
+      age,
+      gender,
+      healthStatus,
+      milkYieldDaily,
+      timeline,
+      ownerId,
+      village,
+      block,
+      district,
+      vaccinationHistory,
+      treatmentHistory
+    } = req.body;
 
     if (!tagId || !species) {
       return res.status(400).json({
@@ -91,9 +107,21 @@ exports.createAnimal = async (req, res, next) => {
 
     const animal = await Animal.create({
       tagId: tagId.toUpperCase(),
+      name: name || tagId.toUpperCase(),
       species,
       breed: breed || 'Indigenous / Mixed',
       age: age ? parseInt(age, 10) : 3,
+      gender: gender || 'Female',
+      healthStatus: healthStatus || 'Healthy',
+      milkYieldDaily: milkYieldDaily || (species === 'Goat' ? '2.0 L' : species === 'Cattle' || species === 'Buffalo' ? '12.0 L' : 'N/A'),
+      timeline: timeline || [
+        {
+          type: 'Health Check',
+          title: 'Animal Registered',
+          date: new Date().toLocaleDateString('en-GB'),
+          notes: 'Profile added to Livestock Saathi'
+        }
+      ],
       ownerId: ownerId || req.user._id,
       village: village || req.user.village || 'Default Village',
       block: block || req.user.block || 'Default Block',
@@ -112,14 +140,35 @@ exports.createAnimal = async (req, res, next) => {
   }
 };
 
-// @desc    Update animal record (details, add vaccination, add treatment)
+// @desc    Update animal record (details, add vaccination, add treatment, add timeline)
 // @route   PATCH /api/animals/:id
 // @access  Private
 exports.updateAnimal = async (req, res, next) => {
   try {
-    const { breed, age, village, block, newVaccination, newTreatment } = req.body;
+    const {
+      name,
+      breed,
+      age,
+      gender,
+      healthStatus,
+      milkYieldDaily,
+      village,
+      block,
+      newVaccination,
+      newTreatment,
+      newTimelineEvent
+    } = req.body;
 
-    const animal = await Animal.findById(req.params.id);
+    let animal = null;
+    const animalId = req.params.id;
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(animalId)) {
+      animal = await Animal.findById(animalId);
+    }
+    if (!animal) {
+      animal = await Animal.findOne({ tagId: animalId });
+    }
+
     if (!animal) {
       return res.status(404).json({
         success: false,
@@ -127,8 +176,12 @@ exports.updateAnimal = async (req, res, next) => {
       });
     }
 
+    if (name) animal.name = name;
     if (breed) animal.breed = breed;
-    if (age) animal.age = parseInt(age, 10);
+    if (age !== undefined) animal.age = parseInt(age, 10);
+    if (gender) animal.gender = gender;
+    if (healthStatus) animal.healthStatus = healthStatus;
+    if (milkYieldDaily) animal.milkYieldDaily = milkYieldDaily;
     if (village) animal.village = village;
     if (block) animal.block = block;
 
@@ -146,6 +199,16 @@ exports.updateAnimal = async (req, res, next) => {
         date: newTreatment.date || new Date(),
         treatment: newTreatment.treatment || 'Prescribed medication',
         vetId: req.user._id
+      });
+    }
+
+    if (newTimelineEvent && newTimelineEvent.title) {
+      animal.timeline.unshift({
+        type: newTimelineEvent.type || 'Health Check',
+        title: newTimelineEvent.title,
+        date: newTimelineEvent.date || new Date().toLocaleDateString('en-GB'),
+        doctor: newTimelineEvent.doctor || '',
+        notes: newTimelineEvent.notes || ''
       });
     }
 

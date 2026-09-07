@@ -14,12 +14,13 @@ export default function Register() {
     email: '',
     phone: '',
     password: '',
-    state: 'Madhya Pradesh',
-    district: 'Sehore',
-    village: 'Malegaon',
+    state: 'Maharashtra',
+    district: 'Pune',
+    block: '',
+    village: '',
     preferredLanguage: 'hi',
     livestockTypes: 'Cattle & Buffalo',
-    animalCount: 8
+    animalCount: 0
   });
 
   const [loading, setLoading] = useState(false);

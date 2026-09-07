@@ -104,27 +104,45 @@ export const INITIAL_ANIMALS = [
 ];
 
 export const animalService = {
+  getCacheKey() {
+    try {
+      const user = JSON.parse(localStorage.getItem('pashurakshak_user') || '{}');
+      const uid = user._id || user.id;
+      return uid ? `cached_animals_${uid}` : 'cached_animals_guest';
+    } catch (e) {
+      return 'cached_animals_guest';
+    }
+  },
+
   async getAnimals() {
     try {
       const response = await api.get('/animals');
-      if (response.data && response.data.length > 0) {
-        // Merge with initial rich data to ensure timeline & production fields exist
-        localStorage.setItem('cached_animals', JSON.stringify(response.data));
-        return response.data;
+      // Backend returns { success: true, count: N, animals: [...] }
+      const animals = response.data?.animals ?? (Array.isArray(response.data) ? response.data : null);
+      if (animals !== null) {
+        const cacheKey = this.getCacheKey();
+        localStorage.setItem(cacheKey, JSON.stringify(animals));
+        return animals;
       }
     } catch (e) {
-      console.warn('Backend /animals unavailable, using local cache:', e.message);
+      console.warn('Backend /animals error, falling back to user cache:', e.message);
     }
 
-    const cached = localStorage.getItem('cached_animals');
+    const cacheKey = this.getCacheKey();
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
         return JSON.parse(cached);
       } catch (err) {}
     }
 
-    localStorage.setItem('cached_animals', JSON.stringify(INITIAL_ANIMALS));
-    return INITIAL_ANIMALS;
+    // Guest fallback only if not logged in
+    const token = localStorage.getItem('pashurakshak_token');
+    if (!token) {
+      return INITIAL_ANIMALS;
+    }
+
+    return [];
   },
 
   async getAnimalById(id) {
@@ -133,48 +151,84 @@ export const animalService = {
   },
 
   async createAnimal(data) {
-    const newAnimal = {
-      _id: 'anim-' + Date.now(),
-      tagId: data.tagId || `IN-LS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+    const payload = {
+      tagId: data.tagId || `MH-12-P-${Math.floor(1000 + Math.random() * 9000)}`,
       name: data.name,
       species: data.species || 'Cattle',
       breed: data.breed || 'Indigenous',
       age: Number(data.age) || 2,
       gender: data.gender || 'Female',
       healthStatus: data.healthStatus || 'Healthy',
-      lastCheckup: new Date().toISOString().split('T')[0],
       milkYieldDaily: data.milkYieldDaily || (data.species === 'Goat' ? '2.0 L' : '10.0 L'),
-      vaccinations: data.vaccinations || [
-        { name: 'FMD', date: new Date().toISOString().split('T')[0], nextDue: '2027-03-01', status: 'Completed' }
-      ],
       timeline: [
-        { type: 'Health Check', title: 'Animal Registered', date: new Date().toLocaleDateString('en-GB'), notes: 'Profile added to Livestock Saathi' }
+        {
+          type: 'Health Check',
+          title: 'Animal Registered',
+          date: new Date().toLocaleDateString('en-GB'),
+          notes: 'Profile added to Livestock Saathi'
+        }
       ]
     };
 
     try {
-      await api.post('/animals', newAnimal);
+      const res = await api.post('/animals', payload);
+      if (res.data?.animal) {
+        const cacheKey = this.getCacheKey();
+        const current = await this.getAnimals();
+        const updated = [res.data.animal, ...current.filter(a => a._id !== res.data.animal._id)];
+        localStorage.setItem(cacheKey, JSON.stringify(updated));
+        return res.data.animal;
+      }
     } catch (e) {
-      console.warn('Backend animal creation skipped, saved to local cache:', e.message);
+      console.warn('Backend animal creation error:', e.message);
     }
 
-    const animals = await this.getAnimals();
-    const updated = [newAnimal, ...animals];
-    localStorage.setItem('cached_animals', JSON.stringify(updated));
-    return newAnimal;
+    const localAnimal = { ...payload, _id: 'anim-' + Date.now() };
+    const cacheKey = this.getCacheKey();
+    const current = await this.getAnimals();
+    const updated = [localAnimal, ...current];
+    localStorage.setItem(cacheKey, JSON.stringify(updated));
+    return localAnimal;
   },
 
   async updateAnimal(id, updates) {
+    let updatedAnimal = null;
+    try {
+      const res = await api.patch(`/animals/${id}`, updates);
+      if (res.data?.animal) {
+        updatedAnimal = res.data.animal;
+      }
+    } catch (e) {
+      console.warn('Backend update animal error:', e.message);
+    }
+
     const animals = await this.getAnimals();
-    const updated = animals.map(a => (a._id === id ? { ...a, ...updates } : a));
-    localStorage.setItem('cached_animals', JSON.stringify(updated));
-    return updated.find(a => a._id === id);
+    const updated = animals.map(a => {
+      if (a._id === id || a.id === id || a.tagId === id) {
+        return updatedAnimal || { ...a, ...updates };
+      }
+      return a;
+    });
+    const cacheKey = this.getCacheKey();
+    localStorage.setItem(cacheKey, JSON.stringify(updated));
+    return updatedAnimal || updated.find(a => (a._id === id || a.id === id || a.tagId === id));
   },
 
   async addTimelineEvent(animalId, event) {
+    let updatedAnimal = null;
+    try {
+      const res = await api.patch(`/animals/${animalId}`, { newTimelineEvent: event });
+      if (res.data?.animal) {
+        updatedAnimal = res.data.animal;
+      }
+    } catch (e) {
+      console.warn('Backend add timeline error:', e.message);
+    }
+
     const animals = await this.getAnimals();
     const updated = animals.map(a => {
-      if (a._id === animalId) {
+      if (a._id === animalId || a.id === animalId || a.tagId === animalId) {
+        if (updatedAnimal) return updatedAnimal;
         return {
           ...a,
           timeline: [event, ...(a.timeline || [])]
@@ -182,8 +236,9 @@ export const animalService = {
       }
       return a;
     });
-    localStorage.setItem('cached_animals', JSON.stringify(updated));
-    return true;
+    const cacheKey = this.getCacheKey();
+    localStorage.setItem(cacheKey, JSON.stringify(updated));
+    return updatedAnimal || updated.find(a => (a._id === animalId || a.id === animalId || a.tagId === animalId));
   }
 };
 

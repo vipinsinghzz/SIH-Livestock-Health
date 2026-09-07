@@ -67,27 +67,38 @@ export default function Login() {
             <p className="text-[11px] text-slate-400">
               किसी भी भूमिका पर क्लिक करके पूर्व-निर्धारित डेटा के साथ टेस्ट करें:
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => handleQuickDemo('farmer')}
-                className="px-2.5 py-2.5 rounded-xl bg-emerald-700/60 hover:bg-emerald-600 border border-emerald-500/50 text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm"
+                onClick={() => handleQuickDemo('farmer_ramesh')}
+                className="px-3 py-2 rounded-xl bg-emerald-700/60 hover:bg-emerald-600 border border-emerald-500/50 text-white text-xs font-bold transition flex items-center justify-between shadow-sm cursor-pointer"
               >
-                🌾 किसान
+                <span>🌾 रमेश पाटिल</span>
+                <span className="text-[10px] text-emerald-300">बारामती (3 पशु)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickDemo('farmer_santosh')}
+                className="px-3 py-2 rounded-xl bg-emerald-800/60 hover:bg-emerald-700 border border-emerald-500/50 text-white text-xs font-bold transition flex items-center justify-between shadow-sm cursor-pointer"
+              >
+                <span>🌾 संतोष शिंदे</span>
+                <span className="text-[10px] text-emerald-300">शिरूर (2 पशु)</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickDemo('field_worker')}
-                className="px-2.5 py-2.5 rounded-xl bg-blue-700/60 hover:bg-blue-600 border border-blue-500/50 text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm"
+                className="px-3 py-2 rounded-xl bg-blue-700/60 hover:bg-blue-600 border border-blue-500/50 text-white text-xs font-bold transition flex items-center justify-between shadow-sm cursor-pointer"
               >
-                🩺 पशु डॉक्टर
+                <span>🩺 डॉ. अनन्या</span>
+                <span className="text-[10px] text-blue-300">Field Vet</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickDemo('officer')}
-                className="px-2.5 py-2.5 rounded-xl bg-purple-700/60 hover:bg-purple-600 border border-purple-500/50 text-white text-xs font-bold transition flex items-center justify-center gap-1 shadow-sm"
+                className="px-3 py-2 rounded-xl bg-purple-700/60 hover:bg-purple-600 border border-purple-500/50 text-white text-xs font-bold transition flex items-center justify-between shadow-sm cursor-pointer"
               >
-                🏛️ जिला अधिकारी
+                <span>🏛️ डॉ. सुरेश</span>
+                <span className="text-[10px] text-purple-300">District Officer</span>
               </button>
             </div>
           </div>

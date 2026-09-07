@@ -9,6 +9,11 @@ const animalSchema = new mongoose.Schema(
       trim: true,
       uppercase: true
     },
+    name: {
+      type: String,
+      trim: true,
+      default: ''
+    },
     species: {
       type: String,
       required: [true, 'Species is required'],
@@ -23,6 +28,33 @@ const animalSchema = new mongoose.Schema(
       type: Number, // In months or years, default years
       default: 3
     },
+    gender: {
+      type: String,
+      enum: ['Female', 'Male'],
+      default: 'Female'
+    },
+    healthStatus: {
+      type: String,
+      enum: ['Healthy', 'Needs Attention', 'Critical'],
+      default: 'Healthy'
+    },
+    milkYieldDaily: {
+      type: String,
+      default: '12.0 L'
+    },
+    lastCheckup: {
+      type: String,
+      default: () => new Date().toLocaleDateString('en-GB')
+    },
+    timeline: [
+      {
+        type: { type: String, default: 'Health Check' },
+        title: { type: String, required: true },
+        date: { type: String, default: () => new Date().toLocaleDateString('en-GB') },
+        doctor: { type: String, default: '' },
+        notes: { type: String, default: '' }
+      }
+    ],
     ownerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

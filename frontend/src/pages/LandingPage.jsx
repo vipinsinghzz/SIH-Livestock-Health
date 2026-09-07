@@ -440,25 +440,37 @@ export default function LandingPage() {
           <h3 className="text-lg font-extrabold text-slate-900">
             {t('landing.evaluator_title')}
           </h3>
-          <div className="flex flex-wrap justify-center gap-3 pt-1">
+          <div className="flex flex-wrap justify-center gap-2.5 pt-1">
             <button
               onClick={() => handleQuickLogin('farmer@pashurakshak.in', 'Farmer@123')}
               className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
             >
-              {t('landing.role_farmer')}
+              🌾 रमेश पाटिल (Baramati - 3 गाय/भैंस)
+            </button>
+            <button
+              onClick={() => handleQuickLogin('santosh@pashurakshak.in', 'Farmer@123')}
+              className="bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+            >
+              🌾 संतोष शिंदे (Shirur - 2 बकरी/बैल)
             </button>
             <button
               onClick={() => handleQuickLogin('vet@pashurakshak.in', 'Vet@123')}
               className="bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
             >
-              {t('landing.role_vet')}
+              🩺 डॉ. अनन्या (Field Vet)
             </button>
             <button
               onClick={() => handleQuickLogin('officer@pashurakshak.in', 'Admin@123')}
               className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
             >
-              {t('landing.role_officer')}
+              🏛️ डॉ. सुरेश (District Officer)
             </button>
+            <Link
+              to="/register"
+              className="bg-white hover:bg-stone-50 text-slate-800 text-xs font-bold px-4 py-2.5 rounded-xl border border-stone-300 transition shadow-2xs"
+            >
+              ➕ नया किसान बनाएं (Register New Farm)
+            </Link>
           </div>
         </div>
       </section>

@@ -108,9 +108,14 @@ async function seedDatabase() {
     const animals = await Animal.create([
       {
         tagId: 'MH-12-P-1001',
+        name: 'Lakshmi (लक्ष्मी)',
         species: 'Cattle',
         breed: 'Gir Cow',
         age: 4,
+        gender: 'Female',
+        healthStatus: 'Healthy',
+        milkYieldDaily: '14.5 L',
+        lastCheckup: '28 Aug 2026',
         ownerId: farmer1._id,
         village: 'Malegaon Bk',
         block: 'Baramati',
@@ -121,68 +126,112 @@ async function seedDatabase() {
         ],
         treatmentHistory: [
           { condition: 'Mild Mastitis', date: new Date('2025-12-01'), treatment: 'Intramammary antibiotic infusion' }
+        ],
+        timeline: [
+          { type: 'Health Check', title: 'Routine Health Checkup', date: '28 Aug 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Normal vitals, healthy rumen motility' },
+          { type: 'Vaccination', title: 'FMD Booster Dose', date: '15 Jun 2026', doctor: 'Baramati Veterinary Camp', notes: 'Given subcutaneously, no adverse reaction' }
         ]
       },
       {
         tagId: 'MH-12-P-1002',
+        name: 'Gauri (गौरी)',
         species: 'Buffalo',
         breed: 'Murrah',
         age: 5,
+        gender: 'Female',
+        healthStatus: 'Needs Attention',
+        milkYieldDaily: '11.0 L',
+        lastCheckup: '02 Sep 2026',
         ownerId: farmer1._id,
         village: 'Malegaon Bk',
         block: 'Baramati',
         district: 'Pune',
         vaccinationHistory: [
           { vaccine: 'HS', date: new Date('2025-08-20'), nextDue: new Date('2026-08-20') }
+        ],
+        timeline: [
+          { type: 'Health Check', title: 'Mild Udder Warmth Noticed', date: '02 Sep 2026', doctor: 'Dr. Suresh Patil', notes: 'Early mastitis suspected, milk test recommended' }
         ]
       },
       {
         tagId: 'MH-12-P-1003',
+        name: 'Kalyani (कल्याणी)',
         species: 'Cattle',
         breed: 'Crossbred HF',
         age: 3,
+        gender: 'Female',
+        healthStatus: 'Healthy',
+        milkYieldDaily: '16.0 L',
+        lastCheckup: '15 Aug 2026',
         ownerId: farmer1._id,
         village: 'Malegaon Bk',
         block: 'Baramati',
         district: 'Pune',
-        vaccinationHistory: []
+        vaccinationHistory: [],
+        timeline: [
+          { type: 'Milk Production', title: 'Peak Lactation Recorded', date: '15 Aug 2026', notes: '16 Liters per day' }
+        ]
       },
       {
         tagId: 'MH-12-P-2001',
+        name: 'Chotu (छोटू)',
         species: 'Goat',
         breed: 'Osmanabadi',
         age: 2,
+        gender: 'Male',
+        healthStatus: 'Healthy',
+        milkYieldDaily: 'N/A',
+        lastCheckup: '20 Aug 2026',
         ownerId: farmer2._id,
         village: 'Koregaon Bhima',
         block: 'Shirur',
         district: 'Pune',
         vaccinationHistory: [
           { vaccine: 'PPR', date: new Date('2025-09-12'), nextDue: new Date('2028-09-12') }
+        ],
+        timeline: [
+          { type: 'Vaccination', title: 'PPR Annual Dose', date: '12 Sep 2025', notes: 'Administered at Shirur camp' }
         ]
       },
       {
         tagId: 'MH-12-P-2002',
+        name: 'Moti (मोती)',
         species: 'Cattle',
         breed: 'Khillari Bull',
         age: 6,
+        gender: 'Male',
+        healthStatus: 'Healthy',
+        milkYieldDaily: 'N/A',
+        lastCheckup: '10 Aug 2026',
         ownerId: farmer2._id,
         village: 'Koregaon Bhima',
         block: 'Shirur',
         district: 'Pune',
         vaccinationHistory: [
           { vaccine: 'FMD', date: new Date('2025-05-15'), nextDue: new Date('2025-11-15') }
+        ],
+        timeline: [
+          { type: 'Health Check', title: 'Pre-breeding fitness evaluation', date: '10 Aug 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Healthy muscular bull' }
         ]
       },
       {
         tagId: 'MH-12-P-3001',
+        name: 'Radha (राधा)',
         species: 'Cattle',
         breed: 'Dangi Cow',
         age: 3,
+        gender: 'Female',
+        healthStatus: 'Healthy',
+        milkYieldDaily: '9.5 L',
+        lastCheckup: '01 Sep 2026',
         ownerId: farmer3._id,
         village: 'Chakan',
         block: 'Khed',
         district: 'Pune',
-        vaccinationHistory: []
+        vaccinationHistory: [],
+        timeline: [
+          { type: 'Health Check', title: 'General Inspection', date: '01 Sep 2026', notes: 'Healthy condition' }
+        ]
       }
     ]);
 

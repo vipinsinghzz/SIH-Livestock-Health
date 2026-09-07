@@ -29,8 +29,10 @@ import AnimalDetailModal from '../components/AnimalDetailModal';
 export default function FarmerDashboard() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const farmerName = user?.name || (i18n.language.startsWith('en') ? 'Ramlal Ji' : 'रामलाल जी');
-  const locationText = `${user?.village || 'मलेगांव'}, ${user?.district || 'सीहोर'}, ${user?.state || 'मध्य प्रदेश'}`;
+  const isEnglish = i18n.language?.startsWith('en');
+  const farmerName = user?.name || (isEnglish ? 'Kisan Saathi' : 'किसान साथी');
+  const locationParts = [user?.village, user?.block, user?.district || 'Pune'].filter(Boolean);
+  const locationText = locationParts.length > 0 ? locationParts.join(', ') : (isEnglish ? 'Pune, Maharashtra' : 'पुणे, महाराष्ट्र');
 
   const [animals, setAnimals] = useState([]);
   const [selectedAnimal, setSelectedAnimal] = useState(null);
@@ -40,25 +42,44 @@ export default function FarmerDashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [user]);
 
-  const loadDashboardData = async () => {
+  const handleModalUpdate = async (updatedAnimal) => {
+    if (updatedAnimal) {
+      setSelectedAnimal(updatedAnimal);
+      setAnimals((prev) =>
+        prev.map((a) =>
+          (a._id === updatedAnimal._id || a.id === updatedAnimal.id || a.tagId === updatedAnimal.tagId)
+            ? updatedAnimal
+            : a
+        )
+      );
+    }
+    await loadDashboardData(updatedAnimal?._id || selectedAnimal?._id);
+  };
+
+  const loadDashboardData = async (targetId) => {
     try {
       const [animList, notifs] = await Promise.all([
         animalService.getAnimals(),
         notificationService.getNotifications()
       ]);
-      setAnimals(animList);
-      setNotifications(notifs);
+      setAnimals(animList || []);
+      setNotifications(notifs || []);
+      const activeId = targetId || selectedAnimal?._id || selectedAnimal?.id;
+      if (activeId && animList) {
+        const found = animList.find((a) => a._id === activeId || a.id === activeId || a.tagId === activeId);
+        if (found) setSelectedAnimal(found);
+      }
     } catch (err) {
       console.error('Error loading farmer dashboard:', err);
     }
   };
 
-  const totalCount = animals.length || 8;
-  const healthyCount = animals.filter((a) => a.healthStatus === 'Healthy').length || 6;
-  const attentionCount = animals.filter((a) => a.healthStatus === 'Needs Attention').length || 1;
-  const criticalCount = animals.filter((a) => a.healthStatus === 'Critical').length || 1;
+  const totalCount = animals.length;
+  const healthyCount = animals.filter((a) => a.healthStatus === 'Healthy').length;
+  const attentionCount = animals.filter((a) => a.healthStatus === 'Needs Attention').length;
+  const criticalCount = animals.filter((a) => a.healthStatus === 'Critical').length;
 
   return (
     <div className="min-h-screen bg-[#fafaf9] pb-24 lg:pb-12 px-4 sm:px-6 lg:px-8 py-6 space-y-6 max-w-6xl mx-auto">
@@ -341,42 +362,62 @@ export default function FarmerDashboard() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {animals.slice(0, 3).map((a) => (
-            <div
-              key={a._id}
-              className="p-4 bg-stone-50 rounded-xl border border-stone-200 flex flex-col justify-between space-y-3"
+        {animals.length === 0 ? (
+          <div className="p-8 text-center bg-stone-50 rounded-2xl border border-dashed border-stone-300 space-y-3">
+            <span className="text-4xl block">🐄</span>
+            <h3 className="font-bold text-slate-800 text-sm">
+              {isEnglish ? 'No animals registered in your herd yet' : 'आपके खाते में अभी कोई पशु पंजीकृत नहीं है'}
+            </h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              {isEnglish
+                ? 'Register your cattle, buffalo, goats or sheep to monitor individual health, milk yield, and vaccination dates.'
+                : 'स्वास्थ्य, टीकाकरण व दुग्ध उत्पादन ट्रैकिंग के लिए अपने पशुओं को जोड़ें।'}
+            </p>
+            <Link
+              to="/animals"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">
-                    {a.species === 'Buffalo' ? '🦬' : a.species === 'Goat' ? '🐐' : '🐄'}
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">{a.name}</h3>
-                    <p className="text-[11px] text-slate-500">{a.species} • {a.age} {t('farmer_dash.years')}</p>
+              <Plus className="w-4 h-4" /> {isEnglish ? 'Register First Animal' : 'पहला पशु जोड़ें'}
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {animals.slice(0, 3).map((a) => (
+              <div
+                key={a._id}
+                className="p-4 bg-stone-50 rounded-xl border border-stone-200 flex flex-col justify-between space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">
+                      {a.species === 'Buffalo' ? '🦬' : a.species === 'Goat' ? '🐐' : '🐄'}
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">{a.name}</h3>
+                      <p className="text-[11px] text-slate-500">{a.species} • {a.age} {t('farmer_dash.years')}</p>
+                    </div>
                   </div>
+
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-stone-200">
+                    {a.healthStatus}
+                  </span>
                 </div>
 
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-stone-200">
-                  {a.healthStatus}
-                </span>
-              </div>
+                <div className="text-[11px] text-slate-500 flex justify-between border-t border-stone-200/60 pt-2">
+                  <span>Tag: {a.tagId}</span>
+                  <span>{t('farmer_dash.milk_yield')}: {a.milkYieldDaily}</span>
+                </div>
 
-              <div className="text-[11px] text-slate-500 flex justify-between border-t border-stone-200/60 pt-2">
-                <span>Tag: {a.tagId}</span>
-                <span>{t('farmer_dash.milk_yield')}: {a.milkYieldDaily}</span>
+                <button
+                  onClick={() => setSelectedAnimal(a)}
+                  className="w-full text-center bg-white hover:bg-stone-100 text-slate-800 text-xs font-semibold py-1.5 rounded-lg border border-stone-300 transition cursor-pointer"
+                >
+                  {t('farmer_dash.view_details')}
+                </button>
               </div>
-
-              <button
-                onClick={() => setSelectedAnimal(a)}
-                className="w-full text-center bg-white hover:bg-stone-100 text-slate-800 text-xs font-semibold py-1.5 rounded-lg border border-stone-300 transition"
-              >
-                {t('farmer_dash.view_details')}
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Animal Detail Modal */}
@@ -384,7 +425,7 @@ export default function FarmerDashboard() {
         <AnimalDetailModal
           animal={selectedAnimal}
           onClose={() => setSelectedAnimal(null)}
-          onUpdate={loadDashboardData}
+          onUpdate={handleModalUpdate}
         />
       )}
     </div>

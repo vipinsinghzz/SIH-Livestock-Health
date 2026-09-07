@@ -166,33 +166,70 @@ export default function Navbar() {
                   title={t('nav.switch_role')}
                 >
                   <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
-                  <span className="hidden sm:inline">
-                    {user.role === 'farmer' ? t('roles.farmer') : user.role === 'field_worker' ? t('roles.field_worker') : t('roles.officer')}
+                  <span className="hidden sm:inline font-bold">
+                    {user.name || (user.role === 'farmer' ? t('roles.farmer') : user.role === 'field_worker' ? t('roles.field_worker') : t('roles.officer'))}
                   </span>
                 </button>
 
                 {personaDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-stone-200 py-1.5 z-50 text-xs">
-                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase">
-                      {t('nav.switch_role')}
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 z-50 text-xs space-y-1">
+                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      {t('nav.switch_role')} • Test Profiles
+                    </div>
+
+                    <div className="px-3 py-1 text-[10px] font-bold text-emerald-800 bg-emerald-50">
+                      🌾 पंजीकृत किसान (Distinct Farmers):
                     </div>
                     <button
-                      onClick={() => handlePersonaChange('farmer')}
+                      onClick={() => handlePersonaChange('farmer_ramesh')}
                       className={`w-full text-left px-3 py-2 hover:bg-stone-50 flex items-center justify-between ${
-                        user.role === 'farmer' ? 'font-bold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'
+                        user.email === 'farmer@pashurakshak.in' ? 'font-bold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <span>🌾 {t('roles.farmer')}</span>
-                      {user.role === 'farmer' && <span>✓</span>}
+                      <div>
+                        <div className="font-bold">रमेश पाटिल (Ramesh)</div>
+                        <div className="text-[10px] text-slate-500">बारामती • 3 पशु (Gir, Murrah, HF)</div>
+                      </div>
+                      {user.email === 'farmer@pashurakshak.in' && <span className="text-emerald-700 font-bold">✓</span>}
                     </button>
+                    <button
+                      onClick={() => handlePersonaChange('farmer_santosh')}
+                      className={`w-full text-left px-3 py-2 hover:bg-stone-50 flex items-center justify-between ${
+                        user.email === 'santosh@pashurakshak.in' ? 'font-bold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">संतोष शिंदे (Santosh)</div>
+                        <div className="text-[10px] text-slate-500">शिरूर • 2 पशु (Goat, Bull)</div>
+                      </div>
+                      {user.email === 'santosh@pashurakshak.in' && <span className="text-emerald-700 font-bold">✓</span>}
+                    </button>
+                    <button
+                      onClick={() => handlePersonaChange('farmer_sunita')}
+                      className={`w-full text-left px-3 py-2 hover:bg-stone-50 flex items-center justify-between ${
+                        user.email === 'sunita@pashurakshak.in' ? 'font-bold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">सुनीता गायकवाड़ (Sunita)</div>
+                        <div className="text-[10px] text-slate-500">खेड • 1 पशु (Dangi Cow)</div>
+                      </div>
+                      {user.email === 'sunita@pashurakshak.in' && <span className="text-emerald-700 font-bold">✓</span>}
+                    </button>
+
+                    <div className="border-t border-stone-100 my-1" />
+
+                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      अधिकारी व डॉक्टर:
+                    </div>
                     <button
                       onClick={() => handlePersonaChange('field_worker')}
                       className={`w-full text-left px-3 py-2 hover:bg-stone-50 flex items-center justify-between ${
                         user.role === 'field_worker' ? 'font-bold text-blue-700 bg-blue-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <span>🩺 {t('roles.field_worker')}</span>
-                      {user.role === 'field_worker' && <span>✓</span>}
+                      <span>🩺 {t('roles.field_worker')} (Dr. Ananya)</span>
+                      {user.role === 'field_worker' && <span className="text-blue-700 font-bold">✓</span>}
                     </button>
                     <button
                       onClick={() => handlePersonaChange('officer')}
@@ -200,33 +237,41 @@ export default function Navbar() {
                         user.role === 'officer' ? 'font-bold text-purple-700 bg-purple-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <span>🏛️ {t('roles.officer')}</span>
-                      {user.role === 'officer' && <span>✓</span>}
+                      <span>🏛️ {t('roles.officer')} (Dr. Suresh)</span>
+                      {user.role === 'officer' && <span className="text-purple-700 font-bold">✓</span>}
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Logout or Login */}
+            {/* Logout or Login/Register */}
             {user ? (
               <button
                 onClick={() => {
                   logout();
                   navigate('/login');
                 }}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-stone-100 rounded-lg transition"
+                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-stone-100 rounded-lg transition cursor-pointer"
                 title={t('nav.logout')}
               >
                 <LogOut className="w-4 h-4" />
               </button>
             ) : (
-              <Link
-                to="/login"
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition"
-              >
-                {t('nav.login')}
-              </Link>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  to="/login"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs"
+                >
+                  {t('nav.login')}
+                </Link>
+                <Link
+                  to="/register"
+                  className="hidden sm:inline-block px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold transition border border-stone-200"
+                >
+                  पंजीकरण
+                </Link>
+              </div>
             )}
 
             {/* Mobile menu trigger */}

@@ -57,22 +57,31 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem('pashurakshak_user') || '{}');
+      const uid = u._id || u.id;
+      if (uid) localStorage.removeItem(`cached_animals_${uid}`);
+    } catch (e) {}
+    localStorage.removeItem('cached_animals');
     setToken(null);
     setUser(null);
     localStorage.removeItem('pashurakshak_token');
     localStorage.removeItem('pashurakshak_user');
   };
 
-  // Quick Persona switcher for easy evaluation
-  const loginAsPersona = async (personaRole) => {
+  // Quick Persona switcher for easy evaluation across different farmers and roles
+  const loginAsPersona = async (personaKey) => {
     const credentials = {
       farmer: { email: 'farmer@pashurakshak.in', password: 'Farmer@123' },
+      farmer_ramesh: { email: 'farmer@pashurakshak.in', password: 'Farmer@123' },
+      farmer_santosh: { email: 'santosh@pashurakshak.in', password: 'Farmer@123' },
+      farmer_sunita: { email: 'sunita@pashurakshak.in', password: 'Farmer@123' },
       field_worker: { email: 'vet@pashurakshak.in', password: 'Vet@123' },
       officer: { email: 'officer@pashurakshak.in', password: 'Admin@123' },
       admin: { email: 'officer@pashurakshak.in', password: 'Admin@123' }
     };
 
-    const creds = credentials[personaRole] || credentials.farmer;
+    const creds = credentials[personaKey] || credentials.farmer;
     return await login(creds.email, creds.password);
   };
 

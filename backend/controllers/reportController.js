@@ -136,8 +136,8 @@ exports.getReports = async (req, res, next) => {
 
     const query = {};
 
-    // Role-based scoping: farmers only see their reports if specified, or their district
-    if (req.user.role === 'farmer' && myReportsOnly === 'true') {
+    // Role-based scoping: farmers only see their own submitted reports by default
+    if (req.user.role === 'farmer' && !outbreakOnly) {
       query.reporterId = req.user._id;
     }
 
