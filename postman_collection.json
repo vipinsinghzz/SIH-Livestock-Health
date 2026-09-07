@@ -1,0 +1,263 @@
+{
+  "info": {
+    "name": "PashuRakshak REST API Collection",
+    "description": "Comprehensive API collection for PashuRakshak AI Livestock Disease Surveillance & Decision-Support Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. System Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login - Farmer Persona",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@pashurakshak.in\",\n  \"password\": \"Farmer@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Field Vet Persona",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vet@pashurakshak.in\",\n  \"password\": \"Vet@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - District Officer Persona",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"officer@pashurakshak.in\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Disease Reports & AI Triage",
+      "item": [
+        {
+          "name": "Submit Report (Triggers AI Triage & Outbreak Check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"species\": \"Cattle\",\n  \"symptoms\": [\"mouth blisters\", \"excessive salivation\", \"lameness\", \"high fever\"],\n  \"mortalityCount\": 0,\n  \"affectedCount\": 2,\n  \"location\": {\n    \"lat\": 18.1517,\n    \"lng\": 74.5772,\n    \"village\": \"Malegaon Bk\",\n    \"block\": \"Baramati\",\n    \"district\": \"Pune\"\n  },\n  \"notes\": \"Farmer noticed blisters on tongue and drooling since morning\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports"]
+            }
+          }
+        },
+        {
+          "name": "List All Reports (with Filters)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/reports?block=Baramati&riskLevel=High",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports"],
+              "query": [
+                { "key": "block", "value": "Baramati" },
+                { "key": "riskLevel", "value": "High" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Report By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/reports/CASE_ID_HERE",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "CASE_ID_HERE"]
+            }
+          }
+        },
+        {
+          "name": "Update Report Status (Escalation)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Field Verified\",\n  \"notes\": \"Confirmed vesicular lesions during on-site clinical check\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports/REPORT_ID_HERE/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "REPORT_ID_HERE", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Lab Referrals",
+      "item": [
+        {
+          "name": "Initiate Lab Referral",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportId\": \"REPORT_ID_HERE\",\n  \"sampleType\": \"Vesicular Fluid\",\n  \"referredLab\": \"Western Regional Disease Diagnostic Laboratory (WRDDL), Pune\",\n  \"notes\": \"Collected unruptured vesicle fluid on ice pack\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/lab-referrals",
+              "host": ["{{baseUrl}}"],
+              "path": ["lab-referrals"]
+            }
+          }
+        },
+        {
+          "name": "Update Lab Referral Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Result Confirmed\",\n  \"confirmedDisease\": \"Foot and Mouth Disease (PCR Positive)\",\n  \"notes\": \"Viral antigen confirmed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/lab-referrals/REFERRAL_ID_HERE",
+              "host": ["{{baseUrl}}"],
+              "path": ["lab-referrals", "REFERRAL_ID_HERE"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Surveillance Analytics & Trends",
+      "item": [
+        {
+          "name": "Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/summary?district=Pune",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "summary"],
+              "query": [{ "key": "district", "value": "Pune" }]
+            }
+          }
+        },
+        {
+          "name": "30-Day Case Trends",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/trends",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "trends"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Telephony / IVR Webhook Stub",
+      "item": [
+        {
+          "name": "Inbound Voice Call Webhook",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"From\": \"+919822099881\",\n  \"SpeechResult\": \"Cow has mouth blisters and drooling saliva with fever\",\n  \"Species\": \"Cattle\",\n  \"Block\": \"Baramati\",\n  \"Mortality\": \"0\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ivr/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["ivr", "webhook"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

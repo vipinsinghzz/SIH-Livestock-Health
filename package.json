@@ -1,0 +1,21 @@
+{
+  "name": "pashurakshak-platform",
+  "version": "1.0.0",
+  "description": "PashuRakshak - AI-Simulated Animal Health Surveillance & Decision-Support Platform",
+  "scripts": {
+    "seed": "node backend/seed/seedData.js",
+    "test:api": "node backend/test_api.js",
+    "start:backend": "node backend/server.js",
+    "start:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "animal-health",
+    "disease-surveillance",
+    "ai-triage",
+    "livestock",
+    "epidemiology"
+  ],
+  "author": "PashuRakshak Team",
+  "license": "ISC"
+}
