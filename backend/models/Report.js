@@ -56,6 +56,14 @@ const reportSchema = new mongoose.Schema(
         type: String // URL or base64 data string
       }
     ],
+    temperature: {
+      type: Number,
+      default: 0
+    },
+    duration: {
+      type: Number,
+      default: 0
+    },
     status: {
       type: String,
       enum: ['Reported', 'Triaged', 'Field Verified', 'Escalated', 'Contained', 'Closed'],

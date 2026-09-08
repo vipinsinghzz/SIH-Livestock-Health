@@ -4,9 +4,13 @@ const {
   createReport,
   getReports,
   getReportById,
-  updateReportStatus
+  updateReportStatus,
+  runDirectTriage
 } = require('../controllers/reportController');
 const { protect, authorize } = require('../middleware/auth');
+
+// Public/Farmer AI Triage prediction endpoint
+router.post('/triage', runDirectTriage);
 
 router.use(protect);
 

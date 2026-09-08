@@ -17,13 +17,17 @@ const triageResultSchema = new mongoose.Schema(
     suspectedDiseases: [
       {
         name: { type: String, required: true },
-        confidenceScore: { type: Number, required: true } // e.g. 0.85 (85%)
+        confidenceScore: { type: Number, required: true }, // e.g. 0.85 (85%)
+        rationale: { type: String }
       }
     ],
     recommendedAction: {
       type: String,
       required: true
     },
+    immediateFirstAid: [
+      { type: String }
+    ],
     outbreakFlag: {
       type: Boolean,
       default: false
@@ -37,9 +41,13 @@ const triageResultSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    visualScore: {
+      type: Number,
+      default: null
+    },
     modelVersion: {
       type: String,
-      default: 'mock-v0.1'
+      default: 'lsd_model.keras (EfficientNetB0)'
     }
   },
   { timestamps: true }

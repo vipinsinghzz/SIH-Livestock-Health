@@ -22,12 +22,49 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
+const { spawn } = require('child_process');
+const path = require('path');
+
+// Auto-spawn Python Deep Learning AI Service (lsd_model.keras)
+let aiServiceProcess = null;
+function startPythonAiService() {
+  const pythonScript = path.join(__dirname, 'services', 'ai_service.py');
+  console.log(`[AI Engine] Spawning Python AI Service: python ${pythonScript}...`);
+  
+  aiServiceProcess = spawn('python', [pythonScript], {
+    cwd: __dirname,
+    env: { ...process.env, KERAS_BACKEND: 'torch' },
+    stdio: 'inherit'
+  });
+
+  aiServiceProcess.on('error', (err) => {
+    console.error('[AI Engine] Warning: Could not auto-spawn Python AI service:', err.message);
+  });
+
+  aiServiceProcess.on('exit', (code, signal) => {
+    if (code !== 0 && code !== null) {
+      console.log(`[AI Engine] Python AI service exited with code ${code}.`);
+    }
+  });
+}
+
+// Clean up child process on exit
+const cleanupAiProcess = () => {
+  if (aiServiceProcess) {
+    try {
+      aiServiceProcess.kill('SIGTERM');
+    } catch (e) {}
+  }
+};
+process.on('SIGINT', () => { cleanupAiProcess(); process.exit(); });
+process.on('SIGTERM', () => { cleanupAiProcess(); process.exit(); });
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'online',
-    service: 'PashuRakshak Surveillance API',
-    aiModelVersion: 'mock-v0.1',
+    service: 'Livestock Saathi Surveillance API',
+    aiModel: 'lsd_model.keras (EfficientNetB0)',
     timestamp: new Date().toISOString()
   });
 });
@@ -49,10 +86,13 @@ const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`=======================================================`);
-  console.log(`🚀 PashuRakshak API Server running on port ${PORT}`);
-  console.log(`🤖 AI Engine: Mock Simulator (v0.1 - Spatiotemporal Cluster Detection Enabled)`);
+  console.log(`🚀 Livestock Saathi API Server running on port ${PORT}`);
+  console.log(`🤖 AI Engine: lsd_model.keras (EfficientNetB0 + PyTorch Backend)`);
   console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
   console.log(`=======================================================`);
+
+  // Start Python AI microservice
+  startPythonAiService();
 });
 
 module.exports = app;

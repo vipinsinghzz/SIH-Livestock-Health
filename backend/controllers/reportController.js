@@ -1,7 +1,7 @@
 const Report = require('../models/Report');
 const TriageResult = require('../models/TriageResult');
 const LabReferral = require('../models/LabReferral');
-const { runTriage } = require('../services/aiSimulator');
+const { predictDisease } = require('../services/aiModelService');
 const { generateAdvisoryForReport } = require('../services/advisoryGenerator');
 
 // Generate unique readable Case ID
@@ -9,6 +9,41 @@ const generateCaseId = () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
   return `CASE-${dateStr}-${randomSuffix}`;
+};
+
+// @desc    Run real-time AI triage inference using lsd_model.keras + clinical symptoms
+// @route   POST /api/reports/triage
+// @access  Public / Private
+exports.runDirectTriage = async (req, res, next) => {
+  try {
+    const {
+      species,
+      symptoms,
+      temperature,
+      duration,
+      image,
+      photos,
+      location,
+      notes
+    } = req.body;
+
+    const triageResult = await predictDisease({
+      species: species || 'Cattle',
+      symptoms: symptoms || [],
+      temperature: parseFloat(temperature || 0),
+      duration: parseFloat(duration || 0),
+      image: image || (Array.isArray(photos) && photos[0]) || null,
+      location: location || {},
+      notes: notes || ''
+    });
+
+    res.status(200).json({
+      success: true,
+      ...triageResult
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // @desc    Create a new disease/symptom report & trigger AI triage
@@ -21,10 +56,13 @@ exports.createReport = async (req, res, next) => {
       herdId,
       species,
       symptoms,
+      temperature,
+      duration,
       mortalityCount,
       affectedCount,
       location,
       photos,
+      image,
       reporterContact,
       notes
     } = req.body;
@@ -44,6 +82,10 @@ exports.createReport = async (req, res, next) => {
     }
 
     const caseId = generateCaseId();
+    const photoList = Array.isArray(photos) ? photos : [];
+    if (image && !photoList.includes(image)) {
+      photoList.unshift(image);
+    }
 
     // 1. Create Report
     const report = await Report.create({
@@ -53,6 +95,8 @@ exports.createReport = async (req, res, next) => {
       herdId: herdId || null,
       species,
       symptoms: Array.isArray(symptoms) ? symptoms : [symptoms],
+      temperature: parseFloat(temperature || 0),
+      duration: parseFloat(duration || 0),
       mortalityCount: parseInt(mortalityCount, 10) || 0,
       affectedCount: parseInt(affectedCount, 10) || 1,
       location: {
@@ -62,7 +106,7 @@ exports.createReport = async (req, res, next) => {
         block: location.block,
         district: location.district || req.user.district || 'Pune'
       },
-      photos: photos || [],
+      photos: photoList,
       reporterContact: reporterContact || {
         phone: req.user.phone,
         name: req.user.name
@@ -71,26 +115,31 @@ exports.createReport = async (req, res, next) => {
       status: 'Reported'
     });
 
-    // 2. Trigger Mock AI Triage
-    const triageData = await runTriage({
+    // 2. Trigger Deep Learning AI Triage (lsd_model.keras + Multimodal fusion)
+    const triageData = await predictDisease({
       species: report.species,
       symptoms: report.symptoms,
+      temperature: report.temperature,
+      duration: report.duration,
+      image: photoList[0] || null,
       mortalityCount: report.mortalityCount,
       affectedCount: report.affectedCount,
       location: report.location,
       notes: report.notes
     }, report._id);
 
-    // 3. Save TriageResult
+    // 3. Save TriageResult with deep learning metadata
     const triageResult = await TriageResult.create({
       reportId: report._id,
       riskLevel: triageData.riskLevel,
       suspectedDiseases: triageData.suspectedDiseases,
       recommendedAction: triageData.recommendedAction,
+      immediateFirstAid: triageData.immediateFirstAid || [],
       outbreakFlag: triageData.outbreakFlag,
       clusterDetails: triageData.clusterDetails,
       explanation: triageData.explanation,
-      modelVersion: triageData.modelVersion
+      visualScore: triageData.visualScore || null,
+      modelVersion: triageData.modelVersion || 'lsd_model.keras (EfficientNetB0)'
     });
 
     // 4. Update Report status to Triaged
@@ -107,7 +156,7 @@ exports.createReport = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Report submitted and triaged successfully.',
+      message: 'Report submitted and triaged successfully via lsd_model.keras.',
       report,
       triageResult,
       advisoryGenerated: !!advisory
