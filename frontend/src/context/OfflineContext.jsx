@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { getPendingReports, markReportSynced, saveOfflineReport } from '../services/offlineDb';
 import api from '../services/api';
@@ -10,24 +10,25 @@ export const OfflineProvider = ({ children }) => {
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMessage, setSyncStatusMessage] = useState(null);
+  const isSyncingRef = useRef(false);
 
   const refreshPendingCount = useCallback(async () => {
     try {
       const pending = await getPendingReports();
-      setPendingCount(pending.length);
+      setPendingCount(Array.isArray(pending) ? pending.length : 0);
     } catch (err) {
-      console.error('[OfflineContext] Error counting pending reports:', err);
+      console.warn('[OfflineContext] Error counting pending reports:', err?.message || err);
     }
   }, []);
 
   const syncOfflineReports = useCallback(async () => {
-    if (!isOnline || isSyncing) return;
+    if (!isOnline || isSyncingRef.current) return;
 
     try {
+      isSyncingRef.current = true;
       setIsSyncing(true);
       const pending = await getPendingReports();
-      if (pending.length === 0) {
-        setIsSyncing(false);
+      if (!pending || pending.length === 0) {
         return;
       }
 
@@ -45,7 +46,7 @@ export const OfflineProvider = ({ children }) => {
           await markReportSynced(item.id);
           successCount++;
         } catch (postErr) {
-          console.error(`[OfflineContext] Failed to sync report #${item.id}:`, postErr.message);
+          console.warn(`[OfflineContext] Failed to sync report #${item.id}:`, postErr.message);
         }
       }
 
@@ -55,23 +56,24 @@ export const OfflineProvider = ({ children }) => {
         setTimeout(() => setSyncStatusMessage(null), 5000);
       }
     } catch (err) {
-      console.error('[OfflineContext] Sync error:', err);
+      console.warn('[OfflineContext] Sync error:', err?.message || err);
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
     }
-  }, [isOnline, isSyncing, refreshPendingCount]);
+  }, [isOnline, refreshPendingCount]);
 
-  // Check pending on mount and whenever online status changes
+  // Check pending on mount
   useEffect(() => {
     refreshPendingCount();
   }, [refreshPendingCount]);
 
-  // Auto-sync when transitioning from offline to online
+  // Auto-sync only when coming online
   useEffect(() => {
     if (isOnline) {
       syncOfflineReports();
     }
-  }, [isOnline, syncOfflineReports]);
+  }, [isOnline]);
 
   const queueReport = async (reportData) => {
     const id = await saveOfflineReport(reportData);

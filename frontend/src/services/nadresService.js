@@ -32,8 +32,14 @@ export const nadresService = {
 
   async getVillageAlerts(params = {}) {
     try {
-      const query = new URLSearchParams(params).toString();
-      const res = await api.get(`/nadres/alerts?${query}`);
+      const cleanParams = {};
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          cleanParams[k] = v;
+        }
+      });
+      const query = new URLSearchParams(cleanParams).toString();
+      const res = await api.get(`/nadres/alerts${query ? `?${query}` : ''}`);
       return res.data;
     } catch (err) {
       console.warn('[nadresService] Could not fetch village alerts:', err.message);

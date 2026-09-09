@@ -81,6 +81,16 @@ const animalSchema = new mongoose.Schema(
       required: true,
       default: 'Pune'
     },
+    vaccinations: [
+      {
+        name: { type: String, required: true },
+        date: { type: Date, default: Date.now },
+        nextDue: { type: Date },
+        status: { type: String, default: 'Completed', enum: ['Completed', 'Scheduled', 'Overdue'] },
+        batchNumber: { type: String, default: '' },
+        camp: { type: String, default: '' }
+      }
+    ],
     vaccinationHistory: [
       {
         vaccine: { type: String, required: true },

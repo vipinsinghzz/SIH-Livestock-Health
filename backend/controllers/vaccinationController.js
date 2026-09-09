@@ -1,4 +1,6 @@
 const VaccinationDrive = require('../models/VaccinationDrive');
+const Animal = require('../models/Animal');
+const mongoose = require('mongoose');
 
 // Haversine formula for distance calculation in kilometers
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -125,6 +127,66 @@ exports.getVaccinationDrives = async (req, res, next) => {
   }
 };
 
+// @desc    Get vaccination camp registrations for the logged in farmer
+// @route   GET /api/vaccination-drives/my-registrations
+// @access  Private (Farmers)
+exports.getMyRegistrations = async (req, res, next) => {
+  try {
+    const userId = req.user ? req.user._id : null;
+    const userPhone = req.user ? req.user.phone : null;
+
+    const query = {
+      $or: [
+        { 'registrations.farmerId': userId },
+        ...(userPhone ? [{ 'registrations.farmerPhone': userPhone }] : [])
+      ]
+    };
+
+    const drives = await VaccinationDrive.find(query)
+      .sort({ campDate: 1 })
+      .lean();
+
+    const myAppointments = [];
+    drives.forEach((d) => {
+      const userRegs = (d.registrations || []).filter(
+        (r) =>
+          (userId && r.farmerId && r.farmerId.toString() === userId.toString()) ||
+          (userPhone && r.farmerPhone === userPhone)
+      );
+
+      userRegs.forEach((reg) => {
+        myAppointments.push({
+          campId: d.campId,
+          driveId: d._id,
+          vaccine: d.vaccine,
+          vaccineFullName: d.vaccineFullName || d.vaccine,
+          venue: d.venue,
+          village: d.village,
+          block: d.block,
+          district: d.district,
+          campDate: d.campDate,
+          startTime: d.startTime,
+          endTime: d.endTime,
+          assignedOfficer: d.assignedOfficer,
+          token: reg.token,
+          animalCount: reg.animalCount,
+          animalIds: reg.animalIds || [],
+          registeredAt: reg.registeredAt,
+          status: d.status
+        });
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      count: myAppointments.length,
+      registrations: myAppointments
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Register livestock for a vaccination camp
 // @route   POST /api/vaccination-drives/:id/register
 // @access  Public / Private (Farmers)
@@ -138,7 +200,16 @@ exports.registerForCamp = async (req, res, next) => {
         : parseInt(animalCount, 10) || 1
     );
 
-    const drive = await VaccinationDrive.findById(req.params.id);
+    const paramId = req.params.id;
+    let drive = null;
+
+    if (mongoose.Types.ObjectId.isValid(paramId)) {
+      drive = await VaccinationDrive.findById(paramId);
+    }
+    if (!drive) {
+      drive = await VaccinationDrive.findOne({ campId: paramId });
+    }
+
     if (!drive) {
       return res.status(404).json({
         success: false,
@@ -155,9 +226,68 @@ exports.registerForCamp = async (req, res, next) => {
 
     drive.bookedSlots = (drive.bookedSlots || 0) + countToBook;
     drive.remainingSlots = Math.max(0, (drive.capacity || 200) - drive.bookedSlots);
-    await drive.save();
 
     const token = `#CAMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const fName = farmerName || (req.user ? req.user.name : 'Farmer');
+    const fPhone = farmerPhone || (req.user ? req.user.phone : '');
+    const fId = req.user ? req.user._id : null;
+
+    // Record registration entry in drive
+    drive.registrations.push({
+      farmerId: fId,
+      farmerName: fName,
+      farmerPhone: fPhone,
+      animalIds: Array.isArray(animalIds) ? animalIds : [],
+      animalCount: countToBook,
+      token,
+      registeredAt: new Date()
+    });
+
+    await drive.save();
+
+    // Link vaccination appointment to animal records in DB
+    const targetAnimals = [];
+    if (Array.isArray(animalIds) && animalIds.length > 0) {
+      for (const aId of animalIds) {
+        let animal = null;
+        if (mongoose.Types.ObjectId.isValid(aId)) {
+          animal = await Animal.findById(aId);
+        }
+        if (!animal) {
+          animal = await Animal.findOne({ tagId: aId });
+        }
+        if (animal) targetAnimals.push(animal);
+      }
+    } else if (fId) {
+      // If no specific animal specified, link to farmer's registered animals up to countToBook
+      const farmerAnimals = await Animal.find({ ownerId: fId }).limit(countToBook);
+      targetAnimals.push(...farmerAnimals);
+    }
+
+    const campDateObj = new Date(drive.campDate || drive.startDate || Date.now());
+    const campDateFormatted = campDateObj.toLocaleDateString('en-GB');
+
+    for (const animal of targetAnimals) {
+      // Add scheduled vaccination in animal's vaccinations
+      animal.vaccinations.push({
+        name: drive.vaccineFullName || drive.vaccine,
+        date: campDateObj,
+        nextDue: campDateObj,
+        status: 'Scheduled',
+        camp: `${drive.venue || 'Veterinary Camp'}, ${drive.village}`
+      });
+
+      // Add timeline event
+      animal.timeline.unshift({
+        type: 'Vaccination',
+        title: `Camp Appointment: ${drive.vaccineFullName || drive.vaccine}`,
+        date: campDateFormatted,
+        doctor: drive.assignedOfficer || 'Veterinarian',
+        notes: `Venue: ${drive.venue} • Appointment Token: ${token} • Slots: ${countToBook}`
+      });
+
+      await animal.save();
+    }
 
     res.status(200).json({
       success: true,
@@ -169,12 +299,14 @@ exports.registerForCamp = async (req, res, next) => {
         id: drive._id,
         campId: drive.campId,
         vaccine: drive.vaccine,
+        vaccineFullName: drive.vaccineFullName,
         venue: drive.venue,
         village: drive.village,
         block: drive.block,
         campDate: drive.campDate,
         startTime: drive.startTime
-      }
+      },
+      linkedAnimalsCount: targetAnimals.length
     });
   } catch (error) {
     next(error);

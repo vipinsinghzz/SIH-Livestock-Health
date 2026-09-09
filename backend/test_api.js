@@ -62,7 +62,38 @@ async function testBackend() {
     const summaryData = await summaryRes.json();
     console.log('✅ Dashboard Summary: Total Reports:', summaryData.data?.totalReports, 'Active Cases:', summaryData.data?.activeCases, 'Coverage Pct:', summaryData.data?.vaccination?.coveragePct + '%');
 
-    // 5. Test IVR Webhook
+    // 5. Test Vaccination Camps & Registration Linking
+    console.log('⏳ Testing Vaccination Camps API & Animal Appointment Linking...');
+    const campsRes = await fetch('http://127.0.0.1:5099/api/vaccination-drives?status=Upcoming,Ongoing&limit=10');
+    const campsData = await campsRes.json();
+    console.log('✅ Vaccination Camps Query:', campsData.count, 'camps found');
+    if (!campsData.drives || campsData.drives.length === 0) throw new Error('No camps returned');
+
+    const testCamp = campsData.drives[0];
+    const campRegRes = await fetch(`http://127.0.0.1:5099/api/vaccination-drives/${testCamp.campId}/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        animalCount: 1,
+        farmerName: loginData.user.name,
+        farmerPhone: loginData.user.phone
+      })
+    });
+    const campRegData = await campRegRes.json();
+    if (!campRegData.success) throw new Error('Camp registration failed: ' + JSON.stringify(campRegData));
+    console.log('✅ Camp Registration Token:', campRegData.token, 'Linked Animals:', campRegData.linkedAnimalsCount);
+
+    // Verify my-registrations
+    const myRegsRes = await fetch('http://127.0.0.1:5099/api/vaccination-drives/my-registrations', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const myRegsData = await myRegsRes.json();
+    console.log('✅ Farmer My-Registrations:', myRegsData.count, 'appointments confirmed');
+
+    // 6. Test IVR Webhook
     const ivrRes = await fetch('http://127.0.0.1:5099/api/ivr/webhook', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,7 +108,7 @@ async function testBackend() {
     const ivrData = await ivrRes.json();
     console.log('✅ IVR Telephony Webhook processed case:', ivrData.caseId, 'Risk:', ivrData.triageResult?.riskLevel, 'Top:', ivrData.triageResult?.suspectedDiseases?.[0]?.name);
 
-    console.log('\n🎉 ALL BACKEND API & MOCK AI SERVICES VERIFIED SUCCESSFULLY!\n');
+    console.log('\n🎉 ALL BACKEND API, VACCINATION LINKING & AI SERVICES VERIFIED SUCCESSFULLY!\n');
   } finally {
     server.close();
     process.exit(0);

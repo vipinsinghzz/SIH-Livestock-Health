@@ -128,6 +128,39 @@ const vaccinationDriveSchema = new mongoose.Schema(
       default: 'Upcoming',
       index: true
     },
+    registrations: [
+      {
+        farmerId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        },
+        farmerName: {
+          type: String,
+          default: ''
+        },
+        farmerPhone: {
+          type: String,
+          default: ''
+        },
+        animalIds: [
+          {
+            type: String
+          }
+        ],
+        animalCount: {
+          type: Number,
+          default: 1
+        },
+        token: {
+          type: String,
+          required: true
+        },
+        registeredAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
     notes: {
       type: String
     }

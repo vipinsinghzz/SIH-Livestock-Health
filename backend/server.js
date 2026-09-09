@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -23,7 +25,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { spawn } = require('child_process');
-const path = require('path');
 
 // Auto-spawn Python Deep Learning AI Service (lsd_model.keras)
 let aiServiceProcess = null;
@@ -33,7 +34,7 @@ function startPythonAiService() {
   
   aiServiceProcess = spawn('python', [pythonScript], {
     cwd: __dirname,
-    env: { ...process.env, KERAS_BACKEND: 'torch' },
+    env: { ...process.env, KERAS_BACKEND: process.env.KERAS_BACKEND || 'tensorflow' },
     stdio: 'inherit'
   });
 
@@ -84,6 +85,7 @@ app.use('/api/vaccination-drives', require('./routes/vaccinationRoutes'));
 app.use('/api/weather', require('./routes/weatherRoutes'));
 app.use('/api/nadres', require('./routes/nadresRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/kisan-saathi', require('./routes/kisanSaathiRoutes'));
 
 // Centralized error handling
 app.use(errorHandler);

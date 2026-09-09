@@ -4,6 +4,8 @@
   "description": "PashuRakshak - AI-Simulated Animal Health Surveillance & Decision-Support Platform",
   "scripts": {
     "seed": "node backend/seed/seedData.js",
+    "seed:camps": "node backend/seed/seedVaccinationCamps.js",
+    "seed:all": "node backend/seed/seedData.js && node backend/seed/seedVaccinationCamps.js",
     "test:api": "node backend/test_api.js",
     "start:backend": "node backend/server.js",
     "start:frontend": "cd frontend && npm run dev",

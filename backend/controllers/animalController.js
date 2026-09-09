@@ -187,16 +187,41 @@ exports.updateAnimal = async (req, res, next) => {
     if (village) animal.village = village;
     if (block) animal.block = block;
 
-    if (newVaccination && newVaccination.vaccine) {
+    // Full array updates (sent by VaccinationPage and other components)
+    if (Array.isArray(req.body.vaccinationHistory)) {
+      animal.vaccinationHistory = req.body.vaccinationHistory;
+    }
+    if (Array.isArray(req.body.vaccinations)) {
+      animal.vaccinations = req.body.vaccinations;
+    }
+    if (Array.isArray(req.body.timeline)) {
+      animal.timeline = req.body.timeline;
+    }
+
+    if (newVaccination && (newVaccination.vaccine || newVaccination.name)) {
+      const vName = newVaccination.vaccine || newVaccination.name;
+      const vDate = newVaccination.date || new Date();
+      const vNextDue = newVaccination.nextDue || null;
+
       animal.vaccinationHistory.push({
-        vaccine: newVaccination.vaccine,
-        date: newVaccination.date || new Date(),
-        nextDue: newVaccination.nextDue || null,
+        vaccine: vName,
+        date: vDate,
+        nextDue: vNextDue,
         dose: newVaccination.dose || 'Primary Dose',
         batchNumber: newVaccination.batchNumber || '',
         administeredBy: newVaccination.administeredBy || '',
         camp: newVaccination.camp || '',
         notes: newVaccination.notes || ''
+      });
+
+      // Also ensure vaccinations list is kept in sync
+      animal.vaccinations.push({
+        name: vName,
+        date: vDate,
+        nextDue: vNextDue,
+        status: newVaccination.status || 'Completed',
+        batchNumber: newVaccination.batchNumber || '',
+        camp: newVaccination.camp || ''
       });
     }
 

@@ -35,10 +35,10 @@ router.get('/alerts', async (req, res) => {
   try {
     const { district, state, village, block, lat, lng } = req.query;
     const data = await nadresService.getVillageAlerts({
-      district: district || 'Pune',
+      district: district || '',
       state: state || 'Maharashtra',
-      village: village || 'Rui',
-      block: block || 'Baramati',
+      village: village || '',
+      block: block || '',
       lat: lat ? parseFloat(lat) : null,
       lng: lng ? parseFloat(lng) : null
     });

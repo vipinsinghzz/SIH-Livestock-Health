@@ -82,6 +82,10 @@ function AppContent() {
 
           {/* Accessible Farmer & Public Features */}
           <Route path="/kisan-saathi" element={<KisanSaathiPage />} />
+          <Route path="/kisan%20saathi" element={<Navigate to="/kisan-saathi" replace />} />
+          <Route path="/kisan saathi" element={<Navigate to="/kisan-saathi" replace />} />
+          <Route path="/kisansaathi" element={<Navigate to="/kisan-saathi" replace />} />
+          <Route path="/kisan_saathi" element={<Navigate to="/kisan-saathi" replace />} />
           <Route path="/report-sick" element={<DiseaseDetectionPage />} />
           <Route path="/veterinary-help" element={<VeterinaryHelpPage />} />
           <Route path="/emergency-sos" element={<EmergencySOSPage />} />

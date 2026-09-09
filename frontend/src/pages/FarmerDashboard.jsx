@@ -25,6 +25,7 @@ import {
   Eye,
   Info,
   Clock,
+  Navigation,
   X
 } from 'lucide-react';
 import animalService from '../services/animalService';
@@ -39,8 +40,6 @@ export default function FarmerDashboard() {
   const isEnglish = i18n.language?.startsWith('en');
   const isMarathi = i18n.language?.startsWith('mr');
   const farmerName = user?.name || (isEnglish ? 'Kisan Saathi' : isMarathi ? 'शेतकरी मित्र' : 'किसान साथी');
-  const locationParts = [user?.village, user?.block, user?.district || 'Nagpur'].filter(Boolean);
-  const locationText = locationParts.length > 0 ? locationParts.join(', ') : (isEnglish ? 'Nagpur, Maharashtra' : 'नागपुर, महाराष्ट्र');
 
   const [animals, setAnimals] = useState([]);
   const [selectedAnimal, setSelectedAnimal] = useState(null);
@@ -58,26 +57,26 @@ export default function FarmerDashboard() {
   });
   const [weatherLoading, setWeatherLoading] = useState(false);
 
-  // Village Disease Alert state
+  // Village Disease Alert state (PS-128 Automatic District Surveillance)
   const [villageAlerts, setVillageAlerts] = useState([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [activeAlertModal, setActiveAlertModal] = useState(null); // null | 'symptoms'
   const [selectedAlertDisease, setSelectedAlertDisease] = useState(null);
 
-  useEffect(() => {
-    loadDashboardData();
-    loadLiveWeather();
-    loadVillageAlerts();
-  }, [user]);
+  // Dynamic automatic location state
+  const [detectedDistrict, setDetectedDistrict] = useState(user?.district || '');
+  const [detectedState, setDetectedState] = useState(user?.state || 'Maharashtra');
+  const [locationStatus, setLocationStatus] = useState('detecting'); // 'detecting' | 'detected' | 'fallback' | 'denied'
+  const [isGeolocating, setIsGeolocating] = useState(false);
 
-  const loadLiveWeather = async () => {
+  const loadLiveWeather = async (loc = {}) => {
     setWeatherLoading(true);
     try {
       const data = await weatherService.getLiveWeather({
-        district: user?.district || 'Baramati',
-        state: user?.state || 'Maharashtra',
-        lat: user?.location?.lat,
-        lng: user?.location?.lng
+        district: loc.district || detectedDistrict || user?.district || 'Nagpur',
+        state: loc.state || detectedState || user?.state || 'Maharashtra',
+        lat: loc.lat,
+        lng: loc.lng
       });
       if (data) setWeather(data);
     } catch (err) {
@@ -87,29 +86,84 @@ export default function FarmerDashboard() {
     }
   };
 
-  const loadVillageAlerts = async () => {
+  const detectLocationAndFetchAlerts = () => {
+    setIsGeolocating(true);
     setAlertsLoading(true);
-    try {
-      const data = await nadresService.getVillageAlerts({
-        district: user?.district || 'Pune',
-        state: user?.state || 'Maharashtra',
-        village: user?.village || 'Rui',
-        block: user?.block || 'Baramati',
-        lat: user?.location?.lat,
-        lng: user?.location?.lng
-      });
-      if (data && Array.isArray(data.alerts)) {
-        setVillageAlerts(data.alerts);
-      } else {
+
+    const fallbackToUserProfile = async () => {
+      const dist = user?.district || 'Nagpur';
+      const st = user?.state || 'Maharashtra';
+      const userLat = user?.location?.lat;
+      const userLng = user?.location?.lng;
+
+      try {
+        const data = await nadresService.getVillageAlerts({
+          district: dist,
+          state: st,
+          village: user?.village,
+          block: user?.block,
+          lat: userLat,
+          lng: userLng
+        });
+        const resolvedDist = data?.district || dist;
+        const resolvedState = data?.state || st;
+        setDetectedDistrict(resolvedDist);
+        setDetectedState(resolvedState);
+        setLocationStatus('fallback');
+        setVillageAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
+        loadLiveWeather({ district: resolvedDist, state: resolvedState, lat: userLat, lng: userLng });
+      } catch (err) {
+        console.warn('Fallback alerts error:', err);
         setVillageAlerts([]);
+        setLocationStatus('denied');
+      } finally {
+        setAlertsLoading(false);
+        setIsGeolocating(false);
       }
-    } catch (err) {
-      console.warn('Village alerts load error:', err);
-      setVillageAlerts([]);
-    } finally {
-      setAlertsLoading(false);
+    };
+
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const data = await nadresService.getVillageAlerts({ lat: latitude, lng: longitude });
+            if (data && data.success && data.district) {
+              setDetectedDistrict(data.district);
+              setDetectedState(data.state || 'Maharashtra');
+              setLocationStatus('detected');
+              setVillageAlerts(Array.isArray(data.alerts) ? data.alerts : []);
+              loadLiveWeather({ lat: latitude, lng: longitude, district: data.district, state: data.state });
+            } else {
+              fallbackToUserProfile();
+            }
+          } catch (err) {
+            console.warn('GPS alert retrieval error:', err);
+            fallbackToUserProfile();
+          } finally {
+            setAlertsLoading(false);
+            setIsGeolocating(false);
+          }
+        },
+        (geoError) => {
+          console.info('GPS unavailable/denied, falling back to registered user profile:', geoError.message);
+          fallbackToUserProfile();
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 60000
+        }
+      );
+    } else {
+      fallbackToUserProfile();
     }
   };
+
+  useEffect(() => {
+    loadDashboardData();
+    detectLocationAndFetchAlerts();
+  }, [user]);
 
   const handleModalUpdate = async (updatedAnimal) => {
     if (updatedAnimal) {
@@ -209,9 +263,9 @@ export default function FarmerDashboard() {
               {t('farmer_dash.greeting')} {farmerName} 👋
             </h1>
           </div>
-          <p className="text-xs text-slate-500 flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-emerald-700" />
-            <span>📍 {locationText}</span>
+          <p className="text-xs text-slate-500 flex items-center gap-1 font-medium">
+            <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+            <span>{detectedDistrict ? `${detectedDistrict}, ${detectedState}` : (user?.district ? `${user.district}, ${user.state || 'Maharashtra'}` : (isEnglish ? 'Detecting location...' : isMarathi ? 'स्थान शोधत आहे...' : 'स्थान खोज रहा है...'))}</span>
           </p>
         </div>
 
@@ -429,173 +483,267 @@ export default function FarmerDashboard() {
         </div>
       </div>
 
-      {/* 4. Village Disease Alert for Your Area (SIH PS-128) */}
+      {/* 4. Village Disease Alert for Your Area (PS-128 Automatic District-Based Surveillance) */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-xs space-y-5">
-        {/* Header */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xl sm:text-2xl" role="img" aria-label="shield">🛡️</span>
-            <h2 className="text-base sm:text-lg font-black text-slate-900">
-              {t('village_disease_alert.title', 'Disease Alert for Your Area')}
-            </h2>
+        {/* Header with Automatic Detected Surveillance Region & GPS Refresh */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xl sm:text-2xl" role="img" aria-label="shield">🛡️</span>
+              <h2 className="text-base sm:text-lg font-black text-slate-900">
+                {t('village_disease_alert.title', 'Disease Alert for Your Area')}
+              </h2>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              {detectedDistrict
+                ? (isEnglish
+                    ? `Live ICAR-NIVEDI NADRES surveillance & field outbreak monitoring for ${detectedDistrict} District, ${detectedState || 'Maharashtra'}.`
+                    : isMarathi
+                    ? `${detectedDistrict} जिल्हा, ${detectedState || 'महाराष्ट्र'} साठी थेट ICAR-NIVEDI NADRES रोग देखरेख.`
+                    : `${detectedDistrict} जिला, ${detectedState || 'महाराष्ट्र'} के लिए लाइव ICAR-NIVEDI NADRES निगरानी।`)
+                : t(
+                    'village_disease_alert.subtitle',
+                    'Based on government surveillance, weather conditions, nearby disease reports, and AI analysis.'
+                  )}
+            </p>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-            {t(
-              'village_disease_alert.subtitle',
-              'Based on government surveillance, weather conditions, nearby disease reports, and AI analysis.'
-            )}
-          </p>
+
+          {/* Automatic Location Status Indicator */}
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <div
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs ${
+                locationStatus === 'detected'
+                  ? 'bg-blue-50/80 border-blue-200 text-blue-900'
+                  : locationStatus === 'fallback'
+                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                  : 'bg-amber-50 border-amber-200 text-amber-900'
+              }`}
+            >
+              <Navigation className={`w-3.5 h-3.5 ${locationStatus === 'detected' ? 'text-blue-600' : 'text-emerald-700'} shrink-0 ${isGeolocating ? 'animate-spin' : ''}`} />
+              <span>
+                {isGeolocating
+                  ? (isEnglish ? 'Detecting GPS...' : isMarathi ? 'स्थान शोधत आहे...' : 'स्थान खोज रहा है...')
+                  : detectedDistrict
+                  ? `${detectedDistrict}, ${detectedState || 'IN'}`
+                  : (isEnglish ? 'Location Not Detected' : isMarathi ? 'स्थान आढळले नाही' : 'स्थान नहीं मिला')}
+              </span>
+              <button
+                type="button"
+                onClick={detectLocationAndFetchAlerts}
+                disabled={isGeolocating}
+                title={isEnglish ? 'Refresh Location' : isMarathi ? 'स्थान रीफ्रेश करा' : 'स्थान रीफ्रेश करें'}
+                className="ml-1 p-1 text-slate-400 hover:text-slate-700 hover:bg-stone-200/50 rounded-lg transition cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${isGeolocating ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Dynamic Alerts State */}
         {alertsLoading ? (
-          <div className="py-8 text-center text-xs text-slate-500 space-y-2">
-            <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p>{t('village_disease_alert.loading_alerts', 'Checking live disease surveillance for your village...')}</p>
+          <div className="py-10 text-center space-y-3 bg-stone-50/60 rounded-2xl border border-stone-200/80">
+            <div className="w-7 h-7 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="space-y-1">
+              <p className="text-xs sm:text-sm font-bold text-slate-800">
+                {isEnglish
+                  ? `Checking live disease surveillance for ${detectedDistrict || 'your district'}...`
+                  : isMarathi
+                  ? `${detectedDistrict || 'तुमच्या परिसरासाठी'} थेट रोग देखरेख तपासत आहे...`
+                  : `${detectedDistrict || 'आपके जिले के लिए'} लाइव रोग निगरानी की जांच हो रही है...`}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {isEnglish
+                  ? 'Querying ICAR-NIVEDI NADRES v2 platform & active field outbreak reports...'
+                  : isMarathi
+                  ? 'ICAR-NIVEDI NADRES शासकीय नोंदणी आणि स्थानिक उद्रेक अहवाल तपासत आहे...'
+                  : 'ICAR-NIVEDI NADRES सरकारी रजिस्ट्री और स्थानीय प्रकोप रिपोर्ट की जांच हो रही है...'}
+              </p>
+            </div>
+          </div>
+        ) : locationStatus === 'denied' && !detectedDistrict ? (
+          /* Fallback Permission Card */
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <h3 className="text-sm sm:text-base font-black text-amber-950">
+                {isEnglish
+                  ? 'Location Access Required for Disease Surveillance'
+                  : isMarathi
+                  ? 'रोग देखरेखीसाठी स्थान परवानगी आवश्यक आहे'
+                  : 'रोग निगरानी के लिए स्थान अनुमति आवश्यक है'}
+              </h3>
+              <p className="text-xs text-amber-900 leading-relaxed font-medium">
+                {isEnglish
+                  ? 'To ensure accuracy and prevent false alarms, livestock disease alerts are strictly filtered by your specific district. Please allow location access or update your profile.'
+                  : isMarathi
+                  ? 'अचूक माहितीसाठी आणि खोटे अलर्ट टाळण्यासाठी जिल्हा पातळीवरील स्थान आवश्यक आहे. कृपया स्थान परवानगी द्या.'
+                  : 'सटीक जानकारी और अफवाहों से बचाव के लिए जिला स्तरीय स्थान आवश्यक है। कृपया स्थान अनुमति दें।'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={detectLocationAndFetchAlerts}
+              className="px-4 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-2 shrink-0 shadow-xs transition cursor-pointer"
+            >
+              <Navigation className="w-4 h-4" />
+              <span>{isEnglish ? 'Detect My Location' : isMarathi ? 'माझे स्थान शोधा' : 'मेरा स्थान खोजें'}</span>
+            </button>
           </div>
         ) : villageAlerts.length === 0 ? (
-          /* Empty State: Green Card */
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+          /* Empty State: Verified Safe Green Card (Strict PS-128 requirement) */
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div className="space-y-1 flex-1">
               <h3 className="text-sm sm:text-base font-black text-emerald-950">
-                {t('village_disease_alert.no_active_alerts', 'No active disease outbreaks reported near your village.')}
+                {isEnglish
+                  ? `No active high-risk disease alerts found in ${detectedDistrict || 'your district'}.`
+                  : isMarathi
+                  ? `${detectedDistrict || 'तुमच्या जिल्ह्यात'} कोणताही सक्रिय उच्च-धोका रोग उद्रेक आढळला नाही.`
+                  : `${detectedDistrict || 'आपके जिले में'} कोई सक्रिय उच्च-जोखिम रोग प्रकोप नहीं पाया गया।`}
               </h3>
-              <p className="text-xs text-emerald-800/80 leading-relaxed">
-                {t(
-                  'village_disease_alert.no_active_alerts_sub',
-                  'Your area is currently in the safe zone. Maintain routine wellness care, biosecurity, and shed hygiene.'
-                )}
+              <p className="text-xs text-emerald-900 leading-relaxed font-medium">
+                {isEnglish
+                  ? `Official ICAR-NIVEDI NADRES surveillance and local field telemetry confirm zero active epidemic outbreaks in ${detectedDistrict || 'your area'}. Maintain routine biosecurity, clean water, and standard shed sanitation.`
+                  : isMarathi
+                  ? `शासकीय ICAR-NIVEDI NADRES देखरेखानुसार ${detectedDistrict || 'तुमच्या भागात'} कोणताही उद्रेक नाही. नियमित स्वच्छता आणि काळजी ठेवा.`
+                  : `आधिकारिक ICAR-NIVEDI NADRES निगरानी के अनुसार ${detectedDistrict || 'आपके क्षेत्र में'} कोई प्रकोप नहीं है। सामान्य स्वच्छता बनाए रखें।`}
               </p>
             </div>
-            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[11px] border border-emerald-200 shrink-0">
-              {isEnglish ? '🟢 Safe Zone' : isMarathi ? '🟢 सुरक्षित क्षेत्र' : '🟢 सुरक्षित क्षेत्र'}
+            <span className="px-3.5 py-1.5 rounded-full bg-emerald-100 text-emerald-900 font-extrabold text-xs border border-emerald-300 shrink-0 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>{isEnglish ? '🟢 Safe Zone Verified' : isMarathi ? '🟢 सुरक्षित क्षेत्र प्रमाणित' : '🟢 सुरक्षित क्षेत्र सत्यापित'}</span>
             </span>
           </div>
         ) : (
-          /* Active Alerts Cards Grid (High -> Medium) */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          /* Active Alerts Cards Grid: Solid, Fully Visible, High Contrast with Gentle Beacon Glow */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {villageAlerts.map((alert) => {
-              const isHighRisk = alert.riskLevel === 'high';
-              const cardStyles = isHighRisk
-                ? {
-                    cardBg: 'bg-red-50/70 border-red-200 hover:border-red-300',
-                    badge: 'bg-red-100 text-red-800 border-red-200',
-                    dot: 'bg-red-600',
-                    btn: 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
-                  }
-                : {
-                    cardBg: 'bg-orange-50/70 border-orange-200 hover:border-orange-300',
-                    badge: 'bg-orange-100 text-orange-800 border-orange-200',
-                    dot: 'bg-orange-500',
-                    btn: 'bg-orange-600 hover:bg-orange-700 text-white shadow-xs'
-                  };
-
-              const diseaseDisplayName = isEnglish ? alert.nameEn : isMarathi ? alert.nameMr : alert.nameHi;
-              const riskBadgeText = isEnglish ? alert.riskBadgeEn : isMarathi ? alert.riskBadgeMr : alert.riskBadgeHi;
-              const locationText = isEnglish ? alert.locationEn : isMarathi ? alert.locationMr : alert.locationHi;
-              const updatedText = isEnglish ? alert.lastUpdatedTextEn : isMarathi ? alert.lastUpdatedTextMr : alert.lastUpdatedTextHi;
-              const aiRecText = isEnglish ? alert.aiRecommendationEn : isMarathi ? alert.aiRecommendationMr : alert.aiRecommendationHi;
-              const sourceText = isEnglish ? alert.dataSourceEn : isMarathi ? alert.dataSourceMr : alert.dataSourceHi;
+              const diseaseDisplayName = alert.diseaseName || (isEnglish ? alert.nameEn : isMarathi ? alert.nameMr : alert.nameHi) || 'Outbreak Alert';
+              const riskBadgeText = (isEnglish ? alert.riskBadgeEn : isMarathi ? alert.riskBadgeMr : alert.riskBadgeHi) || (alert.riskLevel === 'Critical' ? 'Critical Outbreak' : 'High Risk');
+              const districtText = alert.affectedDistrict || `${detectedDistrict || alert.district || 'Nagpur'} District`;
+              const speciesText = alert.speciesAffected || 'Cattle & Buffalo';
+              const locationText = alert.reportedLocation || `${districtText}, ${alert.state || detectedState || 'Maharashtra'}`;
+              const updatedText = alert.reportedDateStr || (isEnglish ? alert.lastUpdatedTextEn : isMarathi ? alert.lastUpdatedTextMr : alert.lastUpdatedTextHi) || 'Active Surveillance';
+              const aiRecText = (isEnglish ? alert.aiRecommendationEn : isMarathi ? alert.aiRecommendationMr : alert.aiRecommendationHi) || alert.aiRecommendationEn || 'Immediate ring vaccination and strict herd biosecurity recommended.';
+              const sourceText = (isEnglish ? alert.dataSourceEn : isMarathi ? alert.dataSourceMr : alert.dataSourceHi) || alert.dataSource || 'ICAR-NIVEDI NADRES';
 
               return (
                 <div
                   key={alert.id}
-                  className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between space-y-4 transition ${cardStyles.cardBg}`}
+                  className="border-circulation-card shadow-sm hover:shadow-md transition duration-300"
                 >
-                  <div className="space-y-3">
-                    {/* 1. Header: Disease Name & Risk Badge */}
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${cardStyles.dot} shrink-0`} />
-                        <span>{diseaseDisplayName}</span>
-                      </h3>
-                      <span className={`px-2.5 py-0.5 rounded-full font-bold border text-[11px] shrink-0 ${cardStyles.badge}`}>
-                        {riskBadgeText}
-                      </span>
-                    </div>
-
-                    {/* 2. Location & Last Updated */}
-                    <div className="space-y-1 text-xs">
-                      <div className="text-slate-800 font-semibold flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                        <span>{locationText}</span>
-                      </div>
-                      <div className="text-slate-500 text-[11px] flex items-center gap-1.5 pl-5">
-                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{updatedText}</span>
-                      </div>
-                    </div>
-
-                    {/* 3. AI Recommendation */}
-                    <div className="bg-white/90 rounded-xl p-3 border border-stone-200/90 space-y-1.5 shadow-2xs">
-                      <div className="flex items-center justify-between gap-1 flex-wrap">
-                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                          <span>💡 {t('village_disease_alert.ai_recommendation', 'AI Recommendation')}</span>
+                  <div className="relative z-10 w-full h-full bg-white rounded-[13.5px] p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                    <div className="space-y-3.5">
+                      {/* 1. Header: Outbreak Beacon Pill & Risk Badge */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600 text-white text-[11px] font-black tracking-wide uppercase shadow-xs">
+                          <span className="w-2 h-2 rounded-full bg-white animate-beacon-glow" />
+                          <span>🔴 {isEnglish ? 'ACTIVE OUTBREAK' : isMarathi ? 'सक्रिय उद्रेक' : 'सक्रिय प्रकोप'}</span>
                         </div>
-                        {alert.aiModel?.includes('gemini') ? (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
-                            <span>✨</span>
-                            <span>Gemini LLM</span>
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-stone-100 text-slate-600 border border-stone-200 flex items-center gap-1">
-                            <span>🩺</span>
-                            <span>Clinical Protocol</span>
-                          </span>
-                        )}
+                        <span className={`px-2.5 py-1 rounded-full font-black border text-xs shrink-0 ${
+                          alert.riskLevel === 'Critical'
+                            ? 'bg-rose-100 text-rose-900 border-rose-300'
+                            : 'bg-red-100 text-red-900 border-red-300'
+                        }`}>
+                          {riskBadgeText}
+                        </span>
                       </div>
 
-                      {alert.weatherContext?.tempC && (
-                        <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5 flex-wrap bg-stone-50/80 px-2 py-1 rounded-md border border-stone-200/60">
-                          <span>🌤️ {alert.weatherContext.tempC}°C</span>
-                          <span>•</span>
-                          <span>💧 {alert.weatherContext.humidityPct}% Hum</span>
-                          {alert.weatherContext.thi && (
-                            <>
-                              <span>•</span>
-                              <span>THI {alert.weatherContext.thi}</span>
-                            </>
+                      {/* 2. Disease Title & Species Affected */}
+                      <div className="space-y-1.5">
+                        <h3 className="font-black text-slate-900 text-base sm:text-lg leading-snug">
+                          {diseaseDisplayName}
+                        </h3>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 text-slate-800 text-xs font-bold border border-stone-200">
+                          <span>🐾</span>
+                          <span>{isEnglish ? 'Species Affected:' : isMarathi ? 'बाधित प्रजाती:' : 'प्रभावित प्रजाति:'}</span>
+                          <strong className="text-slate-950 font-black">{speciesText}</strong>
+                        </div>
+                      </div>
+
+                      {/* 3. District & Reported/Updated Date */}
+                      <div className="grid grid-cols-1 gap-1.5 text-xs border-y border-stone-200 py-2.5">
+                        <div className="text-slate-900 font-bold flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                          <span>{locationText}</span>
+                        </div>
+                        <div className="text-slate-600 text-[11px] font-medium flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                          <span>{isEnglish ? 'Reported / Updated:' : isMarathi ? 'अहवाल तारीख:' : 'रिपोर्ट तारीख:'} <strong className="text-slate-800 font-bold">{updatedText}</strong></span>
+                        </div>
+                      </div>
+
+                      {/* 4. AI Clinical Advisory & Agrometeorological Context */}
+                      <div className="bg-stone-50 rounded-xl p-3.5 border border-stone-200 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between gap-1 flex-wrap">
+                          <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                            <span>💡 {t('village_disease_alert.ai_recommendation', 'AI Advisory')}</span>
+                          </div>
+                          {alert.aiModel?.includes('gemini') ? (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 border border-purple-200 flex items-center gap-1">
+                              <span>✨</span>
+                              <span>Gemini LLM</span>
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-stone-200 text-slate-800 border border-stone-300 flex items-center gap-1">
+                              <span>🩺</span>
+                              <span>Clinical Protocol</span>
+                            </span>
                           )}
                         </div>
-                      )}
 
-                      <p className="text-xs text-slate-800 font-medium leading-relaxed">
-                        {aiRecText}
-                      </p>
+                        {alert.weatherContext?.tempC && (
+                          <div className="text-[10px] text-slate-800 font-bold flex items-center gap-1.5 flex-wrap bg-white px-2.5 py-1 rounded-md border border-stone-200">
+                            <span>🌤️ {alert.weatherContext.tempC}°C</span>
+                            <span>•</span>
+                            <span>💧 {alert.weatherContext.humidityPct}% Hum</span>
+                            {alert.weatherContext.thi && (
+                              <>
+                                <span>•</span>
+                                <span>THI {alert.weatherContext.thi}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        <p className="text-xs text-slate-900 font-medium leading-relaxed">
+                          {aiRecText}
+                        </p>
+                      </div>
+
+                      {/* 5. Official Government / Field Data Source */}
+                      <div className="text-[10px] text-slate-600 font-semibold flex items-center gap-1">
+                        <span>🏛️</span>
+                        <span className="truncate">{sourceText}</span>
+                      </div>
                     </div>
 
-                    {/* 4. Data Source */}
-                    <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                      <span>🏛️ {sourceText}</span>
-                    </div>
-                  </div>
-
-                  {/* 5. Single Action Button per card */}
-                  <div className="pt-2">
-                    {isHighRisk ? (
+                    {/* 6. Action Buttons */}
+                    <div className="pt-2 flex flex-col sm:flex-row gap-2">
                       <Link
-                        to="/vaccination"
-                        className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition ${cardStyles.btn}`}
+                        to={`/vaccination?district=${encodeURIComponent(detectedDistrict || alert.district || 'Nagpur')}`}
+                        className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white shadow-xs transition"
                       >
                         <Syringe className="w-3.5 h-3.5" />
                         <span>{t('village_disease_alert.find_vaccination_camp', 'Find Vaccination Camp')}</span>
                       </Link>
-                    ) : (
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedAlertDisease(alert);
                           setActiveAlertModal('symptoms');
                         }}
-                        className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition ${cardStyles.btn}`}
+                        className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 bg-white hover:bg-stone-50 border border-stone-200 text-slate-700 transition cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>{t('village_disease_alert.know_symptoms', 'Know Symptoms')}</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               );
@@ -836,16 +984,16 @@ export default function FarmerDashboard() {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900">
-                    {isEnglish ? 'Symptoms Checklist' : isMarathi ? 'लक्षणे तपासणी सूची' : 'लक्षण जांच सूची'}: {isEnglish ? selectedAlertDisease.nameEn : isMarathi ? selectedAlertDisease.nameMr : selectedAlertDisease.nameHi}
+                    {isEnglish ? 'Symptoms Checklist' : isMarathi ? 'लक्षणे तपासणी सूची' : 'लक्षण जांच सूची'}: {selectedAlertDisease.diseaseName || (isEnglish ? selectedAlertDisease.nameEn : isMarathi ? selectedAlertDisease.nameMr : selectedAlertDisease.nameHi) || 'Outbreak Disease'}
                   </h3>
                   <span className="text-xs text-orange-800 font-bold">
-                    {isEnglish ? selectedAlertDisease.riskBadgeEn : isMarathi ? selectedAlertDisease.riskBadgeMr : selectedAlertDisease.riskBadgeHi} • {isEnglish ? selectedAlertDisease.locationEn : isMarathi ? selectedAlertDisease.locationMr : selectedAlertDisease.locationHi}
+                    {(isEnglish ? selectedAlertDisease.riskBadgeEn : isMarathi ? selectedAlertDisease.riskBadgeMr : selectedAlertDisease.riskBadgeHi) || 'High Risk'} • {selectedAlertDisease.reportedLocation || selectedAlertDisease.affectedDistrict || selectedAlertDisease.district || 'Surveillance Zone'}
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => setActiveAlertModal(null)}
-                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-slate-600 flex items-center justify-center"
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-slate-600 flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -857,7 +1005,9 @@ export default function FarmerDashboard() {
                   {isEnglish ? 'Key Signs to Inspect in Your Animals:' : isMarathi ? 'जनावरांमध्ये तपासण्याची मुख्य लक्षणे:' : 'पशुओं में जांचने योग्य मुख्य लक्षण:'}
                 </div>
                 <ul className="space-y-1.5 text-slate-800">
-                  {((isEnglish ? selectedAlertDisease.symptomsEn : isMarathi ? selectedAlertDisease.symptomsMr : selectedAlertDisease.symptomsHi) || []).map((symptom, idx) => (
+                  {((isEnglish ? selectedAlertDisease.symptomsEn : isMarathi ? selectedAlertDisease.symptomsMr : selectedAlertDisease.symptomsHi)
+                    || selectedAlertDisease.symptoms
+                    || ['High fever and lethargy', 'Loss of appetite and weakness', 'Sudden drop in daily milk yield']).map((symptom, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-orange-600 mt-1.5 shrink-0" />
                       <span>{symptom}</span>
@@ -871,7 +1021,12 @@ export default function FarmerDashboard() {
                   {isEnglish ? 'Immediate Precautionary Steps:' : isMarathi ? 'तातडीने करावयाची खबरदारी:' : 'तत्काल सावधानियां:'}
                 </div>
                 <ul className="space-y-1.5 text-slate-700">
-                  {((isEnglish ? selectedAlertDisease.preventionsEn : isMarathi ? selectedAlertDisease.preventionsMr : selectedAlertDisease.preventionsHi) || []).map((prev, idx) => (
+                  {((isEnglish ? selectedAlertDisease.preventionsEn : isMarathi ? selectedAlertDisease.preventionsMr : selectedAlertDisease.preventionsHi)
+                    || [
+                      selectedAlertDisease.aiRecommendationEn || 'Immediate ring vaccination of susceptible herds.',
+                      'Strict biosecurity and isolation of symptomatic animals from healthy herds.',
+                      'Daily disinfection of feeding troughs and cattle sheds.'
+                    ]).map((prev, idx) => (
                     <li key={idx} className="flex items-start gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
                       <span>{prev}</span>

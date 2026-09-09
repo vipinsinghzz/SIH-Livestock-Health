@@ -4,12 +4,14 @@ const {
   getVaccinationDrives,
   createVaccinationDrive,
   updateVaccinationDrive,
-  registerForCamp
+  registerForCamp,
+  getMyRegistrations
 } = require('../controllers/vaccinationController');
 const { protect, optionalProtect, authorize } = require('../middleware/auth');
 
 // Public / Farmer & Officer Camp Discovery
 router.get('/', optionalProtect, getVaccinationDrives);
+router.get('/my-registrations', protect, getMyRegistrations);
 router.post('/', protect, authorize('officer', 'admin'), createVaccinationDrive);
 
 // Livestock Camp Registration (Farmers & Field Workers)

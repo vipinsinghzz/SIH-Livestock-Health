@@ -104,7 +104,11 @@ async function seedDatabase() {
     const [farmer1, vetUser, officerUser, farmer2, farmer3] = users;
     console.log(`[Seeder] Seeded ${users.length} users.`);
 
-    // 2. Create Livestock Profiles
+    // 2. Create Livestock Profiles with Comprehensive Vaccination Schedules
+    const now = Date.now();
+    const daysAgo = (d) => new Date(now - d * 24 * 60 * 60 * 1000);
+    const daysFromNow = (d) => new Date(now + d * 24 * 60 * 60 * 1000);
+
     const animals = await Animal.create([
       {
         tagId: 'MH-12-P-1001',
@@ -120,12 +124,17 @@ async function seedDatabase() {
         village: 'Malegaon Bk',
         block: 'Baramati',
         district: 'Pune',
+        vaccinations: [
+          { name: 'FMD (खुरपका-मुंहपका)', date: daysAgo(170), nextDue: daysFromNow(10), status: 'Completed', camp: 'Baramati Polyclinic' },
+          { name: 'LSD (लम्पी त्वचा रोग)', date: daysAgo(340), nextDue: daysFromNow(25), status: 'Completed', camp: 'Gram Panchayat Camp' },
+          { name: 'Brucellosis (ब्रूसीलोसिस)', date: daysAgo(60), nextDue: daysFromNow(120), status: 'Completed', camp: 'Dorlewadi Sub-Center' }
+        ],
         vaccinationHistory: [
-          { vaccine: 'FMD', date: new Date('2025-10-10'), nextDue: new Date('2026-04-10') },
-          { vaccine: 'LSD', date: new Date('2025-11-15'), nextDue: new Date('2026-11-15') }
+          { vaccine: 'FMD', date: daysAgo(170), nextDue: daysFromNow(10), dose: 'Booster Dose', batchNumber: 'FMD-2026-01', administeredBy: 'Dr. Ananya Deshmukh', camp: 'Baramati Polyclinic' },
+          { vaccine: 'LSD', date: daysAgo(340), nextDue: daysFromNow(25), dose: 'Annual Dose', batchNumber: 'LSD-2025-99', administeredBy: 'Dr. Suresh Patil', camp: 'Gram Panchayat Camp' }
         ],
         treatmentHistory: [
-          { condition: 'Mild Mastitis', date: new Date('2025-12-01'), treatment: 'Intramammary antibiotic infusion' }
+          { condition: 'Mild Mastitis', date: daysAgo(120), treatment: 'Intramammary antibiotic infusion' }
         ],
         timeline: [
           { type: 'Health Check', title: 'Routine Health Checkup', date: '28 Aug 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Normal vitals, healthy rumen motility' },
@@ -146,8 +155,12 @@ async function seedDatabase() {
         village: 'Malegaon Bk',
         block: 'Baramati',
         district: 'Pune',
+        vaccinations: [
+          { name: 'HS (गलघोंटू)', date: daysAgo(175), nextDue: daysFromNow(5), status: 'Completed', camp: 'Jalochi Sub-Centre' },
+          { name: 'FMD (खुरपका-मुंहपका)', date: daysAgo(190), nextDue: daysAgo(8), status: 'Overdue', camp: 'Malegaon Camp' }
+        ],
         vaccinationHistory: [
-          { vaccine: 'HS', date: new Date('2025-08-20'), nextDue: new Date('2026-08-20') }
+          { vaccine: 'HS', date: daysAgo(175), nextDue: daysFromNow(5), dose: 'Annual Booster', batchNumber: 'HS-2026-ALUM', administeredBy: 'Dr. Ananya Deshmukh', camp: 'Jalochi Sub-Centre' }
         ],
         timeline: [
           { type: 'Health Check', title: 'Mild Udder Warmth Noticed', date: '02 Sep 2026', doctor: 'Dr. Suresh Patil', notes: 'Early mastitis suspected, milk test recommended' }
@@ -167,7 +180,12 @@ async function seedDatabase() {
         village: 'Malegaon Bk',
         block: 'Baramati',
         district: 'Pune',
-        vaccinationHistory: [],
+        vaccinations: [
+          { name: 'FMD (खुरपका-मुंहपका)', date: daysAgo(160), nextDue: daysFromNow(20), status: 'Completed', camp: 'Baramati Polyclinic' }
+        ],
+        vaccinationHistory: [
+          { vaccine: 'FMD', date: daysAgo(160), nextDue: daysFromNow(20), dose: 'Primary Dose', batchNumber: 'FMD-2026-03', administeredBy: 'Dr. Ananya Deshmukh', camp: 'Baramati Polyclinic' }
+        ],
         timeline: [
           { type: 'Milk Production', title: 'Peak Lactation Recorded', date: '15 Aug 2026', notes: '16 Liters per day' }
         ]
@@ -186,8 +204,11 @@ async function seedDatabase() {
         village: 'Koregaon Bhima',
         block: 'Shirur',
         district: 'Pune',
+        vaccinations: [
+          { name: 'PPR (बकरी प्लेग)', date: daysAgo(300), nextDue: daysFromNow(65), status: 'Completed', camp: 'Shirur Breeding Centre' }
+        ],
         vaccinationHistory: [
-          { vaccine: 'PPR', date: new Date('2025-09-12'), nextDue: new Date('2028-09-12') }
+          { vaccine: 'PPR', date: daysAgo(300), nextDue: daysFromNow(65), dose: 'Annual Dose', batchNumber: 'PPR-2025-01', administeredBy: 'Dr. Suresh Kulkarni', camp: 'Shirur Breeding Centre' }
         ],
         timeline: [
           { type: 'Vaccination', title: 'PPR Annual Dose', date: '12 Sep 2025', notes: 'Administered at Shirur camp' }
@@ -207,8 +228,11 @@ async function seedDatabase() {
         village: 'Koregaon Bhima',
         block: 'Shirur',
         district: 'Pune',
+        vaccinations: [
+          { name: 'FMD (खुरपका-मुंहपका)', date: daysAgo(175), nextDue: daysFromNow(5), status: 'Completed', camp: 'Shirur Clinic' }
+        ],
         vaccinationHistory: [
-          { vaccine: 'FMD', date: new Date('2025-05-15'), nextDue: new Date('2025-11-15') }
+          { vaccine: 'FMD', date: daysAgo(175), nextDue: daysFromNow(5), dose: 'Booster Dose', batchNumber: 'FMD-2026-07', administeredBy: 'Dr. Ananya Deshmukh', camp: 'Shirur Clinic' }
         ],
         timeline: [
           { type: 'Health Check', title: 'Pre-breeding fitness evaluation', date: '10 Aug 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Healthy muscular bull' }
@@ -228,7 +252,12 @@ async function seedDatabase() {
         village: 'Chakan',
         block: 'Khed',
         district: 'Pune',
-        vaccinationHistory: [],
+        vaccinations: [
+          { name: 'HS (गलघोंटू)', date: daysAgo(180), nextDue: daysFromNow(2), status: 'Completed', camp: 'Khed Taluka Hospital' }
+        ],
+        vaccinationHistory: [
+          { vaccine: 'HS', date: daysAgo(180), nextDue: daysFromNow(2), dose: 'Booster Dose', batchNumber: 'HS-2026-91', administeredBy: 'Dr. Ananya Deshmukh', camp: 'Khed Taluka Hospital' }
+        ],
         timeline: [
           { type: 'Health Check', title: 'General Inspection', date: '01 Sep 2026', notes: 'Healthy condition' }
         ]
@@ -238,9 +267,6 @@ async function seedDatabase() {
     console.log(`[Seeder] Seeded ${animals.length} livestock profiles.`);
 
     // 3. Create Sample Reports and AI Triage Results
-    const now = Date.now();
-    const daysAgo = (d) => new Date(now - d * 24 * 60 * 60 * 1000);
-
     const reportDefinitions = [
       // Cluster 1 in Baramati (FMD Outbreak)
       {
@@ -582,51 +608,175 @@ async function seedDatabase() {
 
     console.log('[Seeder] Seeded Multilingual Advisories.');
 
-    // 6. Create Vaccination Drives
+    // 6. Create Vaccination Drives & Camps (SIH PS-128)
     await VaccinationDrive.create([
       {
-        vaccine: 'FMD (Foot and Mouth Disease)',
+        campId: 'CAMP-FMD-01',
+        vaccine: 'FMD',
+        vaccineFullName: 'Foot and Mouth Disease (FMD)',
         targetSpecies: 'Cattle & Buffalo',
-        village: 'Malegaon & Neighboring Hamlets',
+        village: 'Malegaon Bk',
+        venue: 'Primary Veterinary Dispensary, Malegaon Bk',
         block: 'Baramati',
         district: 'Pune',
-        targetCount: 5000,
-        coveredCount: 3850,
-        startDate: daysAgo(10),
-        status: 'Active'
+        coordinates: { lat: 18.1517, lng: 74.5772 },
+        organizingHospital: 'Baramati Veterinary Polyclinic',
+        assignedOfficer: 'Dr. Ananya Deshmukh',
+        assignedOfficerId: vetUser._id,
+        capacity: 250,
+        targetCount: 250,
+        bookedSlots: 38,
+        remainingSlots: 212,
+        coveredCount: 38,
+        campDate: daysFromNow(3),
+        startDate: daysFromNow(3),
+        startTime: '10:00 AM',
+        endTime: '04:00 PM',
+        cost: 'Free (Govt Drive)',
+        isFree: true,
+        contactNumber: '1962',
+        status: 'Upcoming',
+        notes: 'Annual FMD ring vaccination camp for Baramati cluster.'
       },
       {
-        vaccine: 'Lumpy Skin Disease (LSD)',
+        campId: 'CAMP-LSD-02',
+        vaccine: 'LSD',
+        vaccineFullName: 'Lumpy Skin Disease (LSD)',
         targetSpecies: 'Cattle',
-        village: 'Koregaon Bhima & Sanaswadi',
+        village: 'Kathephal',
+        venue: 'Gram Panchayat Veterinary Clinic, Kathephal',
+        block: 'Baramati',
+        district: 'Pune',
+        coordinates: { lat: 18.1632, lng: 74.5885 },
+        organizingHospital: 'National Livestock Mission (NLM)',
+        assignedOfficer: 'Dr. Suresh Kulkarni',
+        assignedOfficerId: officerUser._id,
+        capacity: 200,
+        targetCount: 200,
+        bookedSlots: 45,
+        remainingSlots: 155,
+        coveredCount: 45,
+        campDate: daysFromNow(6),
+        startDate: daysFromNow(6),
+        startTime: '09:30 AM',
+        endTime: '02:30 PM',
+        cost: 'Free (Govt Drive)',
+        isFree: true,
+        contactNumber: '1962',
+        status: 'Upcoming',
+        notes: 'Preventive Goat Pox homologous vaccine for LSD prevention.'
+      },
+      {
+        campId: 'CAMP-HS-03',
+        vaccine: 'HS',
+        vaccineFullName: 'Hemorrhagic Septicemia (HS)',
+        targetSpecies: 'Cattle & Buffalo',
+        village: 'Jalochi',
+        venue: 'Animal Health Sub-Centre, Jalochi',
+        block: 'Baramati',
+        district: 'Pune',
+        coordinates: { lat: 18.1401, lng: 74.561 },
+        organizingHospital: 'District Animal Husbandry Office, Pune',
+        assignedOfficer: 'Dr. Ananya Deshmukh',
+        assignedOfficerId: vetUser._id,
+        capacity: 200,
+        targetCount: 200,
+        bookedSlots: 60,
+        remainingSlots: 140,
+        coveredCount: 60,
+        campDate: daysFromNow(9),
+        startDate: daysFromNow(9),
+        startTime: '09:00 AM',
+        endTime: '03:00 PM',
+        cost: 'Free (Govt Drive)',
+        isFree: true,
+        contactNumber: '1962',
+        status: 'Upcoming',
+        notes: 'Pre-monsoon booster drive for Haemorrhagic Septicaemia.'
+      },
+      {
+        campId: 'CAMP-BQ-04',
+        vaccine: 'BQ',
+        vaccineFullName: 'Black Quarter (BQ)',
+        targetSpecies: 'Cattle & Buffalo',
+        village: 'Baramati Town',
+        venue: 'Taluka Veterinary Polyclinic, Baramati',
+        block: 'Baramati',
+        district: 'Pune',
+        coordinates: { lat: 18.155, lng: 74.58 },
+        organizingHospital: 'Baramati Taluka Hospital',
+        assignedOfficer: 'Dr. Ananya Deshmukh',
+        assignedOfficerId: vetUser._id,
+        capacity: 150,
+        targetCount: 150,
+        bookedSlots: 42,
+        remainingSlots: 108,
+        coveredCount: 42,
+        campDate: daysFromNow(1),
+        startDate: daysFromNow(1),
+        startTime: '10:00 AM',
+        endTime: '03:30 PM',
+        cost: 'Free (Govt Drive)',
+        isFree: true,
+        contactNumber: '1962',
+        status: 'Ongoing',
+        notes: 'Active spot vaccination camp for young stock.'
+      },
+      {
+        campId: 'CAMP-BRUC-05',
+        vaccine: 'Brucellosis',
+        vaccineFullName: 'Brucellosis (Calfhood S19)',
+        targetSpecies: 'Female Calves (Cattle & Buffalo)',
+        village: 'Dorlewadi',
+        venue: 'Veterinary Sub-Center, Dorlewadi',
+        block: 'Baramati',
+        district: 'Pune',
+        coordinates: { lat: 18.17, lng: 74.59 },
+        organizingHospital: 'National Animal Disease Control Programme',
+        assignedOfficer: 'Dr. Suresh Kulkarni',
+        assignedOfficerId: officerUser._id,
+        capacity: 100,
+        targetCount: 100,
+        bookedSlots: 18,
+        remainingSlots: 82,
+        coveredCount: 18,
+        campDate: daysFromNow(15),
+        startDate: daysFromNow(15),
+        startTime: '10:30 AM',
+        endTime: '02:00 PM',
+        cost: 'Free (Govt Drive)',
+        isFree: true,
+        contactNumber: '1962',
+        status: 'Upcoming',
+        notes: 'Calfhood vaccination for 4-8 month female calves.'
+      },
+      {
+        campId: 'CAMP-PPR-06',
+        vaccine: 'PPR',
+        vaccineFullName: 'Peste des Petits Ruminants (PPR)',
+        targetSpecies: 'Goat & Sheep',
+        village: 'Koregaon Bhima',
+        venue: 'Sheep & Goat Breeding Centre, Shirur',
         block: 'Shirur',
         district: 'Pune',
-        targetCount: 3500,
-        coveredCount: 2900,
-        startDate: daysAgo(15),
-        status: 'Active'
-      },
-      {
-        vaccine: 'Haemorrhagic Septicaemia (HS)',
-        targetSpecies: 'Cattle & Buffalo',
-        village: 'Chakan & Rajgurunagar',
-        block: 'Khed',
-        district: 'Pune',
-        targetCount: 4000,
-        coveredCount: 1650,
-        startDate: daysAgo(5),
-        status: 'Active'
-      },
-      {
-        vaccine: 'PPR (Goat Plague)',
-        targetSpecies: 'Goat & Sheep',
-        village: 'Nimgaon Rural',
-        block: 'Indapur',
-        district: 'Pune',
-        targetCount: 2500,
-        coveredCount: 2150,
-        startDate: daysAgo(20),
-        status: 'Active'
+        coordinates: { lat: 18.8276, lng: 74.3774 },
+        organizingHospital: 'Maharashtra Sheep & Goat Dev Corporation',
+        assignedOfficer: 'Dr. Suresh Kulkarni',
+        assignedOfficerId: officerUser._id,
+        capacity: 300,
+        targetCount: 300,
+        bookedSlots: 75,
+        remainingSlots: 225,
+        coveredCount: 75,
+        campDate: daysFromNow(19),
+        startDate: daysFromNow(19),
+        startTime: '09:00 AM',
+        endTime: '01:00 PM',
+        cost: 'Free (Govt Drive)',
+        isFree: true,
+        contactNumber: '1962',
+        status: 'Upcoming',
+        notes: 'Targeted mass flock vaccination for small ruminants.'
       }
     ]);
 

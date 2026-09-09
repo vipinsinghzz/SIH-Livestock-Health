@@ -20,7 +20,9 @@ import {
   X,
   ExternalLink,
   BadgeCheck,
-  Check
+  Check,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 // Haversine formula for distance in km
@@ -61,6 +63,7 @@ export default function VaccinationPage() {
   const [radiusFilter, setRadiusFilter] = useState(20); // 20 km radius default
   const [selectedVaccineFilter, setSelectedVaccineFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllSchedule, setShowAllSchedule] = useState(false);
 
   // Modals
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -475,6 +478,12 @@ export default function VaccinationPage() {
   // Sort schedule by due date (soonest / overdue first)
   vaccinationSchedule.sort((a, b) => a.diffDays - b.diffDays);
 
+  // Dynamic filter: Show only vaccinations due within the next 7 days by default (0 <= daysRemaining <= 7)
+  const filteredSchedule = vaccinationSchedule.filter(
+    (item) => item.diffDays >= 0 && item.diffDays <= 7
+  );
+  const displayedSchedule = showAllSchedule ? vaccinationSchedule : filteredSchedule;
+
   // Handle Mark as Completed
   const handleConfirmComplete = async (e) => {
     e.preventDefault();
@@ -690,8 +699,18 @@ export default function VaccinationPage() {
             </p>
           </div>
 
-          <div className="text-xs font-bold text-slate-500 bg-stone-100 px-3 py-1.5 rounded-xl self-start sm:self-auto">
-            {vaccinationSchedule.length} {isEnglish ? 'doses tracked' : isMarathi ? 'डोस नियोजित' : 'टीके निर्धारित'}
+          <div className="text-xs font-bold text-slate-500 bg-stone-100 px-3 py-1.5 rounded-xl self-start sm:self-auto flex items-center gap-1.5">
+            {!showAllSchedule && vaccinationSchedule.length > filteredSchedule.length ? (
+              <>
+                <span className="text-emerald-700 font-extrabold">{displayedSchedule.length}</span>
+                <span>/ {vaccinationSchedule.length}</span>
+                <span>{isEnglish ? 'due in 7 days' : isMarathi ? '७ दिवसांत देय' : '7 दिनों में देय'}</span>
+              </>
+            ) : (
+              <span>
+                {displayedSchedule.length} {isEnglish ? 'doses tracked' : isMarathi ? 'डोस नियोजित' : 'टीके निर्धारित'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -700,91 +719,147 @@ export default function VaccinationPage() {
             <ShieldCheck className="w-8 h-8 mx-auto text-emerald-600 opacity-60" />
             <p className="text-xs font-medium text-slate-600">
               {isEnglish
-                ? 'All animals are up to date! No vaccinations due in the next 30 days.'
+                ? 'All animals are up to date! No vaccinations scheduled.'
                 : isMarathi
-                ? 'सर्व जनावरे सुरक्षित आहेत! पुढील ३० दिवसांत कोणतीही लस देय नाही.'
-                : 'सभी पशु सुरक्षित हैं! अगले 30 दिनों में कोई टीका देय नहीं है।'}
+                ? 'सर्व जनावरे सुरक्षित आहेत! कोणतीही लस नियोजित नाही.'
+                : 'सभी पशु सुरक्षित हैं! कोई टीका निर्धारित नहीं है।'}
             </p>
           </div>
+        ) : displayedSchedule.length === 0 ? (
+          <div className="py-8 text-center text-slate-500 space-y-3 bg-stone-50/60 rounded-2xl border border-stone-200/80 p-6">
+            <ShieldCheck className="w-8 h-8 mx-auto text-emerald-600" />
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-slate-800">
+                {isEnglish
+                  ? 'No vaccinations due within the next 7 days'
+                  : isMarathi
+                  ? 'पुढील ७ दिवसांत कोणतीही लस देय नाही'
+                  : 'अगले 7 दिनों में कोई टीका देय नहीं है'}
+              </p>
+              <p className="text-xs text-slate-500">
+                {isEnglish
+                  ? `You have ${vaccinationSchedule.length} vaccination record(s) scheduled further ahead.`
+                  : isMarathi
+                  ? `आपल्याकडे पुढील तारखांसाठी ${vaccinationSchedule.length} आगामी लसी नियोजित आहेत.`
+                  : `आपके पास आगे की तारीखों के लिए ${vaccinationSchedule.length} टीके निर्धारित हैं।`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAllSchedule(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+            >
+              <span>{isEnglish ? 'View More (All Records)' : isMarathi ? 'आणखी पहा (सर्व रेकॉर्ड)' : 'और देखें (सभी रिकॉर्ड)'}</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {vaccinationSchedule.map((item, idx) => {
-              const isOverdue = item.isOverdue;
-              const overdueDays = Math.abs(item.diffDays);
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {displayedSchedule.map((item, idx) => {
+                const isOverdue = item.isOverdue;
+                const overdueDays = Math.abs(item.diffDays);
 
-              const badgeText = isOverdue
-                ? (isEnglish ? `${overdueDays} days overdue` : isMarathi ? `${overdueDays} दिवस थकीत` : `${overdueDays} दिन अतिदेय`)
-                : item.diffDays === 0
-                ? (isEnglish ? 'Due Today' : isMarathi ? 'आज देय' : 'आज देय')
-                : (isEnglish ? `${item.diffDays} days remaining` : isMarathi ? `${item.diffDays} दिवस शिल्लक` : `${item.diffDays} दिन शेष`);
+                const badgeText = isOverdue
+                  ? (isEnglish ? `${overdueDays} days overdue` : isMarathi ? `${overdueDays} दिवस थकीत` : `${overdueDays} दिन अतिदेय`)
+                  : item.diffDays === 0
+                  ? (isEnglish ? 'Due Today' : isMarathi ? 'आज देय' : 'आज देय')
+                  : (isEnglish ? `${item.diffDays} days remaining` : isMarathi ? `${item.diffDays} दिवस शिल्लक` : `${item.diffDays} दिन शेष`);
 
-              const badgeColor = isOverdue
-                ? 'bg-red-50 text-red-700 border-red-200'
-                : item.diffDays <= 7
-                ? 'bg-amber-50 text-amber-900 border-amber-300 font-bold'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                const badgeColor = isOverdue
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : item.diffDays <= 7
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 font-bold'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200';
 
-              return (
-                <div
-                  key={`${item.animalId}-${item.vaccineName}-${idx}`}
-                  className="p-4 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition flex flex-col justify-between space-y-3"
-                >
-                  <div className="space-y-2">
-                    {/* Animal Name & Tag */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
-                          <span>{item.species === 'Cattle' ? '🐄' : item.species === 'Buffalo' ? '🦬' : '🐐'}</span>
-                          <span>{item.animalName}</span>
+                return (
+                  <div
+                    key={`${item.animalId}-${item.vaccineName}-${idx}`}
+                    className="p-4 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition flex flex-col justify-between space-y-3"
+                  >
+                    <div className="space-y-2">
+                      {/* Animal Name & Tag */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                            <span>{item.species === 'Cattle' ? '🐄' : item.species === 'Buffalo' ? '🦬' : '🐐'}</span>
+                            <span>{item.animalName}</span>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-slate-400 block mt-0.5">
+                            {item.tagId}
+                          </span>
                         </div>
-                        <span className="text-[10px] font-mono font-bold text-slate-400 block mt-0.5">
-                          {item.tagId}
+
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${badgeColor}`}>
+                          {badgeText}
                         </span>
                       </div>
 
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${badgeColor}`}>
-                        {badgeText}
-                      </span>
+                      {/* Vaccine Name */}
+                      <div className="text-xs">
+                        <span className="text-slate-500 font-medium block">
+                          {isEnglish ? 'Vaccine Due:' : isMarathi ? 'देय लस:' : 'देय टीका:'}
+                        </span>
+                        <strong className="text-slate-900 font-bold text-xs">{item.vaccineName}</strong>
+                      </div>
+
+                      {/* Due Date */}
+                      <div className="text-xs flex items-center justify-between text-slate-600 bg-white p-2 rounded-xl border border-stone-200/60">
+                        <span className="text-slate-400 font-medium flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{isEnglish ? 'Due Date:' : isMarathi ? 'तारीख:' : 'तिथि:'}</span>
+                        </span>
+                        <span className="font-bold text-slate-800">{item.dueDateStr}</span>
+                      </div>
                     </div>
 
-                    {/* Vaccine Name */}
-                    <div className="text-xs">
-                      <span className="text-slate-500 font-medium block">
-                        {isEnglish ? 'Vaccine Due:' : isMarathi ? 'देय लस:' : 'देय टीका:'}
-                      </span>
-                      <strong className="text-slate-900 font-bold text-xs">{item.vaccineName}</strong>
-                    </div>
-
-                    {/* Due Date */}
-                    <div className="text-xs flex items-center justify-between text-slate-600 bg-white p-2 rounded-xl border border-stone-200/60">
-                      <span className="text-slate-400 font-medium flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>{isEnglish ? 'Due Date:' : isMarathi ? 'तारीख:' : 'तिथि:'}</span>
-                      </span>
-                      <span className="font-bold text-slate-800">{item.dueDateStr}</span>
-                    </div>
+                    {/* Mark as Completed Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompletingScheduleItem(item);
+                        setCompleteFormData({
+                          date: new Date().toISOString().split('T')[0],
+                          administeredBy: isEnglish ? 'Dr. R. K. Shinde (Dispensary)' : isMarathi ? 'डॉ. आर. के. शिंदे (दवाखाना)' : 'डॉ. आर. के. शिंदे (पशु चिकित्सालय)',
+                          batchNumber: `BATCH-2026-${item.vaccineName.slice(0, 3).toUpperCase()}`,
+                          notes: isEnglish ? 'Administered on schedule' : isMarathi ? 'वेळेत लस दिली' : 'नियत समय पर टीका लगाया गया'
+                        });
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isEnglish ? 'Mark as Completed' : isMarathi ? 'पूर्ण म्हणून नोंदवा' : 'पूर्ण चिह्नित करें'}</span>
+                    </button>
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Mark as Completed Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCompletingScheduleItem(item);
-                      setCompleteFormData({
-                        date: new Date().toISOString().split('T')[0],
-                        administeredBy: isEnglish ? 'Dr. R. K. Shinde (Dispensary)' : isMarathi ? 'डॉ. आर. के. शिंदे (दवाखाना)' : 'डॉ. आर. के. शिंदे (पशु चिकित्सालय)',
-                        batchNumber: `BATCH-2026-${item.vaccineName.slice(0, 3).toUpperCase()}`,
-                        notes: isEnglish ? 'Administered on schedule' : isMarathi ? 'वेळेत लस दिली' : 'नियत समय पर टीका लगाया गया'
-                      });
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>{isEnglish ? 'Mark as Completed' : isMarathi ? 'पूर्ण म्हणून नोंदवा' : 'पूर्ण चिह्नित करें'}</span>
-                  </button>
-                </div>
-              );
-            })}
+            {/* Clear View More / View Less Toggle */}
+            {vaccinationSchedule.length > filteredSchedule.length && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAllSchedule((prev) => !prev)}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-white text-slate-800 hover:text-emerald-700 hover:border-emerald-300 text-xs sm:text-sm font-bold shadow-2xs hover:shadow-xs transition cursor-pointer active:scale-98"
+                >
+                  <span>
+                    {showAllSchedule
+                      ? (isEnglish ? 'View Less' : isMarathi ? 'कमी पहा' : 'कम देखें')
+                      : (isEnglish
+                          ? `View More (${vaccinationSchedule.length - filteredSchedule.length} more)`
+                          : isMarathi
+                          ? `आणखी पहा (${vaccinationSchedule.length - filteredSchedule.length} अधिक)`
+                          : `और देखें (${vaccinationSchedule.length - filteredSchedule.length} अधिक)`)}
+                  </span>
+                  {showAllSchedule ? (
+                    <ChevronUp className="w-4 h-4 text-emerald-700" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-emerald-700" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

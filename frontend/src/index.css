@@ -84,3 +84,80 @@
   animation: user-pulse-ring 2s infinite;
   border-radius: 9999px;
 }
+
+/* PS-128: Reduced, smooth, subtle pulsing animation for active disease outbreak alerts */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.01);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes beacon-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0);
+  }
+}
+
+.animate-beacon-glow {
+  animation: beacon-glow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* PS-128: Border circulation animation for active outbreak alert cards */
+.border-circulation-card {
+  position: relative;
+  border-radius: 1rem;
+  overflow: hidden;
+  padding: 2.5px;
+  background: #fca5a5;
+}
+
+.border-circulation-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    transparent 0deg,
+    transparent 260deg,
+    rgba(239, 68, 68, 0.4) 290deg,
+    #f87171 320deg,
+    #dc2626 345deg,
+    #b91c1c 360deg
+  );
+  animation: border-circulation 4.5s linear infinite;
+  z-index: 0;
+}
+
+@keyframes border-circulation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Accessibility: respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-subtle,
+  .animate-beacon-glow,
+  .risk-pulse-critical,
+  .user-pulse-location,
+  .border-circulation-card::before {
+    animation: none !important;
+  }
+}

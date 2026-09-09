@@ -27,12 +27,20 @@ api.interceptors.response.use(
       // If token expired, clear local storage
       localStorage.removeItem('pashurakshak_token');
       localStorage.removeItem('pashurakshak_user');
-      if (
-        window.location.pathname !== '/login' &&
-        window.location.pathname !== '/register' &&
-        !window.location.pathname.startsWith('/select-language') &&
-        !window.location.pathname.startsWith('/language')
-      ) {
+      const path = window.location.pathname;
+      const isPublicPath =
+        path === '/login' ||
+        path === '/register' ||
+        path === '/' ||
+        path.startsWith('/landing') ||
+        path.startsWith('/select-language') ||
+        path.startsWith('/language') ||
+        path.startsWith('/kisan') ||
+        path.startsWith('/report-sick') ||
+        path.startsWith('/veterinary-help') ||
+        path.startsWith('/government-schemes');
+
+      if (!isPublicPath) {
         window.location.href = '/login';
       }
     }

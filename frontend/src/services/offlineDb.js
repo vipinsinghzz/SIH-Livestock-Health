@@ -18,7 +18,12 @@ export const saveOfflineReport = async (reportData) => {
 };
 
 export const getPendingReports = async () => {
-  return await db.offlineReports.where('synced').equals(0).or('synced').equals(false).toArray();
+  try {
+    return await db.offlineReports.filter((r) => !r.synced).toArray();
+  } catch (err) {
+    console.warn('[OfflineDB] getPendingReports warning:', err?.message || err);
+    return [];
+  }
 };
 
 export const markReportSynced = async (id) => {
@@ -30,5 +35,11 @@ export const deleteOfflineReport = async (id) => {
 };
 
 export const clearSyncedReports = async () => {
-  return await db.offlineReports.where('synced').equals(true).delete();
+  try {
+    const syncedItems = await db.offlineReports.filter((r) => !!r.synced).toArray();
+    const ids = syncedItems.map((i) => i.id);
+    return await db.offlineReports.bulkDelete(ids);
+  } catch (err) {
+    console.warn('[OfflineDB] clearSyncedReports error:', err?.message || err);
+  }
 };

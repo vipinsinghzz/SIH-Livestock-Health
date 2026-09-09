@@ -1,3 +1,5 @@
+import api from './api';
+
 // Kisan Saathi Conversational AI Service (11 Indian Languages)
 
 export const GREETINGS = {
@@ -496,21 +498,71 @@ export const chatService = {
     return greetingFn(farmerName);
   },
 
-  async sendMessage(query, lang = 'hi') {
-    // Artificial slight latency for realistic conversational feel
-    await new Promise(r => setTimeout(r, 450));
+  async sendMessage(query, lang = 'hi', extraContext = {}) {
+    return this.consultAssistant({
+      message: query,
+      language: lang,
+      ...extraContext
+    });
+  },
 
-    const key = (lang || 'hi').split('-')[0];
-    const lower = query.toLowerCase();
-
-    for (const item of KNOWLEDGE_RESPONSES) {
-      if (item.keywords.some(kw => lower.includes(kw.toLowerCase()))) {
-        return item.responses[key] || item.responses.hi || item.responses.en;
+  async consultAssistant({
+    message,
+    language = 'hi',
+    animal = null,
+    diagnosis = null,
+    symptoms = [],
+    district = '',
+    state = '',
+    lat = null,
+    lng = null,
+    conversationHistory = []
+  }) {
+    try {
+      const response = await api.post('/kisan-saathi/consult', {
+        query: message,
+        language,
+        animal,
+        diagnosis,
+        symptoms,
+        district,
+        state,
+        lat,
+        lng,
+        conversationHistory
+      });
+      if (response.data && response.data.success) {
+        return response.data;
       }
+    } catch (err) {
+      console.warn('[chatService] Backend consult error, using local fallback:', err?.message);
     }
 
-    const fallbackFn = FALLBACKS[key] || FALLBACKS.hi;
-    return fallbackFn(query);
+    // Fallback to local knowledge response if backend is unreachable
+    const key = (language || 'hi').split('-')[0];
+    const lower = (message || '').toLowerCase();
+    let reply = '';
+    for (const item of KNOWLEDGE_RESPONSES) {
+      if (item.keywords.some(kw => lower.includes(kw.toLowerCase()))) {
+        reply = item.responses[key] || item.responses.hi || item.responses.en;
+        break;
+      }
+    }
+    if (!reply) {
+      const fallbackFn = FALLBACKS[key] || FALLBACKS.hi;
+      reply = fallbackFn(message);
+    }
+    return {
+      success: true,
+      reply,
+      source: 'offline_fallback',
+      suggestedActions: [
+        'Call 1962 Veterinary Helpline',
+        'Check Local Outbreak Alerts',
+        'Book Veterinary Visit'
+      ],
+      disclaimer: 'Offline First-Aid Mode. Consult a certified veterinarian for prescription medicines.'
+    };
   }
 };
 

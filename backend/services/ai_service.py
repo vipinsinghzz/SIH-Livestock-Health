@@ -5,8 +5,20 @@ import base64
 import time
 import logging
 
-# Ensure PyTorch backend for Keras 3
-os.environ['KERAS_BACKEND'] = 'torch'
+# Auto-detect available backend (torch or tensorflow)
+if 'KERAS_BACKEND' not in os.environ:
+    try:
+        import torch
+        os.environ['KERAS_BACKEND'] = 'torch'
+    except ImportError:
+        os.environ['KERAS_BACKEND'] = 'tensorflow'
+else:
+    # If torch was configured but not installed, fallback to tensorflow
+    if os.environ.get('KERAS_BACKEND') == 'torch':
+        try:
+            import torch
+        except ImportError:
+            os.environ['KERAS_BACKEND'] = 'tensorflow'
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
