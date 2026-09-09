@@ -18,50 +18,11 @@ const PUNE_BLOCKS = [
 
 export default function Step3LocationPhotos({ formData, updateFormData, user }) {
   const { t } = useTranslation();
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsSuccess, setGpsSuccess] = useState(false);
-
-  const fetchGpsLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
-      return;
-    }
-
-    setGpsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        updateFormData({
-          location: {
-            ...formData.location,
-            lat: parseFloat(position.coords.latitude.toFixed(4)),
-            lng: parseFloat(position.coords.longitude.toFixed(4))
-          }
-        });
-        setGpsLoading(false);
-        setGpsSuccess(true);
-      },
-      (error) => {
-        console.warn('GPS location error:', error.message);
-        // Fallback default coordinates (Baramati / Pune)
-        updateFormData({
-          location: {
-            ...formData.location,
-            lat: 18.1517,
-            lng: 74.5772
-          }
-        });
-        setGpsLoading(false);
-        setGpsSuccess(true);
-      },
-      { timeout: 8000 }
-    );
-  };
 
   const handlePhotoUpload = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    // Convert to base64 preview
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -86,28 +47,12 @@ export default function Step3LocationPhotos({ formData, updateFormData, user }) 
         <div className="flex items-center justify-between mb-3">
           <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-emerald-600" />
-            Epidemiological Location <span className="text-red-500">*</span>
+            <span>क्षेत्रीय स्थान (Location Details)</span>
           </label>
-
-          <button
-            type="button"
-            onClick={fetchGpsLocation}
-            disabled={gpsLoading}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition border border-emerald-200"
-          >
-            <Navigation className={`w-3.5 h-3.5 ${gpsLoading ? 'animate-spin' : ''}`} />
-            <span>{gpsLoading ? 'Locating...' : t('wizard.get_gps')}</span>
-          </button>
+          <span className="text-xs text-slate-400">
+            {user?.district ? `${user.district}, ${user.village || ''}` : 'सीहोर / पुणे'}
+          </span>
         </div>
-
-        {gpsSuccess && (
-          <div className="mb-3 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-medium flex items-center gap-2 border border-emerald-200">
-            <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-            <span>
-              GPS Coordinates locked: {formData.location?.lat}, {formData.location?.lng}
-            </span>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>

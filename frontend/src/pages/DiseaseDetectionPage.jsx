@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Camera,
@@ -18,21 +18,87 @@ import {
   Thermometer,
   Clock,
   Sparkles,
-  FileText
+  FileText,
+  CheckCircle2,
+  Plus
 } from 'lucide-react';
+import api from '../services/api';
 import diseaseDetectionService, { SYMPTOMS_27 } from '../services/diseaseDetectionService';
 import voiceService from '../services/voiceService';
+import animalService from '../services/animalService';
+import { getCleanLang, getSpeciesDisplayName, getBreedDisplayName } from '../constants/livestockData';
 
 export default function DiseaseDetectionPage() {
-  const { t, i18n } = useTranslation();
+    const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const isEnglish = i18n.language?.startsWith('en');
+  const location = useLocation();
+  const currentLang = getCleanLang(i18n.language);
+  const isEnglish = currentLang === 'en';
+  const isMarathi = currentLang === 'mr';
 
   const [currentStep, setCurrentStep] = useState(1);
+
+  // Herd selection state
+  const [animals, setAnimals] = useState([]);
+  const [selectedAnimal, setSelectedAnimal] = useState(null);
+  const [isOtherAnimal, setIsOtherAnimal] = useState(false);
+  const [loadingAnimals, setLoadingAnimals] = useState(true);
+  const [autoSyncSuccess, setAutoSyncSuccess] = useState(false);
 
   // Step 1: Animal Selection
   const [selectedSpecies, setSelectedSpecies] = useState('Cattle');
   const [animalName, setAnimalName] = useState('Lakshmi');
+
+  // Load user registered animals and check query param
+  React.useEffect(() => {
+    const fetchHerd = async () => {
+      try {
+        const herd = await animalService.getAnimals();
+        setAnimals(herd || []);
+
+        const params = new URLSearchParams(location.search);
+        const targetId = params.get('animalId');
+        if (targetId && herd && herd.length > 0) {
+          const match = herd.find((a) => a._id === targetId || a.tagId === targetId || a.id === targetId);
+          if (match) {
+            setSelectedAnimal(match);
+            setSelectedSpecies(match.species || 'Cattle');
+            setAnimalName(match.name);
+            setIsOtherAnimal(false);
+            return;
+          }
+        }
+
+        if (herd && herd.length > 0) {
+          setSelectedAnimal(herd[0]);
+          setSelectedSpecies(herd[0].species || 'Cattle');
+          setAnimalName(herd[0].name);
+          setIsOtherAnimal(false);
+        } else {
+          setIsOtherAnimal(true);
+        }
+      } catch (err) {
+        console.warn('Failed to load herd:', err);
+        setIsOtherAnimal(true);
+      } finally {
+        setLoadingAnimals(false);
+      }
+    };
+    fetchHerd();
+  }, [location.search]);
+
+  const handleChooseAnimal = (animal) => {
+    if (animal) {
+      setSelectedAnimal(animal);
+      setIsOtherAnimal(false);
+      setSelectedSpecies(animal.species || 'Cattle');
+      setAnimalName(animal.name);
+    } else {
+      setSelectedAnimal(null);
+      setIsOtherAnimal(true);
+      setAnimalName('');
+    }
+  };
 
   // Step 2: Symptoms & Inputs (Matching Image 2)
   const [selectedSymptoms, setSelectedSymptoms] = useState(['skin_nodules', 'high_fever']);
@@ -89,7 +155,7 @@ export default function DiseaseDetectionPage() {
     }
   };
 
-  const handleStartAnalysis = async () => {
+    const handleStartAnalysis = async () => {
     setCurrentStep(3);
     setIsAnalyzing(true);
 
@@ -109,6 +175,91 @@ export default function DiseaseDetectionPage() {
     setAnalysisResult(result);
     setIsAnalyzing(false);
     setCurrentStep(4);
+
+    // AUTOMATIC HEALTH RECORD SYNC WITH PERSISTENT IMAGE STORAGE
+    if (selectedAnimal) {
+      try {
+        const animalId = selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId;
+        const isCritical = result.riskLevel === 'Critical' || result.riskLevel === 'High';
+        const isAttention = result.riskLevel === 'Moderate';
+        const newHealthStatus = isCritical ? 'Critical' : isAttention ? 'Needs Attention' : 'Healthy';
+
+        // 1. Clean Condition Name (Remove parenthetical double languages)
+        const rawCondition = result.disease || result.possibleCondition || 'Lumpy Skin Disease (LSD)';
+        let cleanCondition = rawCondition;
+        const parenMatch = rawCondition.match(/^([^(]+)(?:\(([^)]+)\))?/);
+        if (parenMatch) {
+          const eng = parenMatch[1].trim();
+          const local = parenMatch[2] ? parenMatch[2].split('/')[0].trim() : '';
+          cleanCondition = isEnglish ? eng : (local || eng);
+        }
+
+        // 2. Format localized symptoms
+        const formattedSymptoms = selectedSymptoms.map((symId) => {
+          const found = SYMPTOMS_27.find((s) => s.id === symId);
+          if (!found) return symId;
+          return isEnglish ? found.labelEn : isMarathi ? (found.labelMr || found.labelHi) : found.labelHi;
+        });
+
+        // 3. Store Image in Backend Database and get public URL
+        let storedImageUrl = '';
+        if (photoPreview) {
+          try {
+            const uploadRes = await api.post('/upload/scan-image', {
+              image: photoPreview,
+              animalId: selectedAnimal._id || selectedAnimal.id,
+              disease: cleanCondition,
+              riskLevel: result.riskLevel,
+              confidence: result.confidenceScore || result.confidence || 88,
+              symptoms: formattedSymptoms,
+              temperature: parseFloat(temperature || 0),
+              duration: parseFloat(duration || 0)
+            });
+            if (uploadRes.data?.imageUrl) {
+              storedImageUrl = uploadRes.data.imageUrl;
+            }
+          } catch (uploadErr) {
+            console.warn('Backend image upload failed, using local preview:', uploadErr.message);
+            storedImageUrl = photoPreview;
+          }
+        }
+
+        const advisoryText = (result.immediateFirstAid && result.immediateFirstAid.length > 0)
+          ? result.immediateFirstAid.join('. ')
+          : (result.explanation || '');
+
+        const scanTimelineEvent = {
+          type: 'Health Check',
+          title: isEnglish
+            ? `AI Disease Scan: ${cleanCondition} (${result.riskLevel} Risk)`
+            : isMarathi
+            ? `AI रोग तपासणी: ${cleanCondition} (${result.riskLevel === 'High' || result.riskLevel === 'Critical' ? 'गंभीर धोका' : result.riskLevel === 'Moderate' ? 'मध्यम धोका' : 'कमी धोका'})`
+            : `AI रोग जांच: ${cleanCondition} (${result.riskLevel === 'High' || result.riskLevel === 'Critical' ? 'गंभीर जोखिम' : result.riskLevel === 'Moderate' ? 'मध्यम जोखिम' : 'कम जोखिम'})`,
+          date: new Date().toLocaleDateString('en-GB'),
+          doctor: 'AI Neural Triage (lsd_model.keras)',
+          image: storedImageUrl,
+          status: newHealthStatus,
+          disease: cleanCondition,
+          confidence: result.confidenceScore || result.confidence || 88,
+          symptoms: formattedSymptoms,
+          advisory: advisoryText,
+          temperature: parseFloat(temperature || 0),
+          duration: parseFloat(duration || 0),
+          notes: `${isEnglish ? 'Confidence' : 'सटीकता'}: ${result.confidenceScore || result.confidence || 88}%. ${isEnglish ? 'Symptoms' : isMarathi ? 'लक्षणे' : 'लक्षण'}: ${formattedSymptoms.join(', ')}.`
+        };
+
+        const updates = {
+          healthStatus: newHealthStatus,
+          lastCheckup: new Date().toLocaleDateString('en-GB'),
+          newTimelineEvent: scanTimelineEvent
+        };
+
+        await animalService.updateAnimal(animalId, updates);
+        setAutoSyncSuccess(true);
+      } catch (err) {
+        console.warn('Auto sync to health record failed:', err);
+      }
+    }
   };
 
   const handleSaveFormalReport = async () => {
@@ -198,52 +349,161 @@ export default function DiseaseDetectionPage() {
 
         {/* STEP 1: SELECT ANIMAL */}
         {currentStep === 1 && (
-          <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-2xs space-y-5">
-            <h2 className="text-sm font-bold text-slate-800">
-              {isEnglish ? 'Step 1: Select Affected Livestock Species' : 'चरण 1: प्रभावित पशु का चयन करें'}
-            </h2>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { species: 'Cattle', label: isEnglish ? 'Cow / Cattle' : 'गाय (Cow)', emoji: '🐄' },
-                { species: 'Buffalo', label: isEnglish ? 'Buffalo' : 'भैंस (Buffalo)', emoji: '🦬' },
-                { species: 'Goat', label: isEnglish ? 'Goat' : 'बकरी (Goat)', emoji: '🐐' },
-                { species: 'Sheep', label: isEnglish ? 'Sheep' : 'भेड़ (Sheep)', emoji: '🐑' }
-              ].map((item) => (
-                <button
-                  key={item.species}
-                  type="button"
-                  onClick={() => setSelectedSpecies(item.species)}
-                  className={`p-4 rounded-xl border text-center transition ${
-                    selectedSpecies === item.species
-                      ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600'
-                      : 'border-stone-200 hover:border-stone-300 bg-stone-50'
-                  }`}
-                >
-                  <span className="text-3xl block mb-1">{item.emoji}</span>
-                  <span className="text-xs font-bold text-slate-900 block">{item.label}</span>
-                </button>
-              ))}
+          <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-2xs space-y-6">
+            <div className="border-b border-stone-100 pb-3">
+              <h2 className="text-sm font-bold text-slate-800">
+                {isEnglish ? 'Step 1: Select Livestock for Disease Scan' : isMarathi ? 'चरण १: रोग तपासणीसाठी जनावर निवडा' : 'चरण 1: रोग जांच के लिए पशु चुनें'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isEnglish
+                  ? 'Select from your registered herd. The AI scan result will automatically update the animal\'s health record.'
+                  : isMarathi
+                  ? 'नोंदणीकृत जनावरांमधून निवडा. AI चाचणीचा निकाल थेट या जनावराच्या आरोग्य नोंदवहीत जतन केला जाईल.'
+                  : 'अपने पंजीकृत पशुओं में से चुनें। AI जांच का परिणाम सीधे इस पशु के स्वास्थ्य रिकॉर्ड में जुड़ जाएगा।'}
+              </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                {isEnglish ? 'Animal Name or Tag ID (Optional):' : 'पशु का नाम या टैग (वैकल्पिक):'}
-              </label>
-              <input
-                type="text"
-                value={animalName}
-                onChange={(e) => setAnimalName(e.target.value)}
-                placeholder={isEnglish ? 'e.g. Lakshmi / MH-12-P-1001' : 'उदा. लक्ष्मी / MH-12-P-1001'}
-                className="w-full sm:w-72 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600"
-              />
-            </div>
+            {/* Registered Livestock Selection Grid */}
+            {animals.length > 0 && (
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  {isEnglish ? 'Your Registered Livestock:' : isMarathi ? 'तुमची नोंदणीकृत जनावरे:' : 'आपके पंजीकृत पशु:'}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {animals.map((animal) => {
+                    const isSelected = selectedAnimal && (selectedAnimal._id === animal._id || selectedAnimal.tagId === animal.tagId);
+                    const speciesLabel = getSpeciesDisplayName(animal.species, currentLang);
+                    const breedLabel = getBreedDisplayName(animal.breed, animal.species, currentLang);
+                    const statusLabel =
+                      animal.healthStatus === 'Healthy'
+                        ? (isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ')
+                        : animal.healthStatus === 'Needs Attention'
+                        ? (isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें')
+                        : (isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर');
 
-            <div className="pt-2 flex justify-end">
+                    return (
+                      <button
+                        key={animal._id || animal.tagId}
+                        type="button"
+                        onClick={() => handleChooseAnimal(animal)}
+                        className={`p-3.5 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-600'
+                            : 'border-stone-200 hover:border-emerald-300 bg-stone-50/70 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-3xl shrink-0">
+                            {animal.species === 'Buffalo' ? '🐃' : animal.species === 'Goat' ? '🐐' : animal.species === 'Sheep' ? '🐑' : '🐄'}
+                          </span>
+                          <div className="min-w-0">
+                            <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">{animal.name}</h4>
+                            <p className="text-[11px] text-slate-500 font-mono truncate">
+                              Tag: {animal.tagId} • {speciesLabel}
+                            </p>
+                            {breedLabel && <p className="text-[11px] text-emerald-800 font-medium truncate">{breedLabel}</p>}
+                          </div>
+                        </div>
+
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
+                            animal.healthStatus === 'Healthy'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              : animal.healthStatus === 'Needs Attention'
+                              ? 'bg-amber-100 text-amber-900 border-amber-200'
+                              : 'bg-red-100 text-red-800 border-red-200'
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {/* Option: Other / Unregistered Animal */}
+                  <button
+                    type="button"
+                    onClick={() => handleChooseAnimal(null)}
+                    className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-3 cursor-pointer ${
+                      isOtherAnimal
+                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-600'
+                        : 'border-dashed border-stone-300 hover:border-emerald-400 bg-stone-50/50 hover:bg-white'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center text-slate-600 shrink-0">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-800">
+                        {isEnglish ? '+ Other / Unregistered Animal' : isMarathi ? '+ इतर / नवीन जनावर' : '+ अन्य / नया पशु'}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        {isEnglish ? 'Scan animal without linking to registered profile' : 'नोंदणी न केलेल्या जनावराची तपासणी करा'}
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* If Other / Unregistered animal is selected, pick species & name manually */}
+            {isOtherAnimal && (
+              <div className="space-y-4 pt-2 border-t border-stone-100">
+                <label className="text-xs font-bold text-slate-700 block">
+                  {isEnglish ? 'Select Species:' : isMarathi ? 'प्रजात निवडा:' : 'प्रजाति चुनें:'}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { species: 'Cattle', label: isEnglish ? 'Cow / Cattle' : isMarathi ? 'गाय' : 'गाय', emoji: '🐄' },
+                    { species: 'Buffalo', label: isEnglish ? 'Buffalo' : isMarathi ? 'म्हैस' : 'भैंस', emoji: '🐃' },
+                    { species: 'Goat', label: isEnglish ? 'Goat' : isMarathi ? 'शेळी' : 'बकरी', emoji: '🐐' },
+                    { species: 'Sheep', label: isEnglish ? 'Sheep' : isMarathi ? 'मेंढी' : 'भेड़', emoji: '🐑' }
+                  ].map((item) => (
+                    <button
+                      key={item.species}
+                      type="button"
+                      onClick={() => setSelectedSpecies(item.species)}
+                      className={`p-4 rounded-xl border text-center transition cursor-pointer ${
+                        selectedSpecies === item.species
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-1 ring-emerald-600'
+                          : 'border-stone-200 hover:border-stone-300 bg-stone-50'
+                      }`}
+                    >
+                      <span className="text-3xl block mb-1">{item.emoji}</span>
+                      <span className="text-xs font-bold text-slate-900 block">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    {isEnglish ? 'Animal Name / Temporary Identifier (Optional):' : 'पशु का नाम / पहचान (वैकल्पिक):'}
+                  </label>
+                  <input
+                    type="text"
+                    value={animalName}
+                    onChange={(e) => setAnimalName(e.target.value)}
+                    placeholder={isEnglish ? 'e.g. Neighbor\'s Cow / Tag' : 'उदा. गाय / पहचान टैग'}
+                    className="w-full sm:w-72 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center justify-between border-t border-stone-100">
+              <div className="text-xs text-slate-500">
+                {selectedAnimal ? (
+                  <span className="font-semibold text-emerald-800">
+                    ✓ {isEnglish ? 'Selected:' : isMarathi ? 'निवडले:' : 'चयनित:'} {selectedAnimal.name} ({selectedAnimal.tagId})
+                  </span>
+                ) : (
+                  <span>{isEnglish ? 'Custom scan' : 'सामान्य जांच'}</span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-xs"
+                className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
               >
                 {t('actions.next', 'Continue')} <ArrowRight className="w-4 h-4" />
               </button>
@@ -368,7 +628,7 @@ export default function DiseaseDetectionPage() {
                       >
                         {isChecked ? '✓' : ''}
                       </span>
-                      <span>{isEnglish ? sym.id : sym.labelHi}</span>
+                      <span>{isEnglish ? (sym.nameEn || sym.labelEn) : isMarathi ? (sym.labelMr || sym.labelHi) : sym.labelHi}</span>
                     </button>
                   );
                 })}
@@ -380,7 +640,7 @@ export default function DiseaseDetectionPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                   <Thermometer className="w-3.5 h-3.5 text-amber-600" />
-                  {isEnglish ? 'Temperature (°C)' : 'तापमान (°C - Temperature)'}
+                  {isEnglish ? 'Temperature (°C)' : isMarathi ? 'तापमान (°C)' : 'तापमान (°C)'}
                 </label>
                 <input
                   type="number"
@@ -393,14 +653,18 @@ export default function DiseaseDetectionPage() {
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600 font-mono"
                 />
                 <span className="text-[10px] text-slate-400 block">
-                  {isEnglish ? 'Normal: 38.0–39.3°C, Fever: >39.5°C' : 'सामान्य: 38.0–39.3°C, बुखार: >39.5°C'}
+                  {isEnglish
+                    ? 'Normal: 38.0–39.3°C, Fever: >39.5°C'
+                    : isMarathi
+                    ? 'सामान्य: ३८.०–३९.३°C, ताप: >३९.५°C'
+                    : 'सामान्य: 38.0–39.3°C, बुखार: >39.5°C'}
                 </span>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-blue-600" />
-                  {isEnglish ? 'Duration of symptoms (hours)' : 'लक्षणों की अवधि (घंटे - Duration)'}
+                  {isEnglish ? 'Duration of symptoms (hours)' : isMarathi ? 'लक्षणे सुरू असल्याचा कालावधी (तास)' : 'लक्षणों की अवधि (घंटे)'}
                 </label>
                 <input
                   type="number"
@@ -411,7 +675,11 @@ export default function DiseaseDetectionPage() {
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600 font-mono"
                 />
                 <span className="text-[10px] text-slate-400 block">
-                  {isEnglish ? 'e.g. 24 for 1 day, 48 for 2 days' : 'उदा. 24 (1 दिन), 48 (2 दिन)'}
+                  {isEnglish
+                    ? 'e.g. 24 for 1 day, 48 for 2 days'
+                    : isMarathi
+                    ? 'उदा. २४ (१ दिवस), ४८ (२ दिवस)'
+                    : 'उदा. 24 (1 दिन), 48 (2 दिन)'}
                 </span>
               </div>
             </div>
@@ -505,6 +773,38 @@ export default function DiseaseDetectionPage() {
                 </span>
               )}
             </div>
+
+                        {/* Automatic Health Record Sync Banner */}
+            {autoSyncSuccess && selectedAnimal && (
+              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
+                <div className="flex items-start sm:items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
+                  <div>
+                    <h4 className="font-extrabold text-xs sm:text-sm text-emerald-950">
+                      {isEnglish
+                        ? `✓ Health Record Automatically Updated for ${selectedAnimal.name} (${selectedAnimal.tagId})`
+                        : isMarathi
+                        ? `✓ ${selectedAnimal.name} (${selectedAnimal.tagId}) ची आरोग्य नोंद स्वयंचलितपणे अद्यतनित केली`
+                        : `✓ ${selectedAnimal.name} (${selectedAnimal.tagId}) का स्वास्थ्य रिकॉर्ड स्वचालित रूप से अपडेट हो गया`}
+                    </h4>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      {isEnglish
+                        ? `Health status updated to "${analysisResult.riskLevel === 'High' || analysisResult.riskLevel === 'Critical' ? 'Critical' : analysisResult.riskLevel === 'Moderate' ? 'Needs Attention' : 'Healthy'}" and scan entry added to medical timeline.`
+                        : isMarathi
+                        ? `आरोग्य स्थिती आणि AI चाचणी इतिहास जनावराच्या प्रोफाइलमध्ये सुरक्षित केला आहे.`
+                        : `स्वास्थ्य स्थिति और AI जांच विवरण पशु की समय-रेखा में सुरक्षित कर दिया गया है।`}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to={`/animals?openAnimal=${selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId}`}
+                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs shrink-0 cursor-pointer"
+                >
+                  <span>{isEnglish ? 'View Health Record' : isMarathi ? 'आरोग्य नोंद पहा' : 'स्वास्थ्य रिकॉर्ड देखें'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            )}
 
             {/* Disease Heading */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">

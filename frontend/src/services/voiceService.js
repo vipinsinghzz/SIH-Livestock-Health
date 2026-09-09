@@ -3,15 +3,7 @@
 export const INDIAN_LANGUAGES = [
   { code: 'hi-IN', key: 'hi', label: 'हिंदी (Hindi)', flag: '🇮🇳' },
   { code: 'en-IN', key: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'mr-IN', key: 'mr', label: 'मराठी (Marathi)', flag: '🇮🇳' },
-  { code: 'gu-IN', key: 'gu', label: 'ગુજરાતી (Gujarati)', flag: '🇮🇳' },
-  { code: 'pa-IN', key: 'pa', label: 'ਪੰਜਾਬੀ (Punjabi)', flag: '🇮🇳' },
-  { code: 'bn-IN', key: 'bn', label: 'বাংলা (Bengali)', flag: '🇮🇳' },
-  { code: 'ta-IN', key: 'ta', label: 'தமிழ் (Tamil)', flag: '🇮🇳' },
-  { code: 'te-IN', key: 'te', label: 'తెలుగు (Telugu)', flag: '🇮🇳' },
-  { code: 'kn-IN', key: 'kn', label: 'ಕನ್ನಡ (Kannada)', flag: '🇮🇳' },
-  { code: 'ml-IN', key: 'ml', label: 'മലയാളം (Malayalam)', flag: '🇮🇳' },
-  { code: 'or-IN', key: 'or', label: 'ଓଡ଼ିଆ (Odia)', flag: '🇮🇳' }
+  { code: 'mr-IN', key: 'mr', label: 'मराठी (Marathi)', flag: '🇮🇳' }
 ];
 
 export const voiceService = {

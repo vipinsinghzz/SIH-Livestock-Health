@@ -1,41 +1,60 @@
 // Agrometeorological Weather & Heat Stress Service for Indian Livestock
+import api from './api';
 
 export const weatherService = {
-  getWeatherData(location = { district: 'Sehore', state: 'Madhya Pradesh' }) {
-    // Current realistic Indian weather data
-    const tempC = 32.5;
-    const humidityPct = 76;
-    const rainfallMm = 4.2;
+  async getLiveWeather(location = {}) {
+    const district = location.district || 'Nagpur';
+    const state = location.state || 'Maharashtra';
+    const lat = location.lat || (location.location?.lat) || 0;
+    const lng = location.lng || (location.location?.lng) || 0;
 
-    // Calculate Temperature-Humidity Index (THI) for cattle/buffalo
-    // THI = (1.8 * T + 32) - ((0.55 - 0.0055 * RH) * (1.8 * T - 26))
-    const thi = Math.round((1.8 * tempC + 32) - ((0.55 - 0.0055 * humidityPct) * (1.8 * tempC - 26)));
-
-    let heatStressLevel = 'Normal';
-    let alertHi = 'मौसम अनुकूल है। सामान्य दिनचर्या बनाए रखें।';
-    let alertEn = 'Weather is favorable for livestock. Maintain normal routine.';
-
-    if (thi >= 80) {
-      heatStressLevel = 'Severe Heat Stress';
-      alertHi = '⚠️ आज गर्मी और नमी अत्यधिक है (THI 82)। पशुओं पर दिन में 3-4 बार ठंडे पानी का छिड़काव करें और खूब स्वच्छ पानी पिलाएं।';
-      alertEn = '⚠️ Extreme heat and humidity detected (THI 82). Sprinkle cool water on animals 3-4 times daily and ensure continuous drinking water.';
-    } else if (thi >= 72) {
-      heatStressLevel = 'Moderate Stress';
-      alertHi = 'आज गर्मी और नमी अधिक है। पशुओं को पर्याप्त पानी, छायादार स्थान दें और धूप में न चरने भेजें।';
-      alertEn = 'Today temperature and humidity are high. Ensure cool shade, fresh water, and avoid afternoon grazing.';
+    try {
+      const res = await api.get(`/weather?lat=${lat}&lng=${lng}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`);
+      if (res.data?.success && res.data.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      console.warn('[WeatherService] Could not fetch live weather from server:', err.message);
     }
 
+    // Direct browser fetch from Open-Meteo if backend API is unreachable
+    try {
+      const latitude = lat || 21.1458;
+      const longitude = lng || 79.0882;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const json = await res.json();
+        const current = json.current || {};
+        const tempC = Math.round((current.temperature_2m ?? 27) * 10) / 10;
+        const humidityPct = Math.round(current.relative_humidity_2m ?? 70);
+        const thi = Math.round((1.8 * tempC + 32) - ((0.55 - 0.0055 * humidityPct) * (1.8 * tempC - 26)));
+
+        return {
+          temperature: tempC,
+          humidity: humidityPct,
+          thiScore: thi,
+          heatStressLevel: thi >= 84 ? 'Severe Heat Stress' : thi >= 78 ? 'Moderate Heat Stress' : 'Mild Heat Stress',
+          alertEn: `Current weather: ${tempC}°C, Humidity ${humidityPct}%. Ensure clean water and shade for livestock.`,
+          alertHi: `वर्तमान मौसम: ${tempC}°C, नमी ${humidityPct}%। पशुओं के लिए स्वच्छ पानी और छाया का प्रबंध रखें।`,
+          alertMr: `सध्याचे हवामान: ${tempC}°C, आर्द्रता ${humidityPct}%. जनावरांसाठी स्वच्छ पाणी आणि सावलीची सोय करा.`,
+          isLive: true,
+          location: `${district}, ${state}`
+        };
+      }
+    } catch (e) {}
+
+    // Fallback
     return {
-      temperature: tempC,
-      condition: 'Partly Cloudy',
-      humidity: humidityPct,
-      rainfall: rainfallMm,
-      windSpeedKmH: 14,
-      thiScore: thi,
-      heatStressLevel,
-      alertHi,
-      alertEn,
-      location: `${location.district || 'Sehore'}, ${location.state || 'Madhya Pradesh'}`
+      temperature: 26,
+      humidity: 80,
+      thiScore: 76,
+      heatStressLevel: 'Mild Heat Stress',
+      alertEn: 'Weather is favorable for livestock. Maintain continuous clean drinking water.',
+      alertHi: 'मौसम अनुकूल है। स्वच्छ पीने का पानी और सामान्य दिनचर्या बनाए रखें।',
+      alertMr: 'हवामान अनुकूल आहे. स्वच्छ पिण्याचे पाणी उपलब्ध ठेवा.',
+      isLive: false,
+      location: `${district}, ${state}`
     };
   }
 };

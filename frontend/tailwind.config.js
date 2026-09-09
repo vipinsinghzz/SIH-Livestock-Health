@@ -40,6 +40,9 @@ export default {
         indic: ['"Hind"', '"Plus Jakarta Sans"', 'sans-serif']
       },
       boxShadow: {
+        '2xs': '0 1px 2px 0 rgba(0, 0, 0, 0.04)',
+        'xs': '0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        'modal': '0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 30px 0 rgba(0, 0, 0, 0.2)',
         'kisan-sm': '0 1px 3px rgba(22, 101, 52, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
         'kisan-md': '0 4px 12px rgba(22, 101, 52, 0.08), 0 2px 4px rgba(0,0,0,0.03)',
         'kisan-lg': '0 10px 25px -3px rgba(22, 101, 52, 0.12), 0 4px 6px -2px rgba(0,0,0,0.05)',

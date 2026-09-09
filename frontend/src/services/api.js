@@ -27,7 +27,12 @@ api.interceptors.response.use(
       // If token expired, clear local storage
       localStorage.removeItem('pashurakshak_token');
       localStorage.removeItem('pashurakshak_user');
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      if (
+        window.location.pathname !== '/login' &&
+        window.location.pathname !== '/register' &&
+        !window.location.pathname.startsWith('/select-language') &&
+        !window.location.pathname.startsWith('/language')
+      ) {
         window.location.href = '/login';
       }
     }

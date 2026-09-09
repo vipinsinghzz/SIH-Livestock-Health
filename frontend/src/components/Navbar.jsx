@@ -56,6 +56,7 @@ export default function Navbar() {
     navLinks = [
       { to: '/', label: t('nav.home') },
       { to: '/animals', label: t('nav.animals') },
+      { to: '/reports', label: t('nav.reports') },
       { to: '/kisan-saathi', label: t('nav.kisan_saathi') },
       { to: '/report-sick', label: t('nav.report_sick') },
       { to: '/veterinary-help', label: t('nav.veterinary_help') },
@@ -140,9 +141,15 @@ export default function Navbar() {
               </span>
             )}
 
-            {/* Language Selector: All 11 Indian Languages */}
-            <div className="flex items-center gap-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1">
-              <Globe className="w-3.5 h-3.5 text-emerald-700 flex-shrink-0" />
+            {/* Language Selector: Hindi, English, Marathi */}
+            <div className="flex items-center gap-1.5 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1">
+              <Link
+                to="/select-language"
+                title="भाषा चुनें / Choose Language"
+                className="text-emerald-700 hover:text-emerald-900 flex items-center transition"
+              >
+                <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+              </Link>
               <select
                 value={currentLang}
                 onChange={handleLanguageChange}
@@ -174,11 +181,11 @@ export default function Navbar() {
                 {personaDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-stone-200 py-2 z-50 text-xs space-y-1">
                     <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      {t('nav.switch_role')} • Test Profiles
+                      {t('nav.switch_role')}
                     </div>
 
                     <div className="px-3 py-1 text-[10px] font-bold text-emerald-800 bg-emerald-50">
-                      🌾 पंजीकृत किसान (Distinct Farmers):
+                      {currentLang === 'en' ? '🌾 Registered Farmers:' : currentLang === 'mr' ? '🌾 नोंदणीकृत शेतकरी:' : '🌾 पंजीकृत किसान:'}
                     </div>
                     <button
                       onClick={() => handlePersonaChange('farmer_ramesh')}
@@ -187,8 +194,8 @@ export default function Navbar() {
                       }`}
                     >
                       <div>
-                        <div className="font-bold">रमेश पाटिल (Ramesh)</div>
-                        <div className="text-[10px] text-slate-500">बारामती • 3 पशु (Gir, Murrah, HF)</div>
+                        <div className="font-bold">{currentLang === 'en' ? 'Ramesh Patil' : 'रमेश पाटिल'}</div>
+                        <div className="text-[10px] text-slate-500">{currentLang === 'en' ? 'Baramati • 3 Animals' : currentLang === 'mr' ? 'बारामती • ३ जनावरे' : 'बारामती • 3 पशु'}</div>
                       </div>
                       {user.email === 'farmer@pashurakshak.in' && <span className="text-emerald-700 font-bold">✓</span>}
                     </button>
@@ -199,8 +206,8 @@ export default function Navbar() {
                       }`}
                     >
                       <div>
-                        <div className="font-bold">संतोष शिंदे (Santosh)</div>
-                        <div className="text-[10px] text-slate-500">शिरूर • 2 पशु (Goat, Bull)</div>
+                        <div className="font-bold">{currentLang === 'en' ? 'Santosh Shinde' : 'संतोष शिंदे'}</div>
+                        <div className="text-[10px] text-slate-500">{currentLang === 'en' ? 'Shirur • 2 Animals' : currentLang === 'mr' ? 'शिरूर • २ जनावरे' : 'शिरूर • 2 पशु'}</div>
                       </div>
                       {user.email === 'santosh@pashurakshak.in' && <span className="text-emerald-700 font-bold">✓</span>}
                     </button>
@@ -211,8 +218,8 @@ export default function Navbar() {
                       }`}
                     >
                       <div>
-                        <div className="font-bold">सुनीता गायकवाड़ (Sunita)</div>
-                        <div className="text-[10px] text-slate-500">खेड • 1 पशु (Dangi Cow)</div>
+                        <div className="font-bold">{currentLang === 'en' ? 'Sunita Gaikwad' : 'सुनीता गायकवाड़'}</div>
+                        <div className="text-[10px] text-slate-500">{currentLang === 'en' ? 'Khed • 1 Animal' : currentLang === 'mr' ? 'खेड • १ जनावर' : 'खेड • 1 पशु'}</div>
                       </div>
                       {user.email === 'sunita@pashurakshak.in' && <span className="text-emerald-700 font-bold">✓</span>}
                     </button>
@@ -220,7 +227,7 @@ export default function Navbar() {
                     <div className="border-t border-stone-100 my-1" />
 
                     <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      अधिकारी व डॉक्टर:
+                      {currentLang === 'en' ? 'Veterinarians & Officers:' : currentLang === 'mr' ? 'पशुवैद्यक व अधिकारी:' : 'अधिकारी व डॉक्टर:'}
                     </div>
                     <button
                       onClick={() => handlePersonaChange('field_worker')}
@@ -228,7 +235,7 @@ export default function Navbar() {
                         user.role === 'field_worker' ? 'font-bold text-blue-700 bg-blue-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <span>🩺 {t('roles.field_worker')} (Dr. Ananya)</span>
+                      <span>🩺 {t('roles.field_worker')} — {currentLang === 'en' ? 'Dr. Ananya Deshmukh' : 'डॉ. अनन्या देशमुख'}</span>
                       {user.role === 'field_worker' && <span className="text-blue-700 font-bold">✓</span>}
                     </button>
                     <button
@@ -237,7 +244,7 @@ export default function Navbar() {
                         user.role === 'officer' ? 'font-bold text-purple-700 bg-purple-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <span>🏛️ {t('roles.officer')} (Dr. Suresh)</span>
+                      <span>🏛️ {t('roles.officer')} — {currentLang === 'en' ? 'Dr. Suresh Kulkarni' : 'डॉ. सुरेश कुलकर्णी'}</span>
                       {user.role === 'officer' && <span className="text-purple-700 font-bold">✓</span>}
                     </button>
                   </div>
@@ -266,10 +273,10 @@ export default function Navbar() {
                   {t('nav.login')}
                 </Link>
                 <Link
-                  to="/register"
+                  to="/select-language?redirect=/register"
                   className="hidden sm:inline-block px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold transition border border-stone-200"
                 >
-                  पंजीकरण
+                  {currentLang === 'en' ? 'Register' : currentLang === 'mr' ? 'नोंदणी करा' : 'पंजीकरण'}
                 </Link>
               </div>
             )}
@@ -291,10 +298,14 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-stone-200 bg-white px-4 py-3 space-y-2">
           {/* Mobile Language Selector */}
-          <div className="flex items-center justify-between p-2 bg-stone-50 rounded-xl border border-stone-200">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+          <div className="flex items-center justify-between p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+            <Link
+              to="/select-language"
+              onClick={() => setMobileMenuOpen(false)}
+              className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 hover:underline"
+            >
               <Globe className="w-3.5 h-3.5 text-emerald-700" /> भाषा / Language:
-            </span>
+            </Link>
             <select
               value={currentLang}
               onChange={handleLanguageChange}

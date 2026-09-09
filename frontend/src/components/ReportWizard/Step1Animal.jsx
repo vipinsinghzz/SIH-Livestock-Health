@@ -2,18 +2,19 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tag, Users, AlertCircle } from 'lucide-react';
 
-const SPECIES_OPTIONS = [
-  { id: 'Cattle', label: 'Cattle (गाय/बैल)', icon: '🐄' },
-  { id: 'Buffalo', label: 'Buffalo (भैंस)', icon: '🐃' },
-  { id: 'Goat', label: 'Goat (बकरी)', icon: '🐐' },
-  { id: 'Sheep', label: 'Sheep (भेड़)', icon: '🐑' },
-  { id: 'Poultry', label: 'Poultry (मुर्गी)', icon: '🐔' },
-  { id: 'Pig', label: 'Pig (सुअर)', icon: '🐖' },
-  { id: 'Other', label: 'Other (अन्य)', icon: '🐾' }
+const SPECIES_CONFIG = [
+  { id: 'Cattle', icon: '🐄', en: 'Cattle / Cow', hi: 'गाय / बैल', mr: 'गाय / बैल' },
+  { id: 'Buffalo', icon: '🐃', en: 'Buffalo', hi: 'भैंस', mr: 'म्हैस' },
+  { id: 'Goat', icon: '🐐', en: 'Goat', hi: 'बकरी', mr: 'शेळी' },
+  { id: 'Sheep', icon: '🐑', en: 'Sheep', hi: 'भेड़', mr: 'मेंढी' },
+  { id: 'Poultry', icon: '🐔', en: 'Poultry', hi: 'मुर्गी', mr: 'कोंबडी' },
+  { id: 'Pig', icon: '🐖', en: 'Pig', hi: 'सुअर', mr: 'डुक्कर' },
+  { id: 'Other', icon: '🐾', en: 'Other', hi: 'अन्य पशु', mr: 'इतर' }
 ];
 
 export default function Step1Animal({ formData, updateFormData, registeredAnimals = [] }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language?.split('-')[0] || 'hi';
 
   return (
     <div className="space-y-6">
@@ -22,8 +23,9 @@ export default function Step1Animal({ formData, updateFormData, registeredAnimal
           {t('wizard.select_species')} <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {SPECIES_OPTIONS.map((item) => {
+          {SPECIES_CONFIG.map((item) => {
             const isSelected = formData.species === item.id;
+            const labelText = item[currentLang] || item.en;
             return (
               <button
                 type="button"
@@ -36,7 +38,7 @@ export default function Step1Animal({ formData, updateFormData, registeredAnimal
                 }`}
               >
                 <span className="text-3xl">{item.icon}</span>
-                <span className="text-xs sm:text-sm font-bold">{item.label}</span>
+                <span className="text-xs sm:text-sm font-bold">{labelText}</span>
               </button>
             );
           })}

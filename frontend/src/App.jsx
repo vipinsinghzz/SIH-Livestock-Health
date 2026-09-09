@@ -22,6 +22,7 @@ import AnimalsList from './pages/AnimalsList';
 import AdvisoriesPage from './pages/AdvisoriesPage';
 import VaccinationPage from './pages/VaccinationPage';
 import IVRSimulator from './pages/IVRSimulator';
+import SelectLanguagePage from './pages/SelectLanguagePage';
 
 // Home Route: Landing Page if unauthenticated, Dashboard if logged in
 function HomeRoute() {
@@ -76,6 +77,8 @@ function AppContent() {
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/select-language" element={<SelectLanguagePage />} />
+          <Route path="/language" element={<SelectLanguagePage />} />
 
           {/* Accessible Farmer & Public Features */}
           <Route path="/kisan-saathi" element={<KisanSaathiPage />} />

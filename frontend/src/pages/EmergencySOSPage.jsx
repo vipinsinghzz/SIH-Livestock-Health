@@ -94,10 +94,14 @@ export default function EmergencySOSPage() {
                 <span>24×7 {t('nav.emergency_sos')}</span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-black">
-                🚨 {t('nav.emergency_sos')} (1962 SOS)
+                🚨 {t('nav.emergency_sos')}
               </h1>
               <p className="text-xs sm:text-sm text-red-100 max-w-xl leading-relaxed">
-                Emergency triage and response for severe livestock distress: bloat, poison, respiratory failure, or dystocia. Dispatch 1962 mobile ambulance.
+                {activeLangKey === 'en'
+                  ? 'Emergency triage and response for severe livestock distress: bloat, poison, respiratory failure, or dystocia. Dispatch 1962 mobile ambulance.'
+                  : activeLangKey === 'mr'
+                  ? 'गंभीर पशु आरोग्याच्या समस्येसाठी त्वरित प्रतिसाद: विषबाधा, पोटफुगी किंवा श्वसन विकार. १९६२ फिरती रुग्णवाहिका सेवा.'
+                  : 'पशुओं की गंभीर आपातकालीन स्थिति: पेट फूलना, जहर, श्वसन विफलता के लिए तुरंत 1962 पशु एम्बुलेंस सेवा प्राप्त करें।'}
               </p>
             </div>
 
@@ -107,9 +111,11 @@ export default function EmergencySOSPage() {
                 className="inline-flex items-center gap-2 bg-white hover:bg-red-50 text-red-700 font-black text-base sm:text-lg px-6 py-3 rounded-2xl shadow-lg transition transform active:scale-95"
               >
                 <PhoneCall className="w-5 h-5 animate-pulse" />
-                <span>कॉल करें: 1962</span>
+                <span>{activeLangKey === 'en' ? 'Call: 1962' : activeLangKey === 'mr' ? 'कॉल करा: १९६२' : 'कॉल करें: 1962'}</span>
               </a>
-              <span className="text-[10px] text-red-200 block mt-1">टोल-फ्री राष्ट्रीय आपातकालीन नंबर</span>
+              <span className="text-[10px] text-red-200 block mt-1">
+                {activeLangKey === 'en' ? 'Toll-Free National Helpline' : activeLangKey === 'mr' ? 'टोल-फ्री राष्ट्रीय आपत्कालीन क्रमांक' : 'टोल-फ्री राष्ट्रीय आपातकालीन नंबर'}
+              </span>
             </div>
           </div>
         </div>
@@ -120,12 +126,12 @@ export default function EmergencySOSPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4">
               <div>
                 <span className="text-xs font-bold text-red-600 uppercase tracking-wide">
-                  सक्रिय आपातकालीन स्थिति • Live Emergency Tracking
+                  {activeLangKey === 'en' ? 'Live Emergency Tracking' : activeLangKey === 'mr' ? 'सक्रिय आपत्कालीन देखरेख' : 'सक्रिय आपातकालीन स्थिति'}
                 </span>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-                  केस संख्या: {activeSOS.id} ({activeSOS.animalName})
+                  {activeLangKey === 'en' ? 'Case #' : activeLangKey === 'mr' ? 'केस क्रमांक: ' : 'केस संख्या: '} {activeSOS.id} ({activeSOS.animalName})
                 </h2>
-                <p className="text-xs text-slate-500">स्थान: {activeSOS.location}</p>
+                <p className="text-xs text-slate-500">{activeLangKey === 'en' ? 'Location: ' : 'स्थान: '} {activeSOS.location}</p>
               </div>
 
               <div className="text-right">
@@ -133,7 +139,11 @@ export default function EmergencySOSPage() {
                   {EMERGENCY_STAGES[activeSOS.statusIndex].label}
                 </span>
                 <span className="text-xs text-emerald-700 font-bold block mt-1">
-                  अनुमानित एम्बुलेंस समय: ~{activeSOS.ambulanceEtaMinutes} मिनट
+                  {activeLangKey === 'en'
+                    ? `Estimated Ambulance ETA: ~${activeSOS.ambulanceEtaMinutes} mins`
+                    : activeLangKey === 'mr'
+                    ? `अंदाजे रुग्णवाहिका वेळ: ~${activeSOS.ambulanceEtaMinutes} मिनिटे`
+                    : `अनुमानित एम्बुलेंस समय: ~${activeSOS.ambulanceEtaMinutes} मिनट`}
                 </span>
               </div>
             </div>
@@ -197,10 +207,14 @@ export default function EmergencySOSPage() {
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-stone-200 space-y-6">
           <div className="border-b border-stone-200 pb-4">
             <h2 className="text-xl font-extrabold text-slate-950">
-              नया आपातकालीन अलर्ट दर्ज करें (Submit Emergency SOS)
+              {activeLangKey === 'en' ? 'Submit Emergency SOS Alert' : activeLangKey === 'mr' ? 'नवीन आपत्कालीन अलर्ट नोंदवा' : 'नया आपातकालीन अलर्ट दर्ज करें'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              सभी निकटवर्ती पशु चिकित्सा अधिकारियों और एम्बुलेंस दल को तुरंत सूचना भेजी जाएगी
+              {activeLangKey === 'en'
+                ? 'Immediate notification will be dispatched to nearby veterinary officers and mobile ambulance teams.'
+                : activeLangKey === 'mr'
+                ? 'नजीकच्या सर्व पशुवैद्यकीय अधिकारी आणि रुग्णवाहिका पथकाला त्वरित माहिती पाठवली जाईल.'
+                : 'सभी निकटवर्ती पशु चिकित्सा अधिकारियों और एम्बुलेंस दल को तुरंत सूचना भेजी जाएगी।'}
             </p>
           </div>
 
@@ -208,27 +222,27 @@ export default function EmergencySOSPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  पशु प्रजाति (Species):
+                  {activeLangKey === 'en' ? 'Livestock Species:' : activeLangKey === 'mr' ? 'पशु प्रजात:' : 'पशु प्रजाति:'}
                 </label>
                 <select
                   value={species}
                   onChange={(e) => setSpecies(e.target.value)}
                   className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-red-500 focus:outline-none"
                 >
-                  <option value="Cattle">गाय (Cattle / Cow)</option>
-                  <option value="Buffalo">भैंस (Buffalo)</option>
-                  <option value="Goat">बकरी (Goat)</option>
-                  <option value="Sheep">भेड़ (Sheep)</option>
+                  <option value="Cattle">{activeLangKey === 'en' ? 'Cattle / Cow' : 'गाय'}</option>
+                  <option value="Buffalo">{activeLangKey === 'en' ? 'Buffalo' : activeLangKey === 'mr' ? 'म्हैस' : 'भैंस'}</option>
+                  <option value="Goat">{activeLangKey === 'en' ? 'Goat' : activeLangKey === 'mr' ? 'शेळी' : 'बकरी'}</option>
+                  <option value="Sheep">{activeLangKey === 'en' ? 'Sheep' : activeLangKey === 'mr' ? 'मेंढी' : 'भेड़'}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  पशु का नाम / टैग (Animal Identifier):
+                  {activeLangKey === 'en' ? 'Animal Name or Tag ID:' : activeLangKey === 'mr' ? 'जनावराचे नाव किंवा टॅग:' : 'पशु का नाम या टैग:'}
                 </label>
                 <input
                   type="text"
-                  placeholder="उदा. लक्ष्मी / Gauri"
+                  placeholder={activeLangKey === 'en' ? 'e.g. Gauri / MH-12-P-1001' : activeLangKey === 'mr' ? 'उदा. गौरी / MH-12-P-1001' : 'उदा. लक्ष्मी / MH-12-P-1001'}
                   value={animalName}
                   onChange={(e) => setAnimalName(e.target.value)}
                   className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-red-500 focus:outline-none"
@@ -238,7 +252,7 @@ export default function EmergencySOSPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                वर्तमान स्थान (GPS Location):
+                {activeLangKey === 'en' ? 'Current Location (GPS):' : activeLangKey === 'mr' ? 'सध्याचे स्थान (GPS):' : 'वर्तमान स्थान (GPS):'}
               </label>
               <div className="relative">
                 <input

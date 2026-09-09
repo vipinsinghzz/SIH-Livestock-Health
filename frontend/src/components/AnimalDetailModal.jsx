@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   HeartPulse,
@@ -13,39 +14,100 @@ import {
   FileCheck,
   Plus,
   Loader2,
-  Save
+  Save,
+  Sparkles,
+  Camera,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Search,
+  ShieldCheck,
+  Tag,
+  Building2,
+  User,
+  FileText,
+  CheckCheck,
+  RefreshCw,
+  Bell,
+  Info
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import {
+  VACCINE_REGISTRY,
+  DOSE_NUMBER_OPTIONS,
+  VACCINATION_CAMPS_PRESETS,
+  calculateNextDueDate,
+  getVaccineStatusInfo,
+  getAIVaccineRecommendations
+} from '../constants/vaccineData';
 import animalService from '../services/animalService';
+import {
+  getCleanLang,
+  getSpeciesDisplayName,
+  getBreedDisplayName
+} from '../constants/livestockData';
 
-export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
-  const { t, i18n } = useTranslation();
-  const isHindi = i18n.language === 'hi' || !i18n.language?.startsWith('en');
+
+const QUICK_SYMPTOMS = [
+  { id: 'fever', icon: '🌡️', en: 'High Fever', hi: 'तेज बुखार', mr: 'तीव्र ताप', severity: 'Needs Attention' },
+  { id: 'skin_nodules', icon: '🪢', en: 'Skin Nodules / Lumps', hi: 'त्वचा पर गांठें / लम्प्स', mr: 'त्वचेवर गाठी', severity: 'Critical' },
+  { id: 'off_feed', icon: '🌾', en: 'Loss of Appetite', hi: 'चारा न खाना', mr: 'चारा न खाणे', severity: 'Needs Attention' },
+  { id: 'lethargy', icon: '🥱', en: 'Lethargy & Weakness', hi: 'सुस्ती व कमजोरी', mr: 'सुस्तपणा व अशक्तपणा', severity: 'Needs Attention' },
+  { id: 'salivation', icon: '💧', en: 'Excessive Salivation', hi: 'मुंह से अधिक लार', mr: 'तोंडातून लाळ गळणे', severity: 'Needs Attention' },
+  { id: 'lameness', icon: '🦶', en: 'Limping / Lameness', hi: 'लंगड़ाना', mr: 'लंगडणे', severity: 'Needs Attention' },
+  { id: 'cough', icon: '🤧', en: 'Cough / Discharge', hi: 'खांसी व नाक बहना', mr: 'खोकला व नाक वाहणे', severity: 'Needs Attention' },
+  { id: 'milk_drop', icon: '📉', en: 'Sudden Milk Drop', hi: 'दूध में अचानक कमी', mr: 'दुधात अचानक घट', severity: 'Needs Attention' },
+  { id: 'healthy_normal', icon: '✨', en: 'No Symptoms / Active', hi: 'कोई लक्षण नहीं / स्वस्थ', mr: 'काही लक्षणे नाहीत / निरोगी', severity: 'Healthy' }
+];
+
+export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTab = 'health' }) {
+    const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const currentLang = getCleanLang(i18n.language);
+  const isEnglish = currentLang === 'en';
+  const isMarathi = currentLang === 'mr';
+  const isHindi = currentLang === 'hi';
 
   // Internal state to guarantee immediate UI updates
   const [modalAnimal, setModalAnimal] = useState(animal);
   const [timeline, setTimeline] = useState(animal?.timeline || []);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(initialTab || 'health');
+  const [expandedTimelineIdx, setExpandedTimelineIdx] = useState(null);
 
-  // Tab 1: Timeline Add Event form state
+  // Tab: Health Status Update state
+  const [selectedHealthStatus, setSelectedHealthStatus] = useState(animal?.healthStatus || 'Healthy');
+  const [selectedQuickSymptoms, setSelectedQuickSymptoms] = useState([]);
+  const [healthObservation, setHealthObservation] = useState('');
+  const [isSubmittingHealth, setIsSubmittingHealth] = useState(false);
+
+  // Tab: Timeline Add Event form state
   const [newTimelineTitle, setNewTimelineTitle] = useState('');
   const [newTimelineType, setNewTimelineType] = useState('Health Check');
   const [newTimelineNotes, setNewTimelineNotes] = useState('');
   const [isSubmittingTimeline, setIsSubmittingTimeline] = useState(false);
 
-  // Tab 2: Health Status Update state
-  const [selectedHealthStatus, setSelectedHealthStatus] = useState(animal?.healthStatus || 'Healthy');
-  const [healthObservation, setHealthObservation] = useState('');
-  const [isSubmittingHealth, setIsSubmittingHealth] = useState(false);
-
-  // Tab 3: Vaccination form state
-  const [newVaccineName, setNewVaccineName] = useState('');
-  const [newVaccineNextDue, setNewVaccineNextDue] = useState('');
+  // Tab: Vaccination form state
+  const [selectedVaccineKey, setSelectedVaccineKey] = useState('fmd');
+  const [newVaccineName, setNewVaccineName] = useState('FMD (Foot & Mouth Disease)');
+  const [vaccineSearchQuery, setVaccineSearchQuery] = useState('');
+  const [isVaccineDropdownOpen, setIsVaccineDropdownOpen] = useState(false);
+  const [newVaccineDateAdministered, setNewVaccineDateAdministered] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [newVaccineNextDue, setNewVaccineNextDue] = useState(() => {
+    return calculateNextDueDate('fmd', new Date().toISOString().split('T')[0]);
+  });
+  const [newVaccineDose, setNewVaccineDose] = useState('Annual Booster');
+  const [newVaccineBatch, setNewVaccineBatch] = useState('');
+  const [newVaccineAdministeredBy, setNewVaccineAdministeredBy] = useState('');
+  const [newVaccineCamp, setNewVaccineCamp] = useState('');
+  const [newVaccineNotes, setNewVaccineNotes] = useState('');
   const [isSubmittingVaccine, setIsSubmittingVaccine] = useState(false);
-
-  // Tab 5: Milk Yield state
-  const [newMilkYield, setNewMilkYield] = useState('');
-  const [isSubmittingMilk, setIsSubmittingMilk] = useState(false);
 
   // Feedback notifications
   const [successMessage, setSuccessMessage] = useState('');
@@ -78,65 +140,66 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
     }, 4000);
   };
 
-  // 1. Handle Adding Timeline Event (Tab 1)
-  const handleAddTimeline = async (e) => {
-    e.preventDefault();
-    if (!newTimelineTitle.trim()) {
-      showError(isHindi ? 'कृपया रिकॉर्ड का शीर्षक दर्ज करें।' : 'Please enter a title for the record.');
+  const handleToggleQuickSymptom = (sym) => {
+    if (sym.id === 'healthy_normal') {
+      setSelectedQuickSymptoms(['healthy_normal']);
+      setSelectedHealthStatus('Healthy');
+      setHealthObservation(
+        isEnglish
+          ? 'Active, normal appetite, healthy vitals, no symptoms observed.'
+          : isMarathi
+          ? 'सक्रिय, चारा व्यवस्थित खात आहे, कोणतीही लक्षणे नाहीत.'
+          : 'सक्रिय, चारा ठीक से खा रहा है, कोई बीमारी लक्षण नहीं।'
+      );
       return;
     }
 
-    const animalId = modalAnimal._id || modalAnimal.id || modalAnimal.tagId;
-    const newEvent = {
-      type: newTimelineType,
-      title: newTimelineTitle.trim(),
-      date: new Date().toLocaleDateString('en-GB'),
-      doctor: 'Registered Doctor / Self',
-      notes: newTimelineNotes.trim()
-    };
-
-    // Instant optimistic update
-    setTimeline((prev) => [newEvent, ...prev]);
-    setModalAnimal((prev) => ({
-      ...prev,
-      timeline: [newEvent, ...(prev?.timeline || [])]
-    }));
-
-    setIsSubmittingTimeline(true);
-    try {
-      const updated = await animalService.addTimelineEvent(animalId, newEvent);
-      if (updated) {
-        setModalAnimal(updated);
-        if (updated.timeline) setTimeline(updated.timeline);
-        if (onUpdate) onUpdate(updated);
-      } else if (onUpdate) {
-        onUpdate();
-      }
-
-      setNewTimelineTitle('');
-      setNewTimelineNotes('');
-      showSuccess(isHindi ? '✓ रिकॉर्ड सफलतापूर्वक सुरक्षित किया गया!' : '✓ Record saved successfully!');
-    } catch (err) {
-      console.error('Error saving timeline event:', err);
-      showError(isHindi ? 'रिकॉर्ड सुरक्षित करने में समस्या आई।' : 'Failed to save record. Please try again.');
-    } finally {
-      setIsSubmittingTimeline(false);
+    let next = selectedQuickSymptoms.filter((id) => id !== 'healthy_normal');
+    if (next.includes(sym.id)) {
+      next = next.filter((id) => id !== sym.id);
+    } else {
+      next = [...next, sym.id];
     }
+    setSelectedQuickSymptoms(next);
+
+    if (next.length === 0) {
+      setSelectedHealthStatus('Healthy');
+      setHealthObservation('');
+      return;
+    }
+
+    // Auto-suggest status based on severity
+    const isCritical = next.includes('skin_nodules');
+    setSelectedHealthStatus(isCritical ? 'Critical' : 'Needs Attention');
+
+    const names = next.map((id) => {
+      const found = QUICK_SYMPTOMS.find((s) => s.id === id);
+      return found ? (isEnglish ? found.en : isMarathi ? found.mr : found.hi) : id;
+    });
+
+    const prefix = isEnglish ? 'Noticed symptoms: ' : isMarathi ? 'आढळलेली लक्षणे: ' : 'दिखे लक्षण: ';
+    setHealthObservation(prefix + names.join(', '));
   };
 
-  // 2. Handle Updating Health Status (Tab 2 - View Health)
+  // 1. Handle Updating Health Status (View Health Tab)
   const handleUpdateHealth = async (e) => {
     e.preventDefault();
     const animalId = modalAnimal._id || modalAnimal.id || modalAnimal.tagId;
 
     setIsSubmittingHealth(true);
     try {
+      const statusTitle = isEnglish
+        ? `Health Status: ${selectedHealthStatus}`
+        : isMarathi
+        ? `आरोग्य स्थिती: ${selectedHealthStatus === 'Healthy' ? 'निरोगी' : selectedHealthStatus === 'Needs Attention' ? 'लक्ष द्या' : 'गंभीर'}`
+        : `स्वास्थ्य स्थिति: ${selectedHealthStatus === 'Healthy' ? 'स्वस्थ' : selectedHealthStatus === 'Needs Attention' ? 'ध्यान दें' : 'गंभीर'}`;
+
       const healthEvent = {
         type: 'Health Check',
-        title: `स्वास्थ्य स्थिति: ${selectedHealthStatus}`,
+        title: statusTitle,
         date: new Date().toLocaleDateString('en-GB'),
-        doctor: 'Registered Doctor / Self',
-        notes: healthObservation.trim() || `Health status updated to ${selectedHealthStatus}`
+        doctor: isEnglish ? 'Registered Veterinarian / Self' : isMarathi ? 'नोंदणीकृत पशुवैद्यक / स्वतः' : 'पंजीकृत डॉक्टर / स्वयं',
+        notes: healthObservation.trim() || (isEnglish ? `Health updated to ${selectedHealthStatus}` : `स्थिति ${selectedHealthStatus} अपडेट की गई`)
       };
 
       const updates = {
@@ -164,140 +227,294 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
       }
 
       setHealthObservation('');
-      showSuccess(isHindi ? '✓ स्वास्थ्य स्थिति सफलतापूर्वक सुरक्षित की गई!' : '✓ Health status updated and saved!');
+      showSuccess(
+        isEnglish
+          ? '✓ Health status updated and saved successfully!'
+          : isMarathi
+          ? '✓ आरोग्य स्थिती यशस्वीरीत्या जतन केली!'
+          : '✓ स्वास्थ्य स्थिति सफलतापूर्वक सुरक्षित की गई!'
+      );
     } catch (err) {
       console.error('Error updating health status:', err);
-      showError(isHindi ? 'स्थिति सुरक्षित करने में समस्या आई।' : 'Failed to save health status.');
+      showError(
+        isEnglish
+          ? 'Failed to save health status. Please try again.'
+          : isMarathi
+          ? 'आरोग्य स्थिती जतन करताना त्रुटी आली.'
+          : 'स्थिति सुरक्षित करने में समस्या आई।'
+      );
     } finally {
       setIsSubmittingHealth(false);
     }
   };
 
-  // 3. Handle Logging Vaccination (Tab 3)
+  // 2. Handle Adding Timeline Event
+  const handleAddTimeline = async (e) => {
+    e.preventDefault();
+    if (!newTimelineTitle.trim()) {
+      showError(
+        isEnglish
+          ? 'Please enter a title for the record.'
+          : isMarathi
+          ? 'कृपया नोंदीचे शीर्षक प्रविष्ट करा.'
+          : 'कृपया रिकॉर्ड का शीर्षक दर्ज करें।'
+      );
+      return;
+    }
+
+    const animalId = modalAnimal._id || modalAnimal.id || modalAnimal.tagId;
+    const newEvent = {
+      type: newTimelineType,
+      title: newTimelineTitle.trim(),
+      date: new Date().toLocaleDateString('en-GB'),
+      doctor: isEnglish ? 'Veterinarian / Self' : isMarathi ? 'पशुवैद्यक / स्वतः' : 'डॉक्टर / स्वयं',
+      notes: newTimelineNotes.trim()
+    };
+
+    setTimeline((prev) => [newEvent, ...prev]);
+    setModalAnimal((prev) => ({
+      ...prev,
+      timeline: [newEvent, ...(prev?.timeline || [])]
+    }));
+
+    setIsSubmittingTimeline(true);
+    try {
+      const updated = await animalService.addTimelineEvent(animalId, newEvent);
+      if (updated) {
+        setModalAnimal(updated);
+        if (updated.timeline) setTimeline(updated.timeline);
+        if (onUpdate) onUpdate(updated);
+      } else if (onUpdate) {
+        onUpdate();
+      }
+
+      setNewTimelineTitle('');
+      setNewTimelineNotes('');
+      showSuccess(
+        isEnglish
+          ? '✓ Record saved successfully!'
+          : isMarathi
+          ? '✓ नोंद यशस्वीरीत्या जतन केली!'
+          : '✓ रिकॉर्ड सफलतापूर्वक सुरक्षित किया गया!'
+      );
+    } catch (err) {
+      console.error('Error saving timeline event:', err);
+      showError(
+        isEnglish
+          ? 'Failed to save record.'
+          : isMarathi
+          ? 'नोंद जतन करण्यात त्रुटी आली.'
+          : 'रिकॉर्ड सुरक्षित करने में समस्या आई।'
+      );
+    } finally {
+      setIsSubmittingTimeline(false);
+    }
+  };
+
+  // 3. Handle Logging Vaccination
+  const handleSelectVaccineDropdown = (v) => {
+    setSelectedVaccineKey(v.key);
+    const localizedName = v.name[currentLang] || v.name.en;
+    setNewVaccineName(localizedName);
+    if (v.defaultDose) setNewVaccineDose(v.defaultDose);
+    if (v.govtScheme && !newVaccineCamp) setNewVaccineCamp(v.govtScheme);
+    const calculatedDue = calculateNextDueDate(v.key, newVaccineDateAdministered);
+    if (calculatedDue) setNewVaccineNextDue(calculatedDue);
+    setIsVaccineDropdownOpen(false);
+    setVaccineSearchQuery('');
+  };
+
+  const handleDateAdministeredChange = (dateVal) => {
+    setNewVaccineDateAdministered(dateVal);
+    const calculatedDue = calculateNextDueDate(selectedVaccineKey, dateVal);
+    if (calculatedDue) setNewVaccineNextDue(calculatedDue);
+  };
+
+  const handleQuickFillRecommendation = (rec) => {
+    setSelectedVaccineKey(rec.key);
+    setNewVaccineName(rec.name);
+    if (rec.dose) setNewVaccineDose(rec.dose);
+    if (rec.suggestedCamp) setNewVaccineCamp(rec.suggestedCamp);
+    const calculatedDue = calculateNextDueDate(rec.key, newVaccineDateAdministered);
+    if (calculatedDue) setNewVaccineNextDue(calculatedDue);
+    showSuccess(
+      isEnglish
+        ? `✓ Auto-filled ${rec.name} into vaccination form`
+        : isMarathi
+        ? `✓ फॉर्ममध्ये ${rec.name} आपोआप भरले गेले`
+        : `✓ फॉर्म में ${rec.name} स्वचालित रूप से भरा गया`
+    );
+  };
+
   const handleAddVaccine = async (e) => {
     e.preventDefault();
     if (!newVaccineName.trim()) {
-      showError(isHindi ? 'कृपया टीके का नाम दर्ज करें।' : 'Please enter vaccine name.');
+      showError(
+        isEnglish
+          ? 'Please select or enter vaccine name.'
+          : isMarathi
+          ? 'कृपया लसीचे नाव निवडा.'
+          : 'कृपया टीके का नाम चुनें।'
+      );
       return;
     }
 
     const animalId = modalAnimal._id || modalAnimal.id || modalAnimal.tagId;
     const vName = newVaccineName.trim();
-    const vDate = new Date().toLocaleDateString('en-GB');
-    const vDue = newVaccineNextDue ? new Date(newVaccineNextDue).toLocaleDateString('en-GB') : '6 Months later';
+    const adminDateObj = newVaccineDateAdministered ? new Date(newVaccineDateAdministered) : new Date();
+    const nextDueObj = newVaccineNextDue ? new Date(newVaccineNextDue) : null;
+
+    const vDateStr = adminDateObj.toLocaleDateString('en-GB');
+    const vDueStr = nextDueObj ? nextDueObj.toLocaleDateString('en-GB') : (isEnglish ? '6 Months later' : isMarathi ? '६ महिन्यांनी' : '6 माह बाद');
 
     const vaccineEvent = {
       type: 'Vaccination',
-      title: `${vName} Vaccination Completed`,
-      date: vDate,
-      notes: `Next due: ${vDue}`
+      title: `${vName} (${newVaccineDose || 'Vaccinated'})`,
+      date: vDateStr,
+      doctor: newVaccineAdministeredBy.trim() || (isEnglish ? 'Veterinarian' : isMarathi ? 'पशुवैद्यक' : 'पशु चिकित्सक'),
+      notes: [
+        newVaccineDose,
+        newVaccineBatch ? `Batch: ${newVaccineBatch}` : '',
+        newVaccineCamp ? `Camp: ${newVaccineCamp}` : '',
+        `Next due: ${vDueStr}`,
+        newVaccineNotes ? `Note: ${newVaccineNotes}` : ''
+      ].filter(Boolean).join(' • ')
     };
 
     const newVaccObj = {
       name: vName,
       vaccine: vName,
-      date: vDate,
-      nextDue: vDue,
-      status: 'Completed'
+      date: adminDateObj,
+      nextDue: nextDueObj,
+      dose: newVaccineDose || 'Primary Dose (1st)',
+      batchNumber: newVaccineBatch.trim(),
+      administeredBy: newVaccineAdministeredBy.trim() || (isEnglish ? 'Veterinarian' : isMarathi ? 'पशुवैद्यक' : 'पशु चिकित्सक'),
+      camp: newVaccineCamp.trim(),
+      notes: newVaccineNotes.trim()
     };
 
     setIsSubmittingVaccine(true);
     try {
       setModalAnimal((prev) => ({
         ...prev,
-        vaccinations: [...(prev?.vaccinations || []), newVaccObj],
+        vaccinationHistory: [...(prev?.vaccinationHistory || []), newVaccObj],
         timeline: [vaccineEvent, ...(prev?.timeline || [])]
       }));
       setTimeline((prev) => [vaccineEvent, ...prev]);
 
       const updated = await animalService.updateAnimal(animalId, {
-        newVaccination: {
-          vaccine: vName,
-          date: new Date(),
-          nextDue: newVaccineNextDue ? new Date(newVaccineNextDue) : null
-        },
+        newVaccination: newVaccObj,
         newTimelineEvent: vaccineEvent
       });
 
       if (updated && onUpdate) onUpdate(updated);
       else if (onUpdate) onUpdate();
 
-      setNewVaccineName('');
-      setNewVaccineNextDue('');
-      showSuccess(isHindi ? '✓ टीकाकरण सफलतापूर्वक सुरक्षित किया गया!' : '✓ Vaccination record saved!');
+      setNewVaccineBatch('');
+      setNewVaccineNotes('');
+      setNewVaccineCamp('');
+      showSuccess(
+        isEnglish
+          ? '✓ Vaccination record successfully saved!'
+          : isMarathi
+          ? '✓ लसीकरण नोंद यशस्वीरीत्या जतन केली!'
+          : '✓ टीकाकरण रिकॉर्ड सफलतापूर्वक सुरक्षित किया गया!'
+      );
     } catch (err) {
       console.error('Error saving vaccine:', err);
-      showError(isHindi ? 'टीकाकरण सुरक्षित करने में समस्या आई।' : 'Failed to save vaccination.');
+      showError(
+        isEnglish
+          ? 'Failed to save vaccination.'
+          : isMarathi
+          ? 'लसीकरण जतन करताना त्रुटी आली.'
+          : 'टीकाकरण सुरक्षित करने में समस्या आई।'
+      );
     } finally {
       setIsSubmittingVaccine(false);
     }
   };
 
-  // 4. Handle Updating Daily Milk Yield (Tab 5)
-  const handleUpdateMilk = async (e) => {
-    e.preventDefault();
-    if (!newMilkYield) return;
-
-    const animalId = modalAnimal._id || modalAnimal.id || modalAnimal.tagId;
-    const yieldStr = `${newMilkYield} L`;
-    const milkEvent = {
-      type: 'Milk Production',
-      title: `दैनिक दूध दर्ज: ${yieldStr}`,
-      date: new Date().toLocaleDateString('en-GB'),
-      notes: 'दैनिक दुग्ध मापन रिकॉर्ड'
-    };
-
-    setIsSubmittingMilk(true);
-    try {
-      setModalAnimal((prev) => ({
-        ...prev,
-        milkYieldDaily: yieldStr,
-        timeline: [milkEvent, ...(prev?.timeline || [])]
-      }));
-      setTimeline((prev) => [milkEvent, ...prev]);
-
-      const updated = await animalService.updateAnimal(animalId, {
-        milkYieldDaily: yieldStr,
-        newTimelineEvent: milkEvent
-      });
-
-      if (updated && onUpdate) onUpdate(updated);
-      else if (onUpdate) onUpdate();
-
-      setNewMilkYield('');
-      showSuccess(isHindi ? '✓ दूध उत्पादन सुरक्षित किया गया!' : '✓ Milk yield record saved!');
-    } catch (err) {
-      console.error('Error updating milk yield:', err);
-      showError(isHindi ? 'दूध रिकॉर्ड सुरक्षित करने में समस्या आई।' : 'Failed to update milk yield.');
-    } finally {
-      setIsSubmittingMilk(false);
-    }
-  };
-
+  // Tabs configured strictly in the preferred language (3 Essential Tabs)
   const tabs = [
-    { key: 'overview', label: t('farmer_dash.health_overview') || 'Daily Livestock Health Status', icon: HeartPulse },
-    { key: 'health', label: t('farmer_dash.view_details') || 'View Health', icon: FileCheck },
-    { key: 'vaccination', label: t('farmer_dash.vaccine_track') || 'Vaccination', icon: Syringe },
-    { key: 'diseaseHistory', label: t('dashboard.top_diseases') || 'Top Suspected Diseases', icon: History },
-    { key: 'milkProduction', label: t('farmer_dash.milk_yield') || 'Daily Milk', icon: TrendingUp },
-    { key: 'treatments', label: t('wizard.recommended_action') || 'Treatments', icon: Pill }
+    {
+      key: 'health',
+      label: isEnglish ? 'View Health' : isMarathi ? 'आरोग्य पहा' : 'स्वास्थ्य देखें',
+      icon: HeartPulse
+    },
+    {
+      key: 'timeline',
+      label: isEnglish ? 'Timeline' : isMarathi ? 'इतिहास' : 'समय-रेखा',
+      icon: Clock
+    },
+    {
+      key: 'vaccination',
+      label: isEnglish ? 'Vaccination' : isMarathi ? 'लसीकरण' : 'टीकाकरण',
+      icon: Syringe
+    }
   ];
 
-  // Merge vaccinations from both possible schemas
   const allVaccinations = [
     ...(modalAnimal.vaccinations || []),
-    ...(modalAnimal.vaccinationHistory || []).map((v) => ({
-      name: v.vaccine || v.name,
-      date: v.date ? new Date(v.date).toLocaleDateString('en-GB') : 'Recorded',
-      nextDue: v.nextDue ? new Date(v.nextDue).toLocaleDateString('en-GB') : 'Due in 6 months',
-      status: 'Completed'
-    }))
-  ];
+    ...(modalAnimal.vaccinationHistory || [])
+  ].map((v) => {
+    const rawDate = v.date;
+    const rawNextDue = v.nextDue;
+    const statusInfo = getVaccineStatusInfo(rawNextDue, currentLang);
+    return {
+      name: v.vaccine || v.name || 'Vaccination',
+      date: rawDate ? new Date(rawDate).toLocaleDateString('en-GB') : (isEnglish ? 'Recorded' : 'दर्ज'),
+      rawDate: rawDate,
+      nextDue: rawNextDue ? new Date(rawNextDue).toLocaleDateString('en-GB') : (isEnglish ? 'Scheduled' : 'नियत'),
+      rawNextDue: rawNextDue,
+      dose: v.dose || (isEnglish ? 'Standard Dose' : isMarathi ? 'डोस' : 'खुराक'),
+      batchNumber: v.batchNumber || '',
+      administeredBy: v.administeredBy || v.doctor || (isEnglish ? 'Veterinarian' : isMarathi ? 'पशुवैद्यक' : 'पशु चिकित्सक'),
+      camp: v.camp || '',
+      notes: v.notes || '',
+      statusInfo
+    };
+  });
+
+  const totalVaccinesCount = allVaccinations.length;
+  const upcomingDueCount = allVaccinations.filter(
+    (v) => v.statusInfo.isDueSoon || (v.rawNextDue && new Date(v.rawNextDue) >= new Date())
+  ).length;
+  const overdueCount = allVaccinations.filter((v) => v.statusInfo.isOverdue).length;
+
+  const overdueVaccines = allVaccinations.filter((v) => v.statusInfo.isOverdue);
+  const dueSoonVaccines = allVaccinations.filter((v) => v.statusInfo.isDueSoon);
+
+  const aiRecommendations = getAIVaccineRecommendations({
+    species: modalAnimal.species,
+    age: modalAnimal.age,
+    breed: modalAnimal.breed,
+    gender: modalAnimal.gender,
+    diseaseHistory: modalAnimal.timeline || [],
+    district: modalAnimal.district || 'Pune',
+    currentVaccinations: allVaccinations,
+    lang: currentLang
+  });
+
+  const statusLabel =
+    modalAnimal.healthStatus === 'Healthy'
+      ? (isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ')
+      : modalAnimal.healthStatus === 'Needs Attention'
+      ? (isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें')
+      : (isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर');
+
+  const speciesDisplayName = getSpeciesDisplayName(modalAnimal.species, currentLang);
+  const breedDisplayName = getBreedDisplayName(modalAnimal.breed, modalAnimal.species, currentLang);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-6 max-h-[92vh] flex flex-col">
-        {/* Header with Photo & Basic Info */}
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-3xl bg-white rounded-3xl shadow-modal border border-stone-200/80 overflow-hidden my-6 max-h-[92vh] flex flex-col"
+      >
+        {/* Clean Header */}
         <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-5 sm:p-6 relative">
           <button
             onClick={onClose}
@@ -308,26 +525,26 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
           </button>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-amber-100 border-2 border-white/20 flex items-center justify-center text-3xl sm:text-4xl shadow-md">
-              {modalAnimal.species === 'Buffalo' ? '🦬' : modalAnimal.species === 'Goat' ? '🐐' : '🐄'}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-amber-100 border-2 border-white/20 flex items-center justify-center text-3xl sm:text-4xl shadow-md">
+              {modalAnimal.species === 'Buffalo' ? '🐃' : modalAnimal.species === 'Goat' ? '🐐' : modalAnimal.species === 'Sheep' ? '🐑' : '🐄'}
             </div>
             <div>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                 <h2 className="text-xl sm:text-2xl font-black text-white">{modalAnimal.name}</h2>
                 <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                  className={`text-xs font-black px-3.5 py-1 rounded-full border shadow-2xs ${
                     modalAnimal.healthStatus === 'Healthy'
-                      ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400'
+                      ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400'
                       : modalAnimal.healthStatus === 'Needs Attention'
-                      ? 'bg-amber-500/20 text-amber-200 border-amber-400'
-                      : 'bg-red-500/20 text-red-200 border-red-400'
+                      ? 'bg-amber-400/30 text-amber-200 border-amber-300'
+                      : 'bg-red-500/30 text-red-200 border-red-400'
                   }`}
                 >
-                  ● {modalAnimal.healthStatus || 'Healthy'}
+                  ● {statusLabel}
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-emerald-200/90 mt-1 font-mono">
-                टैग संख्या: {modalAnimal.tagId} • {modalAnimal.species} ({modalAnimal.breed}) • {modalAnimal.age} वर्ष आयु
+                {t('animal_form.tag_id', 'Tag ID')}: {modalAnimal.tagId} • {speciesDisplayName}{breedDisplayName ? ` • ${breedDisplayName}` : ''} • {modalAnimal.age} {t('farmer_dash.years', 'Years')}
               </p>
             </div>
           </div>
@@ -374,188 +591,83 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
         )}
 
         {/* Tab Body Content */}
-        <div className="p-5 sm:p-6 overflow-y-auto flex-grow space-y-6">
-          {/* TAB 1: OVERVIEW & TIMELINE */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-                  <span className="text-xs text-slate-500 block">प्रजाति व नस्ल</span>
-                  <span className="text-sm sm:text-base font-bold text-slate-900">{modalAnimal.species}</span>
-                  <span className="text-xs text-slate-600 block truncate">{modalAnimal.breed}</span>
-                </div>
-                <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-                  <span className="text-xs text-slate-500 block">आयु व लिंग</span>
-                  <span className="text-sm sm:text-base font-bold text-slate-900">{modalAnimal.age} वर्ष</span>
-                  <span className="text-xs text-slate-600 block">{modalAnimal.gender || 'मादा'}</span>
-                </div>
-                <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-                  <span className="text-xs text-slate-500 block">दैनिक दूध क्षमता</span>
-                  <span className="text-sm sm:text-base font-bold text-slate-900">{modalAnimal.milkYieldDaily || '12.0 L'}</span>
-                  <span className="text-xs text-emerald-600 font-semibold block">औसत रिकॉर्ड</span>
-                </div>
-                <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-                  <span className="text-xs text-slate-500 block">अंतिम स्वास्थ्य जांच</span>
-                  <span className="text-sm sm:text-base font-bold text-slate-900">{modalAnimal.lastCheckup || '28 Aug 2026'}</span>
-                  <span className="text-xs text-slate-500 block">सत्यापित</span>
-                </div>
-              </div>
-
-              {/* Chronological Timeline */}
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-emerald-700" />
-                    जीवन चक्र एवं स्वास्थ्य समय-रेखा ({timeline.length} रिकॉर्ड)
-                  </h3>
-                </div>
-
-                <div className="relative pl-6 border-l-2 border-emerald-500/30 space-y-4">
-                  {timeline.map((t, idx) => (
-                    <div key={idx} className="relative group">
-                      <span className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-emerald-600 ring-4 ring-emerald-100" />
-                      <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 hover:border-emerald-300 transition shadow-2xs">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                            {t.type}
-                          </span>
-                          <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" /> {t.date}
-                          </span>
-                        </div>
-                        <h4 className="font-extrabold text-slate-900 text-sm mt-2">{t.title}</h4>
-                        {t.doctor && <p className="text-xs text-slate-600 mt-0.5">जांचकर्ता: {t.doctor}</p>}
-                        {t.notes && <p className="text-xs text-slate-500 mt-1 italic">{t.notes}</p>}
-                      </div>
-                    </div>
-                  ))}
-                  {timeline.length === 0 && (
-                    <p className="text-xs text-slate-400 py-3">कोई रिकॉर्ड दर्ज नहीं है। नीचे दिए फॉर्म से नया रिकॉर्ड जोड़ें।</p>
-                  )}
-                </div>
-
-                {/* Quick Add Timeline Event Form with guaranteed 'सुरक्षित करें' */}
-                <form
-                  onSubmit={handleAddTimeline}
-                  className="p-4 sm:p-5 bg-emerald-50/80 rounded-2xl border border-emerald-200/80 space-y-3 shadow-2xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                      <Plus className="w-4 h-4 text-emerald-700" /> नया रिकॉर्ड जोड़ें (Add Event)
-                    </span>
-                    <span className="text-[11px] text-emerald-700 font-medium">* शीर्षक अनिवार्य है</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div>
-                      <label className="text-[11px] font-semibold text-emerald-950 block mb-1">प्रकार (Type)</label>
-                      <select
-                        value={newTimelineType}
-                        onChange={(e) => setNewTimelineType(e.target.value)}
-                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      >
-                        <option value="Health Check">स्वास्थ्य जांच (Health Check)</option>
-                        <option value="Vaccination">टीकाकरण (Vaccination)</option>
-                        <option value="Treatment">उपचार (Treatment)</option>
-                        <option value="Deworming">कृमिनाशक (Deworming)</option>
-                        <option value="Milk Production">दूध रिकॉर्ड (Milk)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-semibold text-emerald-950 block mb-1">शीर्षक (Title) *</label>
-                      <input
-                        type="text"
-                        placeholder="उदा. पेट दर्द दवा दी / खुरपका टीका"
-                        value={newTimelineTitle}
-                        onChange={(e) => setNewTimelineTitle(e.target.value)}
-                        required
-                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-semibold text-emerald-950 block mb-1">टिप्पणी (Notes)</label>
-                      <input
-                        type="text"
-                        placeholder="विवरण या डॉक्टर की सलाह"
-                        value={newTimelineNotes}
-                        onChange={(e) => setNewTimelineNotes(e.target.value)}
-                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="submit"
-                      disabled={isSubmittingTimeline}
-                      className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition shadow-sm cursor-pointer"
-                    >
-                      {isSubmittingTimeline ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>सुरक्षित हो रहा है...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-4 h-4" />
-                          <span>सुरक्षित करें</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: VIEW HEALTH & UPDATE STATUS */}
+        <div className="p-5 sm:p-6 overflow-y-auto flex-grow space-y-6 bg-stone-50/60">
+          {/* TAB 1: VIEW HEALTH (CLEANED - UNWANTED DUMMY ELEMENTS REMOVED) */}
           {activeTab === 'health' && (
-            <div className="space-y-6">
-              {/* Current Status Overview */}
-              <div className="p-4 sm:p-5 bg-emerald-50 rounded-2xl border border-emerald-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-extrabold text-emerald-950 text-sm sm:text-base">
-                      वर्तमान स्वास्थ्य स्थिति:{' '}
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ml-1.5 ${
-                          modalAnimal.healthStatus === 'Healthy'
-                            ? 'bg-emerald-600 text-white'
-                            : modalAnimal.healthStatus === 'Needs Attention'
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-red-600 text-white'
-                        }`}
-                      >
-                        {modalAnimal.healthStatus || 'Healthy'}
-                      </span>
-                    </h4>
-                    <p className="text-xs text-emerald-800 mt-1">
-                      अंतिम जांच: {modalAnimal.lastCheckup || 'आज'}. यदि पशु अस्वस्थ है या कोई लक्षण दिख रहे हैं, तो नीचे से स्थिति अपडेट करके सुरक्षित करें।
-                    </p>
+            <div className="space-y-5">
+              {/* Current Status Overview Card */}
+              <div className="p-4 sm:p-5 bg-emerald-50/90 rounded-2xl border border-emerald-200 flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-900">
+                      {isEnglish ? 'Current Health Status:' : isMarathi ? 'सध्याची आरोग्य स्थिती:' : 'वर्तमान स्वास्थ्य स्थिति:'}
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        modalAnimal.healthStatus === 'Healthy'
+                          ? 'bg-emerald-600 text-white'
+                          : modalAnimal.healthStatus === 'Needs Attention'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-red-600 text-white'
+                      }`}
+                    >
+                      {statusLabel}
+                    </span>
                   </div>
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    {isEnglish
+                      ? `Last checked: ${modalAnimal.lastCheckup || 'Today'}. Update the status below whenever symptoms or conditions change.`
+                      : isMarathi
+                      ? `शेवटची तपासणी: ${modalAnimal.lastCheckup || 'आज'}. काही लक्षणे किंवा बदल आढळल्यास खालील पर्यायातून स्थिती अपडेट करा.`
+                      : `अंतिम जांच: ${modalAnimal.lastCheckup || 'आज'}। यदि कोई लक्षण दिखे तो नीचे से स्थिति अपडेट करके सुरक्षित करें।`}
+                  </p>
                 </div>
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
               </div>
 
-              {/* Interactive Health Status Update Card with 'सुरक्षित करें' */}
+              {/* Status Update Form (ZERO double language) */}
               <form
                 onSubmit={handleUpdateHealth}
-                className="p-5 bg-stone-50 rounded-2xl border border-stone-200 space-y-4 shadow-2xs"
+                className="p-5 bg-white rounded-2xl border border-stone-200 shadow-sm space-y-4"
               >
-                <div className="flex items-center gap-2 border-b border-stone-200 pb-3">
+                <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
                   <FileCheck className="w-5 h-5 text-emerald-700" />
-                  <h4 className="font-extrabold text-slate-900 text-sm">स्वास्थ्य स्थिति बदलें व सुरक्षित करें (Update Status)</h4>
+                  <h4 className="font-extrabold text-slate-900 text-sm">
+                    {isEnglish
+                      ? 'Update Health Status'
+                      : isMarathi
+                      ? 'आरोग्य स्थिती बदला व जतन करा'
+                      : 'स्वास्थ्य स्थिति बदलें व सुरक्षित करें'}
+                  </h4>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-slate-700 block">नई स्वास्थ्य स्थिति चुनें:</label>
+                  <label className="text-xs font-bold text-slate-700 block">
+                    {isEnglish
+                      ? 'Select Health Status:'
+                      : isMarathi
+                      ? 'नवीन आरोग्य स्थिती निवडा:'
+                      : 'नई स्वास्थ्य स्थिति चुनें:'}
+                  </label>
+
+                  {/* 3 Single-Language Status Options */}
                   <div className="grid grid-cols-3 gap-2.5">
                     {[
-                      { val: 'Healthy', label: 'Healthy (स्वस्थ)', color: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
-                      { val: 'Needs Attention', label: 'Needs Attention (ध्यान दें)', color: 'border-amber-500 bg-amber-50 text-amber-900' },
-                      { val: 'Critical', label: 'Critical (गंभीर)', color: 'border-red-500 bg-red-50 text-red-900' }
+                      {
+                        val: 'Healthy',
+                        label: isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ',
+                        color: 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-600'
+                      },
+                      {
+                        val: 'Needs Attention',
+                        label: isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें',
+                        color: 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-600'
+                      },
+                      {
+                        val: 'Critical',
+                        label: isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर',
+                        color: 'border-red-500 bg-red-50 text-red-900 ring-2 ring-red-600'
+                      }
                     ].map((item) => (
                       <button
                         type="button"
@@ -563,8 +675,8 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
                         onClick={() => setSelectedHealthStatus(item.val)}
                         className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition text-center cursor-pointer ${
                           selectedHealthStatus === item.val
-                            ? `${item.color} ring-2 ring-emerald-600 shadow-xs font-black`
-                            : 'bg-white border-stone-300 text-slate-700 hover:bg-stone-100'
+                            ? `${item.color} shadow-xs font-black`
+                            : 'bg-stone-50 border-stone-200 text-slate-700 hover:bg-stone-100'
                         }`}
                       >
                         {item.label}
@@ -572,14 +684,74 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
                     ))}
                   </div>
 
+                  {/* Quick-Tap Symptom Chips (Manual Easy Logging) */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700">
+                        {isEnglish ? 'Quick Symptoms (Tap to toggle):' : isMarathi ? 'लक्षणे निवडा (टॅप करा):' : 'लक्षण चुनें (आसानी से टैप करें):'}
+                      </label>
+                      {selectedQuickSymptoms.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedQuickSymptoms([]);
+                            setHealthObservation('');
+                          }}
+                          className="text-[11px] text-slate-400 hover:text-slate-600 font-normal cursor-pointer"
+                        >
+                          {isEnglish ? 'Clear' : isMarathi ? 'साफ करा' : 'हटाएं'}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {QUICK_SYMPTOMS.map((sym) => {
+                        const isSelected = selectedQuickSymptoms.includes(sym.id);
+                        const label = isEnglish ? sym.en : isMarathi ? sym.mr : sym.hi;
+                        return (
+                          <button
+                            type="button"
+                            key={sym.id}
+                            onClick={() => handleToggleQuickSymptom(sym)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                              isSelected
+                                ? sym.id === 'healthy_normal'
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : sym.severity === 'Critical'
+                                  ? 'bg-red-600 text-white shadow-xs'
+                                  : 'bg-amber-600 text-white shadow-xs'
+                                : 'bg-stone-50 border border-stone-200 text-slate-700 hover:bg-stone-100 hover:border-stone-300'
+                            }`}
+                          >
+                            <span>{sym.icon}</span>
+                            <span>{label}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Clinical Observation Notes */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">जांच टिप्पणी / लक्षण (Observation Notes):</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      {isEnglish
+                        ? 'Clinical Notes & Observations:'
+                        : isMarathi
+                        ? 'तपासणी नोंदी / लक्षणे:'
+                        : 'जांच टिप्पणी / लक्षण:'}
+                    </label>
                     <input
                       type="text"
-                      placeholder="उदा. तापमान सामान्य, जुगाली ठीक से कर रहा है"
+                      placeholder={
+                        isEnglish
+                          ? 'e.g. Normal body temperature, eating well, active'
+                          : isMarathi
+                          ? 'उदा. सामान्य तापमान, चारा व्यवस्थित खात आहे'
+                          : 'उदा. सामान्य तापमान, चारा ठीक से खा रहा है'
+                      }
                       value={healthObservation}
                       onChange={(e) => setHealthObservation(e.target.value)}
-                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full bg-stone-50 border border-stone-300 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none"
                     />
                   </div>
 
@@ -592,12 +764,18 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
                       {isSubmittingHealth ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>सुरक्षित हो रहा है...</span>
+                          <span>{isEnglish ? 'Saving...' : isMarathi ? 'जतन होत आहे...' : 'सुरक्षित हो रहा है...'}</span>
                         </>
                       ) : (
                         <>
                           <Save className="w-4 h-4" />
-                          <span>सुरक्षित करें</span>
+                          <span>
+                            {isEnglish
+                              ? 'Save Health Status'
+                              : isMarathi
+                              ? 'आरोग्य स्थिती जतन करा'
+                              : 'स्थिति सुरक्षित करें'}
+                          </span>
                         </>
                       )}
                     </button>
@@ -605,73 +783,324 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
                 </div>
               </form>
 
-              {/* Vitals & Biological Parameters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl border border-stone-200 bg-stone-50 space-y-1">
-                  <span className="text-xs font-bold text-slate-700 block">रुमेन गतिशीलता (Rumen Motility)</span>
-                  <p className="text-sm font-semibold text-slate-900">2-3 संकुचन प्रति 2 मिनट (सामान्य)</p>
+              {/* Automatic AI Scan Link Card */}
+              <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl border border-emerald-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <h5 className="font-extrabold text-xs sm:text-sm text-emerald-950">
+                      {isEnglish ? 'Automatic AI Disease Scan' : isMarathi ? 'स्वयंचलित AI रोग तपासणी' : 'स्वचालित AI रोग जांच'}
+                    </h5>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300">
+                      lsd_model.keras
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-800">
+                    {isEnglish 
+                      ? `Scan ${modalAnimal.name} with AI. The scan result will automatically sync to this animal's health record and timeline.`
+                      : isMarathi
+                      ? `${modalAnimal.name} ची AI द्वारे तपासणी करा. निकाल थेट या जनावराच्या आरोग्य नोंदवहीत सुरक्षित केला जाईल.`
+                      : `${modalAnimal.name} की AI से जांच करें। परिणाम सीधे इस पशु के स्वास्थ्य रिकॉर्ड और समय-रेखा में दर्ज होगा।`}
+                  </p>
                 </div>
-                <div className="p-4 rounded-2xl border border-stone-200 bg-stone-50 space-y-1">
-                  <span className="text-xs font-bold text-slate-700 block">थूथन व त्वचा स्थिति</span>
-                  <p className="text-sm font-semibold text-slate-900">नम थूथन, गांठ रहित चमकदार त्वचा</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/report-sick?animalId=${modalAnimal._id || modalAnimal.id || modalAnimal.tagId}`);
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-xs whitespace-nowrap cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{isEnglish ? 'Scan This Animal' : isMarathi ? 'या जनावराची तपासणी करा' : 'इस पशु की जांच करें'}</span>
+                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 3: VACCINATION */}
-          {activeTab === 'vaccination' && (
-            <div className="space-y-6">
+          {/* TAB 2: MEDICAL TIMELINE */}
+          {activeTab === 'timeline' && (
+            <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">टीकाकरण रिकॉर्ड (Vaccination History)</h4>
-                <span className="text-xs text-slate-500">{allVaccinations.length} टीके दर्ज</span>
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-emerald-700" />
+                  {isEnglish
+                    ? `Medical Timeline (${timeline.length} records)`
+                    : isMarathi
+                    ? `वैद्यकीय इतिहास (${timeline.length} नोंदी)`
+                    : `स्वास्थ्य समय-रेखा (${timeline.length} रिकॉर्ड)`}
+                </h3>
               </div>
 
-              <div className="space-y-3">
-                {allVaccinations.map((v, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-200 shadow-2xs">
-                    <div>
-                      <h5 className="font-extrabold text-slate-900 text-sm">{v.name}</h5>
-                      <span className="text-xs text-slate-500">दिया गया: {v.date}</span>
+              <div className="relative pl-6 border-l-2 border-stone-200 space-y-4">
+                {timeline.map((item, idx) => {
+                  const statusStr = String(item.status || item.riskLevel || '').toLowerCase();
+                  const titleLower = String(item.title || item.disease || '').toLowerCase();
+                  const notesLower = String(item.notes || '').toLowerCase();
+
+                  const isCritical =
+                    statusStr.includes('critical') ||
+                    statusStr.includes('high') ||
+                    titleLower.includes('critical') ||
+                    titleLower.includes('गंभीर') ||
+                    titleLower.includes('लम्प') ||
+                    titleLower.includes('lumpy');
+
+                  const isAttention =
+                    !isCritical &&
+                    (statusStr.includes('attention') ||
+                      statusStr.includes('medium') ||
+                      statusStr.includes('moderate') ||
+                      titleLower.includes('attention') ||
+                      titleLower.includes('ध्यान') ||
+                      titleLower.includes('लक्ष') ||
+                      notesLower.includes('attention') ||
+                      notesLower.includes('symptoms'));
+
+                  // Clean title: remove bilingual duplicate names in parentheses
+                  let cleanTitle = (item.title || '')
+                    .replace(/\s*\([\u0900-\u097F\s\/\-_]+\)/g, '')
+                    .replace(/\s*\(\s*\)/g, '')
+                    .trim();
+
+                  // Clean notes summary: remove internal model logs
+                  let summaryNotes = item.notes || '';
+                  if (summaryNotes.includes('lsd_model.keras')) {
+                    summaryNotes = summaryNotes.split('lsd_model.keras')[0].trim();
+                  }
+
+                  const isExpanded = expandedTimelineIdx === idx;
+                  const hasExtraDetails = Boolean(
+                    item.image ||
+                    item.confidence ||
+                    item.advisory ||
+                    (item.symptoms && item.symptoms.length > 0) ||
+                    summaryNotes.length > 80
+                  );
+
+                  return (
+                    <div key={idx} className="relative group">
+                      {/* Color-coded Timeline Dot: Red for Critical, Yellow for Needs Attention, Green for Healthy */}
+                      <span
+                        className={`absolute -left-[31px] top-2 w-4 h-4 rounded-full ring-4 transition ${
+                          isCritical
+                            ? 'bg-red-600 ring-red-100 shadow-xs'
+                            : isAttention
+                            ? 'bg-amber-500 ring-amber-100 shadow-xs'
+                            : 'bg-emerald-600 ring-emerald-100 shadow-xs'
+                        }`}
+                      />
+
+                      {/* Timeline Card */}
+                      <div
+                        className={`rounded-2xl p-4 sm:p-5 border transition shadow-2xs space-y-2.5 ${
+                          isCritical
+                            ? 'bg-white border-red-200 hover:border-red-400'
+                            : isAttention
+                            ? 'bg-white border-amber-200 hover:border-amber-400'
+                            : 'bg-white border-stone-200 hover:border-emerald-300'
+                        }`}
+                      >
+                        {/* Header: Badge & Date */}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span
+                            className={`text-xs font-bold px-2.5 py-0.5 rounded-md border ${
+                              isCritical
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : isAttention
+                                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            }`}
+                          >
+                            {isCritical
+                              ? (isEnglish ? '● Critical' : isMarathi ? '● गंभीर' : '● गंभीर')
+                              : isAttention
+                              ? (isEnglish ? '● Needs Attention' : isMarathi ? '● लक्ष द्या' : '● ध्यान दें')
+                              : (item.type || (isEnglish ? 'Health Check' : isMarathi ? 'आरोग्य तपासणी' : 'स्वास्थ्य जांच'))}
+                          </span>
+
+                          <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" /> {item.date}
+                          </span>
+                        </div>
+
+                        {/* Title */}
+                        <h4
+                          className={`font-black text-sm ${
+                            isCritical ? 'text-red-950' : isAttention ? 'text-amber-950' : 'text-slate-900'
+                          }`}
+                        >
+                          {cleanTitle}
+                        </h4>
+
+                        {/* Doctor / Examiner */}
+                        {item.doctor && (
+                          <p className="text-xs text-slate-600">
+                            <span className="font-semibold">{isEnglish ? 'Examined by:' : isMarathi ? 'तपासणी:' : 'जांचकर्ता:'}</span> {item.doctor}
+                          </p>
+                        )}
+
+                        {/* Concise Notes Preview */}
+                        {summaryNotes && (
+                          <p className="text-xs text-slate-600 leading-relaxed bg-stone-50/80 p-2.5 rounded-xl border border-stone-100">
+                            {summaryNotes}
+                          </p>
+                        )}
+
+                        {/* View More / View Details Toggle */}
+                        {hasExtraDetails && (
+                          <div className="pt-1 border-t border-stone-100">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedTimelineIdx(isExpanded ? null : idx)}
+                              className={`inline-flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                                isCritical
+                                  ? 'text-red-700 hover:text-red-900'
+                                  : isAttention
+                                  ? 'text-amber-800 hover:text-amber-950'
+                                  : 'text-emerald-700 hover:text-emerald-900'
+                              }`}
+                            >
+                              <span>
+                                {isExpanded
+                                  ? (isEnglish ? 'Hide Details ▲' : isMarathi ? 'तपशील लपवा ▲' : 'विवरण छुपाएं ▲')
+                                  : (isEnglish ? 'View More Details ▼' : isMarathi ? 'अधिक तपशील पहा ▼' : 'अधिक विवरण देखें ▼')}
+                              </span>
+                            </button>
+
+                            {/* Collapsible Expanded Details Section */}
+                            {isExpanded && (
+                              <div className="mt-3 p-3.5 bg-stone-50 rounded-2xl border border-stone-200/90 space-y-3 animate-fadeIn">
+                                {/* Uploaded Disease Scan Photo */}
+                                {item.image && (
+                                  <div className="space-y-1.5">
+                                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                      <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                                      {isEnglish ? 'Uploaded Disease Scan Photo:' : isMarathi ? 'अपलोड केलेला तपासणी फोटो:' : 'अपलोड की गई जांच फोटो:'}
+                                    </span>
+                                    <div className="relative group w-fit max-w-xs rounded-xl overflow-hidden border border-stone-200 shadow-xs bg-white">
+                                      <img
+                                        src={item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : `http://localhost:5000${item.image}`}
+                                        alt="Scan Lesion"
+                                        className="w-48 h-36 object-cover cursor-pointer hover:scale-105 transition duration-200"
+                                        onClick={() => window.open(item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : `http://localhost:5000${item.image}`, '_blank')}
+                                      />
+                                      <span className="absolute bottom-1 right-1 bg-black/75 text-white text-[10px] px-2 py-0.5 rounded font-mono pointer-events-none">
+                                        🔍 {isEnglish ? 'Tap to enlarge' : isMarathi ? 'मोठे पहा' : 'बड़ा देखें'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Confidence Score */}
+                                {item.confidence && (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="font-bold text-slate-700">{isEnglish ? 'AI Confidence:' : isMarathi ? 'AI अचूकता:' : 'AI सटीकता:'}</span>
+                                    <span className="font-black text-emerald-800 bg-emerald-100/80 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                                      {item.confidence}%
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Symptoms List */}
+                                {item.symptoms && item.symptoms.length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <span className="text-xs font-bold text-slate-700 block">
+                                      {isEnglish ? 'Evaluated Symptoms:' : isMarathi ? 'तपासलेली लक्षणे:' : 'पहचाने गए लक्षण:'}
+                                    </span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {item.symptoms.map((s, sIdx) => (
+                                        <span
+                                          key={sIdx}
+                                          className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-white border border-stone-200 text-slate-800 shadow-2xs"
+                                        >
+                                          • {s}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Advisory / First Aid Guidance */}
+                                {item.advisory && (
+                                  <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-1">
+                                    <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                      {isEnglish ? 'Veterinary Guidance & First Aid:' : isMarathi ? 'पशुवैद्यकीय सल्ला व प्रथमोपचार:' : 'पशुचिकित्सक परामर्श एवं प्राथमिक उपचार:'}
+                                    </span>
+                                    <p className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                                      {item.advisory}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full">
-                        {v.status || 'पूर्ण'}
-                      </span>
-                      <span className="text-[11px] text-slate-500 block mt-1">अगला नियत: {v.nextDue}</span>
-                    </div>
-                  </div>
-                ))}
-                {allVaccinations.length === 0 && (
-                  <p className="text-xs text-slate-400 py-3">कोई टीका दर्ज नहीं है। नीचे दिए फॉर्म से नया टीका जोड़ें।</p>
+                  );
+                })}
+                {timeline.length === 0 && (
+                  <p className="text-xs text-slate-400 py-3">
+                    {isEnglish ? 'No records logged yet.' : isMarathi ? 'अद्याप कोणत्याही नोंदी नाहीत.' : 'कोई रिकॉर्ड दर्ज नहीं है।'}
+                  </p>
                 )}
               </div>
 
-              {/* Quick Add Vaccination Record with 'सुरक्षित करें' */}
+              {/* Add Timeline Event Form */}
               <form
-                onSubmit={handleAddVaccine}
+                onSubmit={handleAddTimeline}
                 className="p-4 sm:p-5 bg-emerald-50/80 rounded-2xl border border-emerald-200/80 space-y-3 shadow-2xs"
               >
-                <span className="text-xs font-bold text-emerald-900 block">नया टीकाकरण दर्ज करें (Log Vaccine)</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-900">
+                    {isEnglish ? '+ Add Health Record' : isMarathi ? '+ नवीन आरोग्य नोंद जोडा' : '+ नया स्वास्थ्य रिकॉर्ड जोड़ें'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">टीके का नाम (Vaccine Name) *</label>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Type' : isMarathi ? 'प्रकार' : 'प्रकार'}
+                    </label>
+                    <select
+                      value={newTimelineType}
+                      onChange={(e) => setNewTimelineType(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                    >
+                      <option value="Health Check">{isEnglish ? 'Health Check' : isMarathi ? 'आरोग्य तपासणी' : 'स्वास्थ्य जांच'}</option>
+                      <option value="Treatment">{isEnglish ? 'Treatment' : isMarathi ? 'उपचार' : 'उपचार'}</option>
+                      <option value="Vaccination">{isEnglish ? 'Vaccination' : isMarathi ? 'लसीकरण' : 'टीकाकरण'}</option>
+                      <option value="Deworming">{isEnglish ? 'Deworming' : isMarathi ? 'जंतनाशक' : 'कृमिनाशक'}</option>
+                      <option value="Other">{isEnglish ? 'Other' : isMarathi ? 'इतर' : 'अन्य'}</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Title *' : isMarathi ? 'शीर्षक *' : 'शीर्षक *'}
+                    </label>
                     <input
                       type="text"
-                      placeholder="उदा. FMD, HS, BQ, Brucellosis"
-                      value={newVaccineName}
-                      onChange={(e) => setNewVaccineName(e.target.value)}
+                      placeholder={isEnglish ? 'e.g. Deworming given' : isMarathi ? 'उदा. जंतनाशक दिले' : 'उदा. पेट दर्द दवा दी'}
+                      value={newTimelineTitle}
+                      onChange={(e) => setNewTimelineTitle(e.target.value)}
                       required
-                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
+
                   <div>
-                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">अगला नियत (Next Due Date)</label>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Notes' : isMarathi ? 'तपशील' : 'टिप्पणी'}
+                    </label>
                     <input
-                      type="date"
-                      value={newVaccineNextDue}
-                      onChange={(e) => setNewVaccineNextDue(e.target.value)}
-                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      type="text"
+                      placeholder={isEnglish ? 'Notes or doctor advice' : isMarathi ? 'तपशील किंवा सल्ला' : 'विवरण या सलाह'}
+                      value={newTimelineNotes}
+                      onChange={(e) => setNewTimelineNotes(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -679,18 +1108,18 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
                 <div className="flex justify-end pt-1">
                   <button
                     type="submit"
-                    disabled={isSubmittingVaccine}
+                    disabled={isSubmittingTimeline}
                     className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition shadow-sm cursor-pointer"
                   >
-                    {isSubmittingVaccine ? (
+                    {isSubmittingTimeline ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>सुरक्षित हो रहा है...</span>
+                        <span>{isEnglish ? 'Saving...' : isMarathi ? 'जतन होत आहे...' : 'सुरक्षित हो रहा है...'}</span>
                       </>
                     ) : (
                       <>
                         <Plus className="w-4 h-4" />
-                        <span>सुरक्षित करें</span>
+                        <span>{isEnglish ? 'Save Record' : isMarathi ? 'नोंद जतन करा' : 'रिकॉर्ड सुरक्षित करें'}</span>
                       </>
                     )}
                   </button>
@@ -699,68 +1128,554 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate }) {
             </div>
           )}
 
-          {/* TAB 4: DISEASE HISTORY */}
-          {activeTab === 'diseaseHistory' && (
-            <div className="space-y-4">
-              <h4 className="font-extrabold text-slate-900 text-sm">पिछली बीमारियों का इतिहास</h4>
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-sm text-slate-600 space-y-2">
-                <p>• मई 2025: सामान्य अपच (Tympanites) - हिंग्वाष्टक चूर्ण व मीठा तेल द्वारा 24 घंटे में सुधार।</p>
-                <p>• नवंबर 2024: मौसमी खांसी - डॉक्टर द्वारा कफ सिरप व एंटीबायोटिक खुराक से पूर्ण स्वस्थ।</p>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: MILK PRODUCTION */}
-          {activeTab === 'milkProduction' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-200">
-                <div>
-                  <h4 className="font-extrabold text-slate-900 text-sm">दैनिक दूध रिकॉर्ड (Milk Yield)</h4>
-                  <p className="text-xs text-slate-500">वर्तमान दैनिक औसत: {modalAnimal.milkYieldDaily || '12.0 L'}</p>
+          {/* TAB 3: VACCINATION */}
+          {activeTab === 'vaccination' && (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Syringe className="w-5 h-5 text-emerald-700" />
+                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                    {isEnglish ? 'Vaccination Management' : isMarathi ? 'लसीकरण व्यवस्थापन' : 'टीकाकरण प्रबंधन'}
+                  </h4>
                 </div>
-                <div className="text-2xl font-black text-emerald-700">{modalAnimal.milkYieldDaily || '12.0 L'}</div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100/70 text-emerald-800 border border-emerald-200">
+                  {allVaccinations.length} {isEnglish ? 'total recorded' : isMarathi ? 'नोंदवलेल्या लसी' : 'कुल दर्ज टीके'}
+                </span>
               </div>
 
-              <form onSubmit={handleUpdateMilk} className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
-                <span className="text-xs font-bold text-emerald-900 block">दूध माप अपडेट करें:</span>
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="नया माप (उदा. 15.2 L)"
-                    value={newMilkYield}
-                    onChange={(e) => setNewMilkYield(e.target.value)}
-                    required
-                    className="bg-white border border-stone-300 rounded-xl px-4 py-2 text-xs w-full sm:w-48 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
+              {/* 1. Reminder Alerts (when due within 7 days or overdue) */}
+              {overdueVaccines.length > 0 && (
+                <div className="p-3.5 sm:p-4 bg-red-50/95 rounded-2xl border border-red-200 text-red-950 flex items-start gap-3 shadow-2xs">
+                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs">
+                    <span className="font-black text-red-900 block sm:inline">
+                      {isEnglish ? '⚠️ Overdue Vaccination Alert:' : isMarathi ? '⚠️ थकबाकी लस इशारा:' : '⚠️ अतिदेय टीकाकरण चेतावनी:'}
+                    </span>{' '}
+                    <span>
+                      {overdueVaccines.map((ov, idx) => (
+                        <span key={idx} className="font-semibold">
+                          {ov.name} ({ov.statusInfo.label}){idx < overdueVaccines.length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                      {' — '}
+                      {isEnglish
+                        ? 'Immediate booster dose recommended to avoid disease outbreak.'
+                        : isMarathi
+                        ? 'रोगप्रसार टाळण्यासाठी त्वरित बूस्टर डोस द्यावा.'
+                        : 'संक्रमण से बचाव हेतु तुरंत बूस्टर टीका लगवाएं।'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {dueSoonVaccines.length > 0 && (
+                <div className="p-3.5 sm:p-4 bg-amber-50/95 rounded-2xl border border-amber-300 text-amber-950 flex items-start gap-3 shadow-2xs">
+                  <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs">
+                    <span className="font-black text-amber-900 block sm:inline">
+                      {isEnglish ? '⏳ Upcoming Vaccination Reminder:' : isMarathi ? '⏳ नियोजित लस आठवण:' : '⏳ आगामी टीकाकरण अनुस्मारक:'}
+                    </span>{' '}
+                    <span>
+                      {dueSoonVaccines.map((dv, idx) => (
+                        <span key={idx} className="font-semibold">
+                          {dv.name} ({dv.statusInfo.label}){idx < dueSoonVaccines.length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                      {' — '}
+                      {isEnglish
+                        ? 'Please coordinate with your local veterinary doctor or gram panchayat camp.'
+                        : isMarathi
+                        ? 'कृपया आपल्या नजीकच्या पशुवैद्यकीय दवाखान्याशी संपर्क साधा.'
+                        : 'कृपया अपने नजदीकी पशु चिकित्सालय या ग्राम पंचायत शिविर से संपर्क करें।'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Summary Section Above Table */}
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+                {/* Total */}
+                <div className="p-3 sm:p-3.5 bg-stone-50 rounded-2xl border border-stone-200/80 shadow-2xs flex flex-col justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 block">
+                    {isEnglish ? 'Total Vaccines' : isMarathi ? 'एकूण लसी' : 'कुल टीके'}
+                  </span>
+                  <div className="flex items-baseline gap-1.5 mt-1">
+                    <span className="text-xl sm:text-2xl font-black text-slate-900">{totalVaccinesCount}</span>
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      {isEnglish ? 'Doses' : isMarathi ? 'डोस' : 'डोज'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upcoming Due */}
+                <div
+                  className={`p-3 sm:p-3.5 rounded-2xl border shadow-2xs flex flex-col justify-between ${
+                    upcomingDueCount > 0 ? 'bg-amber-50/70 border-amber-300/80' : 'bg-stone-50 border-stone-200/80'
+                  }`}
+                >
+                  <span
+                    className={`text-[11px] font-bold block ${
+                      upcomingDueCount > 0 ? 'text-amber-800' : 'text-slate-500'
+                    }`}
+                  >
+                    {isEnglish ? 'Upcoming Due' : isMarathi ? 'पुढील देय' : 'आगामी नियत'}
+                  </span>
+                  <div className="flex items-baseline gap-1.5 mt-1">
+                    <span
+                      className={`text-xl sm:text-2xl font-black ${
+                        upcomingDueCount > 0 ? 'text-amber-900' : 'text-slate-900'
+                      }`}
+                    >
+                      {upcomingDueCount}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        upcomingDueCount > 0 ? 'text-amber-700' : 'text-slate-400'
+                      }`}
+                    >
+                      {upcomingDueCount > 0
+                        ? (isEnglish ? 'Scheduled' : isMarathi ? 'नियोजित' : 'नियत')
+                        : (isEnglish ? 'Up to date' : 'सुरक्षित')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Overdue */}
+                <div
+                  className={`p-3 sm:p-3.5 rounded-2xl border shadow-2xs flex flex-col justify-between ${
+                    overdueCount > 0 ? 'bg-red-50/70 border-red-300/80' : 'bg-stone-50 border-stone-200/80'
+                  }`}
+                >
+                  <span
+                    className={`text-[11px] font-bold block ${
+                      overdueCount > 0 ? 'text-red-800' : 'text-slate-500'
+                    }`}
+                  >
+                    {isEnglish ? 'Overdue' : isMarathi ? 'थकबाकी' : 'अतिदेय'}
+                  </span>
+                  <div className="flex items-baseline gap-1.5 mt-1">
+                    <span
+                      className={`text-xl sm:text-2xl font-black ${
+                        overdueCount > 0 ? 'text-red-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {overdueCount}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        overdueCount > 0 ? 'text-red-600' : 'text-emerald-700'
+                      }`}
+                    >
+                      {overdueCount > 0
+                        ? (isEnglish ? 'Urgent' : isMarathi ? 'तातडीचे' : 'तुरंत दें')
+                        : (isEnglish ? 'None' : 'शून्य')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. AI-Powered Vaccine Recommendations */}
+              {aiRecommendations.length > 0 && (
+                <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 rounded-2xl border border-emerald-200/90 space-y-3 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <h5 className="font-extrabold text-xs sm:text-sm text-emerald-950">
+                        {isEnglish ? 'AI Vaccine Recommendations' : isMarathi ? 'AI लस शिफारसी' : 'AI टीका परामर्श'}
+                      </h5>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900 border border-emerald-300">
+                        Smart Triage
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-800 font-mono font-medium">
+                      {speciesDisplayName} • {modalAnimal.age} {t('farmer_dash.years', 'Years')} • {modalAnimal.district || 'Pune'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {aiRecommendations.map((rec, rIdx) => (
+                      <div
+                        key={rIdx}
+                        className="bg-white/90 backdrop-blur-xs p-3 rounded-xl border border-emerald-200/80 flex flex-col justify-between gap-2 hover:border-emerald-400 transition shadow-2xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <h6 className="font-black text-xs text-slate-900">{rec.name}</h6>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${rec.badgeColor}`}>
+                              {rec.priority}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 leading-snug">{rec.reason}</p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleQuickFillRecommendation(rec)}
+                          className="w-full inline-flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold py-1.5 px-2 rounded-lg border border-emerald-200 transition cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3 text-emerald-700" />
+                          <span>{isEnglish ? 'Quick Fill Form' : isMarathi ? 'फॉर्ममध्ये भरा' : 'फॉर्म में भरें'}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Responsive Vaccination History Table */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-xs sm:text-sm text-slate-800">
+                    {isEnglish ? 'Vaccination History Records' : isMarathi ? 'लसीकरण इतिहास नोंदी' : 'टीकाकरण इतिहास तालिका'}
+                  </h5>
+                  <span className="text-xs text-slate-400 font-mono">
+                    {allVaccinations.length} {isEnglish ? 'entries' : 'प्रविष्टियां'}
+                  </span>
+                </div>
+
+                {allVaccinations.length > 0 ? (
+                  <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-700">
+                        <thead className="bg-stone-50 border-b border-stone-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                          <tr>
+                            <th className="py-3 px-3.5 sm:px-4">{isEnglish ? 'Vaccine' : isMarathi ? 'लस' : 'टीका'}</th>
+                            <th className="py-3 px-3 sm:px-3.5 whitespace-nowrap">{isEnglish ? 'Date Given' : isMarathi ? 'दिलेली तारीख' : 'दी गई तारीख'}</th>
+                            <th className="py-3 px-3 sm:px-3.5 whitespace-nowrap">{isEnglish ? 'Next Due' : isMarathi ? 'पुढील तारीख' : 'अगली नियत'}</th>
+                            <th className="py-3 px-3 sm:px-3.5 whitespace-nowrap">{isEnglish ? 'Veterinarian' : isMarathi ? 'पशुवैद्यक' : 'चिकित्सक'}</th>
+                            <th className="py-3 px-3.5 sm:px-4 text-right">{isEnglish ? 'Status' : isMarathi ? 'स्थिती' : 'स्थिति'}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100">
+                          {allVaccinations.map((v, i) => {
+                            const isOverdue = v.statusInfo.isOverdue;
+                            const isDueSoon = v.statusInfo.isDueSoon;
+
+                            return (
+                              <tr key={i} className="hover:bg-stone-50/60 transition">
+                                <td className="py-3 px-3.5 sm:px-4">
+                                  <div className="space-y-0.5">
+                                    <span className="font-black text-slate-900 block">{v.name}</span>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                                      <span className="px-1.5 py-0.5 rounded bg-stone-100 border border-stone-200 font-medium">
+                                        {v.dose}
+                                      </span>
+                                      {v.batchNumber && (
+                                        <span className="font-mono text-slate-400">
+                                          Batch: {v.batchNumber}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {v.notes && (
+                                      <p className="text-[10px] text-slate-400 italic pt-0.5">{v.notes}</p>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 sm:px-3.5 font-mono text-slate-600 whitespace-nowrap">
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3 text-slate-400" />
+                                    <span>{v.date}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 sm:px-3.5 whitespace-nowrap">
+                                  <div className="space-y-0.5 font-mono">
+                                    <span className="text-slate-800 font-semibold block">{v.nextDue}</span>
+                                    {v.rawNextDue && (
+                                      <span
+                                        className={`text-[10px] block font-sans ${
+                                          isOverdue
+                                            ? 'text-red-600 font-black'
+                                            : isDueSoon
+                                            ? 'text-amber-600 font-bold'
+                                            : 'text-slate-400'
+                                        }`}
+                                      >
+                                        {v.statusInfo.daysDiff !== null && (
+                                          v.statusInfo.daysDiff < 0
+                                            ? `${Math.abs(v.statusInfo.daysDiff)} ${isEnglish ? 'days ago' : 'दिन पहले'}`
+                                            : v.statusInfo.daysDiff === 0
+                                            ? (isEnglish ? 'Due Today' : 'आज देय')
+                                            : `${isEnglish ? 'in' : 'में'} ${v.statusInfo.daysDiff} ${isEnglish ? 'days' : 'दिन'}`
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 sm:px-3.5 text-xs text-slate-600 whitespace-nowrap">
+                                  <div>
+                                    <span className="font-semibold text-slate-800 block">{v.administeredBy}</span>
+                                    {v.camp && (
+                                      <span className="text-[10px] text-slate-400 block max-w-[140px] truncate" title={v.camp}>
+                                        {v.camp}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3.5 sm:px-4 text-right whitespace-nowrap">
+                                  <span
+                                    className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-md border shadow-2xs ${
+                                      isOverdue
+                                        ? 'bg-red-50 text-red-700 border-red-200 font-black'
+                                        : isDueSoon
+                                        ? 'bg-amber-50 text-amber-900 border-amber-300 font-bold'
+                                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    }`}
+                                  >
+                                    ● {v.statusInfo.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 bg-stone-50 rounded-2xl border border-stone-200 text-slate-400 text-xs space-y-1">
+                    <Syringe className="w-6 h-6 mx-auto text-stone-300" />
+                    <p>{isEnglish ? 'No vaccination records logged yet.' : isMarathi ? 'अद्याप कोणतीही लस नोंदवली नाही.' : 'कोई टीकाकरण दर्ज नहीं है।'}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Log Vaccination Form */}
+              <form
+                onSubmit={handleAddVaccine}
+                className="p-4 sm:p-5 bg-emerald-50/80 rounded-2xl border border-emerald-200/80 space-y-4 shadow-2xs"
+              >
+                <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2.5">
+                  <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                    <Plus className="w-4 h-4 text-emerald-700" />
+                    {isEnglish ? 'Log New Vaccination' : isMarathi ? 'नवीन लसीकरण नोंदवा' : 'नया टीका दर्ज करें'}
+                  </span>
+                  <span className="text-[11px] text-emerald-800 font-mono">
+                    {t('animal_form.tag_id', 'Tag ID')}: {modalAnimal.tagId}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                  {/* Field 1: Searchable Vaccine Dropdown */}
+                  <div className="relative sm:col-span-2 md:col-span-1">
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Vaccine Name *' : isMarathi ? 'लसीचे नाव *' : 'टीके का नाम *'}
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsVaccineDropdownOpen(!isVaccineDropdownOpen)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 flex items-center justify-between shadow-2xs hover:border-emerald-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer text-left"
+                    >
+                      <span className="font-bold truncate">{newVaccineName || (isEnglish ? 'Select Vaccine' : 'लस निवडा')}</span>
+                      <ChevronDown className={`w-4 h-4 text-emerald-700 shrink-0 transition-transform ${isVaccineDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Popover Dropdown */}
+                    {isVaccineDropdownOpen && (
+                      <div className="absolute left-0 top-full mt-1.5 w-full sm:w-80 bg-white rounded-2xl border border-stone-200 shadow-xl z-50 overflow-hidden animate-in fade-in duration-150">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-stone-100 bg-stone-50 flex items-center gap-2">
+                          <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                          <input
+                            type="text"
+                            placeholder={isEnglish ? 'Search FMD, HS, BQ, LSD, Rabies...' : 'शोधा FMD, HS, BQ, लम्पी, रेबीज...'}
+                            value={vaccineSearchQuery}
+                            onChange={(e) => setVaccineSearchQuery(e.target.value)}
+                            className="w-full bg-transparent text-xs text-slate-800 placeholder:text-stone-400 focus:outline-none"
+                            autoFocus
+                          />
+                        </div>
+
+                        {/* Vaccine List */}
+                        <div className="max-h-60 overflow-y-auto divide-y divide-stone-100">
+                          {VACCINE_REGISTRY.filter((v) => {
+                            if (!vaccineSearchQuery.trim()) return true;
+                            const q = vaccineSearchQuery.toLowerCase();
+                            return (
+                              v.key.toLowerCase().includes(q) ||
+                              v.code.toLowerCase().includes(q) ||
+                              v.name.en.toLowerCase().includes(q) ||
+                              v.name.hi.toLowerCase().includes(q) ||
+                              v.name.mr.toLowerCase().includes(q)
+                            );
+                          }).map((v) => (
+                            <div
+                              key={v.id}
+                              onClick={() => handleSelectVaccineDropdown(v)}
+                              className="p-2.5 hover:bg-emerald-50 cursor-pointer transition flex items-start justify-between gap-2"
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-black text-xs text-slate-900">{v.key}</span>
+                                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                                    {v.defaultIntervalMonths === 12
+                                      ? (isEnglish ? 'Annual' : 'वार्षिक')
+                                      : `${v.defaultIntervalMonths} ${isEnglish ? 'Months' : 'महिने'}`}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 leading-snug">
+                                  {v.name[currentLang] || v.name.en}
+                                </p>
+                              </div>
+                              {selectedVaccineKey === v.key && (
+                                <Check className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Field 2: Date Administered */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Date Administered *' : isMarathi ? 'दिलेली तारीख *' : 'दी गई तारीख *'}
+                    </label>
+                    <input
+                      type="date"
+                      value={newVaccineDateAdministered}
+                      onChange={(e) => handleDateAdministeredChange(e.target.value)}
+                      required
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Field 3: Next Due Date (Auto-calculated but editable) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-emerald-950 block">
+                        {isEnglish ? 'Next Due Date' : isMarathi ? 'पुढील नियोजित तारीख' : 'अगली नियत तारीख'}
+                      </label>
+                      <span className="text-[10px] text-emerald-700 font-bold">
+                        {isEnglish ? 'Auto-calc' : 'आपोआप'}
+                      </span>
+                    </div>
+                    <input
+                      type="date"
+                      value={newVaccineNextDue}
+                      onChange={(e) => setNewVaccineNextDue(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Field 4: Dose Number */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Dose Number' : isMarathi ? 'डोस क्रमांक' : 'खुराक (डोज)'}
+                    </label>
+                    <select
+                      value={newVaccineDose}
+                      onChange={(e) => setNewVaccineDose(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                    >
+                      {DOSE_NUMBER_OPTIONS.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d[currentLang] || d.en}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Field 5: Batch Number */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Batch Number' : isMarathi ? 'बॅच नंबर' : 'बैच संख्या'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={isEnglish ? 'e.g. BATCH-2026-09' : 'उदा. BATCH-2026-09'}
+                      value={newVaccineBatch}
+                      onChange={(e) => setNewVaccineBatch(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Field 6: Administered By (Veterinarian) */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Administered By (Veterinarian)' : isMarathi ? 'पशुवैद्यकाचे नाव' : 'पशु चिकित्सक / डॉक्टर'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={isEnglish ? 'e.g. Dr. Suresh Kulkarni' : 'उदा. डॉ. सुरेश कुलकर्णी'}
+                      value={newVaccineAdministeredBy}
+                      onChange={(e) => setNewVaccineAdministeredBy(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Field 7: Vaccination Camp (Optional) */}
+                  <div className="sm:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-emerald-950 block">
+                        {isEnglish ? 'Vaccination Camp / Programme (Optional)' : isMarathi ? 'लसीकरण शिबिर / योजना' : 'टीकाकरण शिविर / कार्यक्रम'}
+                      </label>
+                      <span className="text-[10px] text-emerald-700 font-medium">
+                        {isEnglish ? 'Tap preset:' : 'निवडा:'}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder={isEnglish ? 'e.g. NADCP Free Govt Drive' : 'उदा. राष्ट्रीय लाळखुरी निर्मूलन मोहीम'}
+                      value={newVaccineCamp}
+                      onChange={(e) => setNewVaccineCamp(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {['NADCP Govt Drive', 'Gram Panchayat Camp', 'Pre-Monsoon Drive', 'Private Clinic'].map((campName) => (
+                        <button
+                          key={campName}
+                          type="button"
+                          onClick={() => setNewVaccineCamp(campName)}
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-emerald-100/70 hover:bg-emerald-200/80 text-emerald-900 border border-emerald-200 transition cursor-pointer"
+                        >
+                          + {campName}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Field 8: Notes */}
+                  <div className="sm:col-span-2 md:col-span-1">
+                    <label className="text-[11px] font-semibold text-emerald-950 block mb-1">
+                      {isEnglish ? 'Notes / Observations' : isMarathi ? 'नोंदी / निरीक्षण' : 'टिप्पणी / विवरण'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={isEnglish ? 'e.g. 2ml subcutaneous, healthy vitals' : 'उदा. २ मिली मान, निरोगी'}
+                      value={newVaccineNotes}
+                      onChange={(e) => setNewVaccineNotes(e.target.value)}
+                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex justify-end pt-2 border-t border-emerald-200/60">
                   <button
                     type="submit"
-                    disabled={isSubmittingMilk}
-                    className="bg-emerald-700 hover:bg-emerald-800 active:scale-95 disabled:opacity-50 text-white font-bold px-5 py-2 rounded-xl text-xs transition cursor-pointer"
+                    disabled={isSubmittingVaccine}
+                    className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition shadow-sm cursor-pointer"
                   >
-                    {isSubmittingMilk ? 'सुरक्षित हो रहा है...' : 'सुरक्षित करें'}
+                    {isSubmittingVaccine ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>{isEnglish ? 'Saving...' : isMarathi ? 'जतन होत आहे...' : 'सुरक्षित हो रहा है...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>{isEnglish ? 'Save Vaccination Record' : isMarathi ? 'लस नोंद जतन करा' : 'टीका रिकॉर्ड सुरक्षित करें'}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
             </div>
           )}
 
-          {/* TAB 6: TREATMENTS */}
-          {activeTab === 'treatments' && (
-            <div className="space-y-3">
-              <h4 className="font-extrabold text-slate-900 text-sm">दवाइयां एवं चालू उपचार</h4>
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-xs text-slate-600 space-y-2">
-                <div className="flex items-center justify-between border-b border-stone-200 pb-2">
-                  <span className="font-bold text-slate-900">मिनरल मिक्स्चर (पोषक तत्व)</span>
-                  <span className="text-emerald-700 font-semibold">50 ग्राम दैनिक चारा में</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900">कृमिनाशक (Deworming Albendazole)</span>
-                  <span className="text-slate-500">हर 6 माह पर अनुशंसित</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
