@@ -41,10 +41,25 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'Pune'
     },
+    state: {
+      type: String,
+      default: 'Maharashtra'
+    },
+    location: {
+      lat: { type: Number, default: 0 },
+      lng: { type: Number, default: 0 }
+    },
+    registrationNo: {
+      type: String,
+      default: ''
+    },
+    department: {
+      type: String,
+      default: ''
+    },
     preferredLanguage: {
       type: String,
-      enum: ['en', 'hi'],
-      default: 'en'
+      default: 'hi'
     }
   },
   { timestamps: true }

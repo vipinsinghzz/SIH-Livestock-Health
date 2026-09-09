@@ -69,6 +69,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Serve static uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Mount Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
@@ -78,6 +81,9 @@ app.use('/api/advisories', require('./routes/advisoryRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/ivr', require('./routes/ivrRoutes'));
 app.use('/api/vaccination-drives', require('./routes/vaccinationRoutes'));
+app.use('/api/weather', require('./routes/weatherRoutes'));
+app.use('/api/nadres', require('./routes/nadresRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
 // Centralized error handling
 app.use(errorHandler);

@@ -52,7 +52,15 @@ const animalSchema = new mongoose.Schema(
         title: { type: String, required: true },
         date: { type: String, default: () => new Date().toLocaleDateString('en-GB') },
         doctor: { type: String, default: '' },
-        notes: { type: String, default: '' }
+        notes: { type: String, default: '' },
+        image: { type: String, default: '' },
+        status: { type: String, default: '' },
+        disease: { type: String, default: '' },
+        confidence: { type: Number, default: null },
+        symptoms: [{ type: String }],
+        advisory: { type: String, default: '' },
+        temperature: { type: Number, default: null },
+        duration: { type: Number, default: null }
       }
     ],
     ownerId: {
@@ -77,7 +85,12 @@ const animalSchema = new mongoose.Schema(
       {
         vaccine: { type: String, required: true },
         date: { type: Date, default: Date.now },
-        nextDue: { type: Date }
+        nextDue: { type: Date },
+        dose: { type: String, default: 'Primary Dose' },
+        batchNumber: { type: String, default: '' },
+        administeredBy: { type: String, default: '' },
+        camp: { type: String, default: '' },
+        notes: { type: String, default: '' }
       }
     ],
     treatmentHistory: [

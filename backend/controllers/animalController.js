@@ -90,24 +90,26 @@ exports.createAnimal = async (req, res, next) => {
       treatmentHistory
     } = req.body;
 
-    if (!tagId || !species) {
+    if (!species) {
       return res.status(400).json({
         success: false,
-        message: 'Tag ID and species are required.'
+        message: 'Species is required.'
       });
     }
 
-    const existingTag = await Animal.findOne({ tagId: tagId.toUpperCase() });
-    if (existingTag) {
+    const finalTagId = (tagId || `MH-12-P-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase();
+
+    const existingTag = await Animal.findOne({ tagId: finalTagId });
+    if (existingTag && tagId) {
       return res.status(400).json({
         success: false,
-        message: `An animal with Tag ID '${tagId.toUpperCase()}' is already registered.`
+        message: `An animal with Tag ID '${finalTagId}' is already registered.`
       });
     }
 
     const animal = await Animal.create({
-      tagId: tagId.toUpperCase(),
-      name: name || tagId.toUpperCase(),
+      tagId: finalTagId,
+      name: name || finalTagId,
       species,
       breed: breed || 'Indigenous / Mixed',
       age: age ? parseInt(age, 10) : 3,
@@ -189,7 +191,12 @@ exports.updateAnimal = async (req, res, next) => {
       animal.vaccinationHistory.push({
         vaccine: newVaccination.vaccine,
         date: newVaccination.date || new Date(),
-        nextDue: newVaccination.nextDue || null
+        nextDue: newVaccination.nextDue || null,
+        dose: newVaccination.dose || 'Primary Dose',
+        batchNumber: newVaccination.batchNumber || '',
+        administeredBy: newVaccination.administeredBy || '',
+        camp: newVaccination.camp || '',
+        notes: newVaccination.notes || ''
       });
     }
 
@@ -208,7 +215,15 @@ exports.updateAnimal = async (req, res, next) => {
         title: newTimelineEvent.title,
         date: newTimelineEvent.date || new Date().toLocaleDateString('en-GB'),
         doctor: newTimelineEvent.doctor || '',
-        notes: newTimelineEvent.notes || ''
+        notes: newTimelineEvent.notes || '',
+        image: newTimelineEvent.image || '',
+        status: newTimelineEvent.status || '',
+        disease: newTimelineEvent.disease || '',
+        confidence: newTimelineEvent.confidence || null,
+        symptoms: Array.isArray(newTimelineEvent.symptoms) ? newTimelineEvent.symptoms : [],
+        advisory: newTimelineEvent.advisory || '',
+        temperature: newTimelineEvent.temperature || null,
+        duration: newTimelineEvent.duration || null
       });
     }
 

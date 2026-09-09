@@ -13,20 +13,46 @@ const generateToken = (id) => {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { name, role, phone, email, password, village, block, district, preferredLanguage } = req.body;
+    const {
+      name,
+      role = 'farmer',
+      phone,
+      email,
+      password,
+      state,
+      village,
+      block,
+      district,
+      registrationNo,
+      department,
+      preferredLanguage,
+      location
+    } = req.body;
 
-    if (!name || !email || !password || !phone) {
+    if (!name || !password || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email, phone, and password.'
+        message: 'कृपया नाम, मोबाइल नंबर और पासवर्ड अवश्य भरें (Please provide name, phone, and password).'
       });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const cleanPhone = phone.trim();
+    // Use provided email, or generate safe default if farmer does not have an email
+    const cleanEmail = (email && email.trim())
+      ? email.toLowerCase().trim()
+      : `farmer_${cleanPhone.replace(/\D/g, '')}@livestocksathi.in`;
+
+    const existingUser = await User.findOne({
+      $or: [
+        { email: cleanEmail },
+        { phone: cleanPhone }
+      ]
+    });
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'A user with this email already exists.'
+        message: 'इस मोबाइल नंबर या ईमेल से पहले से खाता मौजूद है (A user with this phone or email already exists).'
       });
     }
 
@@ -34,15 +60,22 @@ exports.register = async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const user = await User.create({
-      name,
+      name: name.trim(),
       role: role || 'farmer',
-      phone,
-      email: email.toLowerCase(),
+      phone: cleanPhone,
+      email: cleanEmail,
       passwordHash,
-      village: village || '',
-      block: block || '',
-      district: district || 'Pune',
-      preferredLanguage: preferredLanguage || 'en'
+      state: state || 'Maharashtra',
+      village: village ? village.trim() : '',
+      block: block ? block.trim() : '',
+      district: district ? district.trim() : 'Pune',
+      location: {
+        lat: parseFloat(location?.lat || 0),
+        lng: parseFloat(location?.lng || 0)
+      },
+      registrationNo: registrationNo ? registrationNo.trim() : '',
+      department: department ? department.trim() : '',
+      preferredLanguage: preferredLanguage || 'hi'
     });
 
     const token = generateToken(user._id);
@@ -57,9 +90,13 @@ exports.register = async (req, res, next) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        state: user.state,
         village: user.village,
         block: user.block,
         district: user.district,
+        location: user.location,
+        registrationNo: user.registrationNo,
+        department: user.department,
         preferredLanguage: user.preferredLanguage
       }
     });
@@ -68,25 +105,33 @@ exports.register = async (req, res, next) => {
   }
 };
 
-// @desc    Authenticate user & get token
+// @desc    Authenticate user & get token (supports Email OR Mobile Phone)
 // @route   POST /api/auth/login
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, identifier, password } = req.body;
+    const loginKey = (email || phone || identifier || '').trim();
 
-    if (!email || !password) {
+    if (!loginKey || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both email and password.'
+        message: 'कृपया ईमेल या मोबाइल नंबर और पासवर्ड दर्ज करें (Please provide email/phone and password).'
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Match either email or phone number
+    const user = await User.findOne({
+      $or: [
+        { email: loginKey.toLowerCase() },
+        { phone: loginKey }
+      ]
+    });
+
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. User not found.'
+        message: 'उपयोगकर्ता नहीं मिला। कृपया सही मोबाइल नंबर या ईमेल दर्ज करें (User not found).'
       });
     }
 
@@ -94,7 +139,7 @@ exports.login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. Password incorrect.'
+        message: 'पासवर्ड गलत है। कृपया पुनः प्रयास करें (Invalid password).'
       });
     }
 
@@ -110,9 +155,12 @@ exports.login = async (req, res, next) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        state: user.state,
         village: user.village,
         block: user.block,
         district: user.district,
+        registrationNo: user.registrationNo,
+        department: user.department,
         preferredLanguage: user.preferredLanguage
       }
     });
