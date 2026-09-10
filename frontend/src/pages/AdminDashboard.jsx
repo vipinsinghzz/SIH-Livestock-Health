@@ -34,6 +34,7 @@ import {
   FileCheck,
   CheckCircle2
 } from 'lucide-react';
+import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -136,7 +137,10 @@ export default function AdminDashboard() {
   if (loading && !summary) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <div className="w-10 h-10 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
+        <div className="relative w-16 h-16 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
+          <LivestockSaathiEmblem size={40} className="drop-shadow-xs animate-pulse" />
+        </div>
         <p className="text-xs text-slate-500 font-medium">डैशबोर्ड लोड हो रहा है...</p>
       </div>
     );
@@ -155,20 +159,26 @@ export default function AdminDashboard() {
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
       {/* Top Banner & Block Filter */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+        <div className="flex items-center gap-3.5">
+          <LivestockSaathiEmblem size={52} className="shrink-0 drop-shadow-xs" />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                {isEnglish
+                  ? 'Epidemiological Surveillance Command Center'
+                  : 'रोग निगरानी एवं नियंत्रण केंद्र (Epidemiological Surveillance)'}
+              </h1>
+              <span className="bg-purple-100 text-purple-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
+                ADMIN
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
               {isEnglish
-                ? 'Epidemiological Surveillance Command Center'
-                : 'रोग निगरानी एवं नियंत्रण केंद्र (Epidemiological Surveillance)'}
-            </h1>
+                ? `District Officer: ${officerName} • District: ${districtName} (Maharashtra)`
+                : `जिला पशुपालन अधिकारी: ${officerName} • जिला: ${districtName} (महाराष्ट्र)`}
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {isEnglish
-              ? `District Officer: ${officerName} • District: ${districtName} (Maharashtra)`
-              : `जिला पशुपालन अधिकारी: ${officerName} • जिला: ${districtName} (महाराष्ट्र)`}
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">

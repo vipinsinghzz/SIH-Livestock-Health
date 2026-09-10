@@ -25,40 +25,59 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const { spawn } = require('child_process');
+const fs = require('fs');
 
 // Auto-spawn Python Deep Learning AI Service (lsd_model.keras)
 let aiServiceProcess = null;
 function startPythonAiService() {
   const pythonScript = path.join(__dirname, 'services', 'ai_service.py');
-  console.log(`[AI Engine] Spawning Python AI Service: python ${pythonScript}...`);
   
-  aiServiceProcess = spawn('python', [pythonScript], {
-    cwd: __dirname,
-    env: { ...process.env, KERAS_BACKEND: process.env.KERAS_BACKEND || 'tensorflow' },
-    stdio: 'inherit'
-  });
-
-  aiServiceProcess.on('error', (err) => {
-    console.error('[AI Engine] Warning: Could not auto-spawn Python AI service:', err.message);
-  });
-
-  aiServiceProcess.on('exit', (code, signal) => {
-    if (code !== 0 && code !== null) {
-      console.log(`[AI Engine] Python AI service exited with code ${code}.`);
+  let pythonExec = process.env.PYTHON_PATH || 'python';
+  if (pythonExec === 'python') {
+    const localVenv = path.join(__dirname, '.venv', 'Scripts', 'python.exe');
+    if (fs.existsSync(localVenv)) {
+      pythonExec = localVenv;
     }
-  });
+  }
+
+  console.log(`[AI Engine] Spawning Python AI Service: ${pythonExec} ${pythonScript}...`);
+  
+  try {
+    aiServiceProcess = spawn(pythonExec, [pythonScript], {
+      cwd: __dirname,
+      env: { ...process.env, KERAS_BACKEND: process.env.KERAS_BACKEND || 'tensorflow' },
+      stdio: ['ignore', 'inherit', 'inherit']
+    });
+
+    aiServiceProcess.on('error', (err) => {
+      console.error('[AI Engine] Warning: Could not auto-spawn Python AI service:', err.message);
+    });
+
+    aiServiceProcess.on('exit', (code, signal) => {
+      if (code !== 0 && code !== null) {
+        console.log(`[AI Engine] Python AI service exited with code ${code}.`);
+      }
+    });
+  } catch (err) {
+    console.error('[AI Engine] Error launching Python AI service:', err.message);
+  }
 }
 
-// Clean up child process on exit
-const cleanupAiProcess = () => {
+// Clean up child process and server on exit
+const cleanupProcess = () => {
   if (aiServiceProcess) {
     try {
       aiServiceProcess.kill('SIGTERM');
     } catch (e) {}
   }
+  if (typeof server !== 'undefined' && server && server.close) {
+    try {
+      server.close();
+    } catch (e) {}
+  }
 };
-process.on('SIGINT', () => { cleanupAiProcess(); process.exit(); });
-process.on('SIGTERM', () => { cleanupAiProcess(); process.exit(); });
+process.on('SIGINT', () => { cleanupProcess(); process.exit(0); });
+process.on('SIGTERM', () => { cleanupProcess(); process.exit(0); });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -86,6 +105,8 @@ app.use('/api/weather', require('./routes/weatherRoutes'));
 app.use('/api/nadres', require('./routes/nadresRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/kisan-saathi', require('./routes/kisanSaathiRoutes'));
+app.use('/api/cases', require('./routes/caseRoutes'));
+app.use('/api/veterinarians', require('./routes/veterinaryRoutes'));
 
 // Centralized error handling
 app.use(errorHandler);

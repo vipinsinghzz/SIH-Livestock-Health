@@ -7,30 +7,30 @@ export default function FarmerBottomNav() {
   const { t } = useTranslation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-stone-200 px-2 py-1.5 shadow-lg lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-stone-200 px-3 py-2 shadow-lg lg:hidden">
       <div className="flex items-center justify-around max-w-md mx-auto">
         <NavLink
           to="/"
           className={({ isActive }) =>
-            `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition ${
-              isActive ? 'text-emerald-700 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition ${
+              isActive ? 'text-emerald-800 font-black' : 'text-slate-600 hover:text-slate-900 font-medium'
             }`
           }
         >
           <Home className="w-5 h-5" />
-          <span className="text-[10px] truncate max-w-[60px]">{t('nav.home')}</span>
+          <span className="text-xs truncate max-w-[65px]">{t('nav.home')}</span>
         </NavLink>
 
         <NavLink
           to="/animals"
           className={({ isActive }) =>
-            `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition ${
-              isActive ? 'text-emerald-700 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition ${
+              isActive ? 'text-emerald-800 font-black' : 'text-slate-600 hover:text-slate-900 font-medium'
             }`
           }
         >
           <HeartPulse className="w-5 h-5" />
-          <span className="text-[10px] truncate max-w-[60px]">{t('nav.animals')}</span>
+          <span className="text-xs truncate max-w-[65px]">{t('nav.animals')}</span>
         </NavLink>
 
         {/* Center Prominent Disease Scan Button */}
@@ -38,34 +38,34 @@ export default function FarmerBottomNav() {
           to="/report-sick"
           className="flex flex-col items-center -mt-5"
         >
-          <div className="w-12 h-12 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white flex items-center justify-center shadow-lg shadow-emerald-700/30 ring-4 ring-white active:scale-95 transition">
+          <div className="w-13 h-13 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white flex items-center justify-center shadow-lg shadow-emerald-700/30 ring-4 ring-white active:scale-95 transition">
             <PlusCircle className="w-6 h-6" />
           </div>
-          <span className="text-[10px] font-bold text-emerald-800 mt-1 truncate max-w-[65px]">{t('nav.report_sick')}</span>
+          <span className="text-xs font-black text-emerald-800 mt-1 truncate max-w-[70px]">{t('nav.report_sick')}</span>
         </NavLink>
 
         <NavLink
           to="/kisan-saathi"
           className={({ isActive }) =>
-            `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition ${
-              isActive ? 'text-emerald-700 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition ${
+              isActive ? 'text-emerald-800 font-black' : 'text-slate-600 hover:text-slate-900 font-medium'
             }`
           }
         >
           <Mic className="w-5 h-5" />
-          <span className="text-[10px] truncate max-w-[65px]">{t('nav.kisan_saathi')}</span>
+          <span className="text-xs truncate max-w-[70px]">{t('nav.kisan_saathi')}</span>
         </NavLink>
 
         <NavLink
           to="/veterinary-help"
           className={({ isActive }) =>
-            `flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition ${
-              isActive ? 'text-emerald-700 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            `flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition ${
+              isActive ? 'text-emerald-800 font-black' : 'text-slate-600 hover:text-slate-900 font-medium'
             }`
           }
         >
           <Stethoscope className="w-5 h-5" />
-          <span className="text-[10px] truncate max-w-[60px]">{t('nav.veterinary_help')}</span>
+          <span className="text-xs truncate max-w-[65px]">{t('nav.veterinary_help')}</span>
         </NavLink>
       </div>
     </nav>

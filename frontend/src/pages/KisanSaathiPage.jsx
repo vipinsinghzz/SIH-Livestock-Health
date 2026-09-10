@@ -35,6 +35,7 @@ import diseaseDetectionService, { SYMPTOMS_27 } from '../services/diseaseDetecti
 import nadresService from '../services/nadresService';
 import VoiceWaveform from '../components/VoiceWaveform';
 import { useAuth } from '../context/AuthContext';
+import { LivestockSaathiEmblem, KisanSaathiEmblem } from '../components/LivestockSaathiLogo';
 
 class KisanSaathiErrorBoundary extends React.Component {
   constructor(props) {
@@ -696,27 +697,25 @@ function KisanSaathiContent() {
     <div className="min-h-[calc(100vh-4rem)] bg-[#f8fafc] py-4 px-3 sm:px-6 pb-24 lg:pb-8 flex flex-col justify-between max-w-7xl mx-auto space-y-4">
       {/* 1. Header Bar: Status, District GPS, Language, 1962 Emergency Call */}
       <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-800 via-emerald-700 to-teal-600 text-white flex items-center justify-center font-black text-base shadow-xs">
-            <Sparkles className="w-5 h-5 text-emerald-200" />
-          </div>
+        <div className="flex items-center gap-3.5">
+          <KisanSaathiEmblem size={52} className="shrink-0 drop-shadow-xs" />
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
                 {t('nav.kisan_saathi', 'Kisan Saathi AI')}
               </h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
                 Gemini 2.5 + lsd_model.keras
               </span>
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-              <span className="inline-flex items-center gap-1 font-medium text-slate-700">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
+              <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                 {detectedDistrict}, {detectedState}
               </span>
               <span>•</span>
-              <span className="text-emerald-700 font-semibold">PS128 Active</span>
+              <span className="text-emerald-800 font-bold">PS128 Active</span>
             </div>
           </div>
         </div>
@@ -725,9 +724,9 @@ function KisanSaathiContent() {
           {/* Emergency 1962 Call Button */}
           <a
             href="tel:1962"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-xs transition duration-200 active:scale-95"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-black rounded-xl shadow-xs transition duration-200 active:scale-95"
           >
-            <PhoneCall className="w-3.5 h-3.5 animate-bounce" />
+            <PhoneCall className="w-4 h-4 animate-bounce" />
             <span>1962 {t('emergency.helpline', 'Vet Helpline')}</span>
           </a>
 
@@ -736,7 +735,7 @@ function KisanSaathiContent() {
             value={selectedLang}
             onChange={(e) => handleLanguageChange(e.target.value)}
             aria-label="Select Assistant Language"
-            className="bg-stone-50 border border-stone-200 text-xs font-semibold text-slate-700 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+            className="bg-stone-50 border border-stone-200 text-sm font-bold text-slate-800 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
           >
             {INDIAN_LANGUAGES.map((l) => (
               <option key={l.code} value={l.code}>
@@ -763,15 +762,15 @@ function KisanSaathiContent() {
           {/* Card A: My Animals Patient Selector */}
           <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                <Activity className="w-4 h-4 text-emerald-600" />
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
+                <Activity className="w-5 h-5 text-emerald-600" />
                 <span>{t('animals.title', 'My Animals')} (पशु प्रोफ़ाइल)</span>
               </div>
               <Link
                 to="/animals"
-                className="text-[11px] font-bold text-emerald-700 hover:underline inline-flex items-center gap-0.5"
+                className="text-xs font-bold text-emerald-700 hover:underline inline-flex items-center gap-0.5"
               >
-                + Manage Herd <ChevronRight className="w-3 h-3" />
+                + Manage Herd <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
@@ -828,11 +827,11 @@ function KisanSaathiContent() {
           {/* Card B: PS128 Feature 1 - AI Disease Diagnosis (Camera/Image + 27 Symptoms + lsd_model.keras) */}
           <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                <Stethoscope className="w-4 h-4 text-emerald-600" />
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
+                <Stethoscope className="w-5 h-5 text-emerald-600" />
                 <span>AI Disease Diagnosis (रोग निदान)</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-50 text-blue-800 border border-blue-200">
                 lsd_model.keras
               </span>
             </div>
@@ -1178,40 +1177,40 @@ function KisanSaathiContent() {
         {/* RIGHT COLUMN: Interactive Intelligent Consultation Terminal (7 Cols) */}
         <div className="lg:col-span-7 flex flex-col h-[750px] bg-white rounded-2xl border border-stone-200 shadow-xs p-4 sm:p-5 justify-between">
           {/* Active Context Banner */}
-          <div className="pb-3 border-b border-stone-100 flex items-center justify-between gap-2 flex-wrap text-xs">
+          <div className="pb-3 border-b border-stone-100 flex items-center justify-between gap-2 flex-wrap text-sm font-medium">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-slate-400 font-semibold text-[11px]">Active Clinical Context:</span>
+              <span className="text-slate-500 font-semibold text-xs">Active Clinical Context:</span>
               {selectedAnimal ? (
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-900 rounded-md font-bold text-[10px]">
+                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-900 rounded-md font-bold text-xs">
                   🐾 {selectedAnimal.name} ({selectedAnimal.species})
                 </span>
               ) : (
-                <span className="px-2 py-0.5 bg-stone-100 text-slate-600 rounded-md text-[10px]">
+                <span className="px-2.5 py-0.5 bg-stone-100 text-slate-600 rounded-md text-xs">
                   Herd General
                 </span>
               )}
 
               {selectedSymptoms.length > 0 && (
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded-md font-bold text-[10px]">
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-900 rounded-md font-bold text-xs">
                   🩺 {selectedSymptoms.length} Symptoms
                 </span>
               )}
 
               {diagnosisResult && (
-                <span className="px-2 py-0.5 bg-purple-100 text-purple-900 rounded-md font-bold text-[10px]">
+                <span className="px-2.5 py-0.5 bg-purple-100 text-purple-900 rounded-md font-bold text-xs">
                   🔬 {diagnosisResult.predictedDisease}
                 </span>
               )}
 
               {districtAlerts.length > 0 && (
-                <span className="px-2 py-0.5 bg-rose-100 text-rose-900 rounded-md font-bold text-[10px]">
+                <span className="px-2.5 py-0.5 bg-rose-100 text-rose-900 rounded-md font-bold text-xs">
                   🔴 {districtAlerts[0].disease} Outbreak
                 </span>
               )}
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-400 font-mono">11 Languages Enabled</span>
+              <span className="text-xs text-slate-500 font-mono">11 Languages Enabled</span>
             </div>
           </div>
 
@@ -1225,13 +1224,11 @@ function KisanSaathiContent() {
                   className={`flex gap-2.5 ${isSaathi ? 'justify-start' : 'justify-end'}`}
                 >
                   {isSaathi && (
-                    <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-1 shadow-2xs">
-                      KS
-                    </div>
+                    <KisanSaathiEmblem size={34} className="shrink-0 mt-0.5 drop-shadow-2xs" />
                   )}
 
                   <div
-                    className={`max-w-[88%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-2xs ${
+                    className={`max-w-[88%] rounded-2xl p-4 text-sm sm:text-base leading-relaxed whitespace-pre-line shadow-2xs ${
                       isSaathi
                         ? 'bg-stone-50 text-slate-800 border border-stone-200/90'
                         : 'bg-emerald-700 text-white rounded-br-none'
@@ -1239,20 +1236,20 @@ function KisanSaathiContent() {
                   >
                     {/* Diagnosis Header pill if present */}
                     {isSaathi && m.meta?.disease && (
-                      <div className="mb-2 p-2 bg-emerald-100/80 rounded-xl border border-emerald-300 text-xs text-emerald-950 font-bold space-y-1">
+                      <div className="mb-2 p-2.5 bg-emerald-100/80 rounded-xl border border-emerald-300 text-sm text-emerald-950 font-bold space-y-1">
                         <div className="flex flex-wrap items-center justify-between gap-1">
                           <div className="flex items-center gap-1.5">
-                            <Stethoscope className="w-3.5 h-3.5 text-emerald-700" />
+                            <Stethoscope className="w-4 h-4 text-emerald-700" />
                             <span>संभावित रोग: {m.meta.disease}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[10px]">
-                            <span className="bg-emerald-200 px-2 py-0.5 rounded-full">{m.meta.confidence}% सटीकता</span>
-                            <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full font-bold">{m.meta.riskLevel} जोखिम</span>
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="bg-emerald-200 px-2.5 py-0.5 rounded-full">{m.meta.confidence}% सटीकता</span>
+                            <span className="bg-rose-100 text-rose-800 px-2.5 py-0.5 rounded-full font-bold">{m.meta.riskLevel} जोखिम</span>
                           </div>
                         </div>
                         {m.meta.savedToHealthRecord && (
-                          <div className="text-[10px] text-emerald-800 font-semibold pt-1 border-t border-emerald-200 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <div className="text-xs text-emerald-800 font-semibold pt-1 border-t border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             <span>पशु स्वास्थ्य रिकॉर्ड (Health Records) में स्वतः सुरक्षित किया गया</span>
                           </div>
                         )}
@@ -1274,7 +1271,7 @@ function KisanSaathiContent() {
                               <a
                                 key={aIdx}
                                 href={`tel:${act.tel}`}
-                                className="px-2.5 py-1 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-semibold transition inline-flex items-center gap-1 shadow-2xs"
+                                className="px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold transition inline-flex items-center gap-1 shadow-2xs"
                               >
                                 📞 {actionLabel}
                               </a>
@@ -1286,7 +1283,7 @@ function KisanSaathiContent() {
                               <Link
                                 key={aIdx}
                                 to={act.url}
-                                className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-semibold transition inline-flex items-center gap-1 shadow-2xs"
+                                className="px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition inline-flex items-center gap-1 shadow-2xs"
                               >
                                 ↗ {actionLabel}
                               </Link>
@@ -1298,7 +1295,7 @@ function KisanSaathiContent() {
                               key={aIdx}
                               type="button"
                               onClick={() => handleSendMessage(actionLabel)}
-                              className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold transition shadow-2xs"
+                              className="px-3 py-1.5 rounded-full bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold transition shadow-2xs cursor-pointer"
                             >
                               → {actionLabel}
                             </button>

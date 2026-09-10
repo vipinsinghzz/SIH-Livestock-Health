@@ -11,6 +11,7 @@ import {
   HeartHandshake
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import LivestockSaathiLogo from '../components/LivestockSaathiLogo';
 
 const LANGUAGES = [
   {
@@ -138,18 +139,18 @@ export default function SelectLanguagePage() {
 
         {/* Brand Header with Trilingual Title */}
         <div className="text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center mx-auto shadow-sm shadow-emerald-700/20 border border-emerald-800">
-            <Globe className="w-8 h-8" />
+          <div className="flex justify-center mb-1">
+            <LivestockSaathiLogo variant="stacked" size="lg" showSubtitle={true} showTagline={true} />
           </div>
 
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {isPreRegistration
                 ? 'पंजीकरण से पहले भाषा चुनें • Choose Language First • नोंदणीपूर्वी भाषा निवडा'
                 : 'अपनी पसंदीदा भाषा चुनें • Choose Language • भाषा निवडा'}
             </h1>
-            <p className="mt-1 text-sm font-bold text-emerald-800 font-indic">
-              LIVESTOCK SAATHI • स्वस्थ पशु • समृद्ध किसान
+            <p className="mt-1 text-xs font-semibold text-emerald-800 font-indic">
+              स्वस्थ पशु • समृद्ध किसान • राष्ट्रीय पशु स्वास्थ्य सुरक्षा
             </p>
             <p className="text-xs text-slate-500 mt-1 max-w-xl mx-auto">
               {isPreRegistration ? (

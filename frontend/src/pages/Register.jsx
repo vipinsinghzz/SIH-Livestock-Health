@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Globe
 } from 'lucide-react';
+import LivestockSaathiLogo from '../components/LivestockSaathiLogo';
 // Fallback regional presets if GPS is completely disabled in user browser
 const POPULAR_HUBS = [
   { village: 'Baramati', district: 'Pune', state: 'Maharashtra', lat: 18.1517, lng: 74.5772 },
@@ -250,20 +251,22 @@ export default function Register() {
     <div className="min-h-screen bg-[#fafaf9] flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 font-sans">
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-xl text-center">
-        <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center mx-auto shadow-sm shadow-emerald-700/20 mb-3 border border-emerald-800">
-          <ShieldCheck className="w-8 h-8" />
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-          LIVESTOCK SAATHI
-        </h1>
-        <p className="mt-1 text-xs sm:text-sm font-bold text-emerald-800 font-indic">
-          {isEnglish
-            ? 'Healthy Livestock • Prosperous Farmers • New Account'
-            : isMarathi
-            ? 'निरोगी जनावरे • समृद्ध शेतकरी • नवीन खाते नोंदणी'
-            : 'स्वस्थ पशु • समृद्ध किसान • नया खाता पंजीकरण'}
-        </p>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <Link to="/" className="inline-block hover:opacity-95 transition">
+          <LivestockSaathiLogo
+            variant="stacked"
+            size="lg"
+            showSubtitle={true}
+            showTagline={true}
+            tagline={
+              isEnglish
+                ? 'Healthy Livestock • Prosperous Farmers • New Account'
+                : isMarathi
+                ? 'निरोगी जनावरे • समृद्ध शेतकरी • नवीन खाते नोंदणी'
+                : 'स्वस्थ पशु • समृद्ध किसान • नया खाता पंजीकरण'
+            }
+          />
+        </Link>
+        <p className="text-xs text-slate-500 mt-1">
           {isEnglish
             ? 'Auto-GPS Assisted Animal Health & Surveillance Network'
             : isMarathi

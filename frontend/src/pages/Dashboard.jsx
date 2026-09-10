@@ -12,7 +12,7 @@ export default function Dashboard() {
     return <FarmerDashboard />;
   }
 
-  if (user?.role === 'field_worker') {
+  if (user?.role === 'field_worker' || user?.role === 'veterinarian') {
     return <FieldWorkerDashboard />;
   }
 

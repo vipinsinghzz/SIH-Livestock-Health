@@ -23,17 +23,14 @@ import AdvisoriesPage from './pages/AdvisoriesPage';
 import VaccinationPage from './pages/VaccinationPage';
 import IVRSimulator from './pages/IVRSimulator';
 import SelectLanguagePage from './pages/SelectLanguagePage';
+import AppLoadingScreen from './components/AppLoadingScreen';
 
 // Home Route: Landing Page if unauthenticated, Dashboard if logged in
 function HomeRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <div className="w-10 h-10 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   if (!user) {
@@ -48,11 +45,7 @@ function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <div className="w-10 h-10 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   if (!user) {
@@ -110,6 +103,14 @@ function AppContent() {
           />
           <Route
             path="/reports"
+            element={
+              <ProtectedRoute>
+                <ReportsList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/outbreak-alerts"
             element={
               <ProtectedRoute>
                 <ReportsList />

@@ -187,29 +187,29 @@ export default function AnimalsList() {
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-0.5">
             {t('farmer_dash.registered_animals')}
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm sm:text-base text-slate-600">
             {t('farmer_dash.health_overview')}
           </p>
         </div>
 
         <button
           onClick={openAddModal}
-          className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+          className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm sm:text-base flex items-center gap-2 shadow-sm transition cursor-pointer"
         >
-          <PlusCircle className="w-4 h-4" />
+          <PlusCircle className="w-5 h-5" />
           <span>{t('animal_form.register_title', t('farmer_dash.add_animal'))}</span>
         </button>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto no-scrollbar">
-          <span className="text-xs font-bold text-slate-400 mr-1">{t('actions.filter')}:</span>
+          <span className="text-sm font-black text-slate-500 mr-1">{t('actions.filter')}:</span>
           {speciesFilterTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setSelectedSpecies(tab.id)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer ${
+              className={`text-sm font-bold px-3.5 py-2 rounded-xl transition cursor-pointer ${
                 selectedSpecies === tab.id
                   ? 'bg-emerald-700 text-white shadow-xs'
                   : 'bg-stone-100 text-slate-700 hover:bg-stone-200'
@@ -224,7 +224,7 @@ export default function AnimalsList() {
           <select
             value={selectedHealth}
             onChange={(e) => setSelectedHealth(e.target.value)}
-            className="bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+            className="bg-stone-50 border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-700 focus:outline-none cursor-pointer"
           >
             <option value="All">{t('animal_form.all_health', 'All Health')}</option>
             <option value="Healthy">🟢 {t('animal_form.status_healthy', 'Healthy')}</option>
@@ -232,32 +232,32 @@ export default function AnimalsList() {
             <option value="Critical">🔴 {t('animal_form.status_critical', 'Critical')}</option>
           </select>
 
-          <div className="relative flex-grow sm:w-60">
+          <div className="relative flex-grow sm:w-64">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('actions.search') + "..."}
-              className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-8 pr-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>
         </div>
       </div>
 
       {/* Animals Grid or Empty State */}
       {filteredAnimals.length === 0 ? (
-        <div className="py-16 text-center bg-white rounded-3xl border border-stone-200 p-8 space-y-3">
-          <span className="text-4xl block">🐄</span>
-          <h3 className="font-black text-slate-800 text-base">
+        <div className="py-16 text-center bg-white rounded-3xl border border-stone-200 p-8 space-y-4">
+          <span className="text-5xl block">🐄</span>
+          <h3 className="font-black text-slate-900 text-lg sm:text-xl">
             {t('animal_form.no_animals_title')}
           </h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <p className="text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
             {t('animal_form.no_animals_desc')}
           </p>
           <button
             onClick={openAddModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm rounded-xl transition shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" /> {t('animal_form.add_animal_btn')}
           </button>
@@ -279,22 +279,22 @@ export default function AnimalsList() {
                 key={animal._id || animal.id || animal.tagId}
                 className="bg-white rounded-3xl border border-stone-200 p-6 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all flex flex-col justify-between space-y-4"
               >
-                <div className="space-y-3">
+                <div className="space-y-3.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl shadow-inner">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl shadow-inner shrink-0">
                         {animal.species === 'Buffalo' ? '🐃' : animal.species === 'Goat' ? '🐐' : animal.species === 'Sheep' ? '🐑' : '🐄'}
                       </div>
                       <div>
-                        <h3 className="text-lg font-black text-slate-900">{animal.name}</h3>
-                        <p className="text-xs text-slate-500 font-medium">
+                        <h3 className="text-xl sm:text-2xl font-black text-slate-900">{animal.name}</h3>
+                        <p className="text-sm text-slate-500 font-semibold">
                           {speciesLabel} • {breedLabel}
                         </p>
                       </div>
                     </div>
 
                     <span
-                      className={`text-xs font-black px-2.5 py-1 rounded-full border ${
+                      className={`text-xs sm:text-sm font-black px-3 py-1 rounded-full border shrink-0 ${
                         animal.healthStatus === 'Healthy'
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                           : animal.healthStatus === 'Needs Attention'
@@ -306,13 +306,13 @@ export default function AnimalsList() {
                     </span>
                   </div>
 
-                  <div className="bg-stone-50 rounded-2xl p-3 border border-stone-200/70 text-xs space-y-1">
+                  <div className="bg-stone-50 rounded-2xl p-3.5 border border-stone-200/70 text-sm space-y-1.5">
                     <div className="flex justify-between">
-                      <span className="text-slate-500">{t('animal_form.tag_id')}:</span>
+                      <span className="text-slate-500 font-medium">{t('animal_form.tag_id')}:</span>
                       <span className="font-mono font-bold text-slate-900">{animal.tagId}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">{t('farmer_dash.age_gender')}:</span>
+                      <span className="text-slate-500 font-medium">{t('farmer_dash.age_gender')}:</span>
                       <span className="font-semibold text-slate-800">
                         {animal.age} {t('farmer_dash.years')} • {animal.gender === 'Female' ? t('animal_form.female') : t('animal_form.male')}
                       </span>
@@ -323,7 +323,7 @@ export default function AnimalsList() {
                 <div className="pt-2 border-t border-stone-100 flex gap-2">
                   <button
                     onClick={() => setSelectedAnimal(animal)}
-                    className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                    className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-sm sm:text-base font-black py-3 rounded-xl transition shadow-xs cursor-pointer"
                   >
                     {t('farmer_dash.view_details')}
                   </button>

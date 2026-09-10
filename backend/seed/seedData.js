@@ -98,10 +98,23 @@ async function seedDatabase() {
         block: 'Khed',
         district: 'Pune',
         preferredLanguage: 'hi'
+      },
+      {
+        name: 'Dr. Rajesh Shinde',
+        role: 'field_worker',
+        email: 'vet2@pashurakshak.in',
+        phone: '+919822088990',
+        passwordHash: vetPasswordHash,
+        village: 'Shirur Town',
+        block: 'Shirur',
+        district: 'Pune',
+        registrationNo: 'MAH-VET-2024-9182',
+        department: 'Department of Animal Husbandry, Maharashtra',
+        preferredLanguage: 'mr'
       }
     ]);
 
-    const [farmer1, vetUser, officerUser, farmer2, farmer3] = users;
+    const [farmer1, vetUser, officerUser, farmer2, farmer3, vetUser2] = users;
     console.log(`[Seeder] Seeded ${users.length} users.`);
 
     // 2. Create Livestock Profiles with Comprehensive Vaccination Schedules

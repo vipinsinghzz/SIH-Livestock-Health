@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import animalService from '../services/animalService';
+import veterinaryService from '../services/veterinaryService';
 import {
   Syringe,
   PlusCircle,
@@ -68,15 +69,33 @@ export default function VaccinationPage() {
   // Modals
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showVetModal, setShowVetModal] = useState(false);
+  const [nearbyOfficerVet, setNearbyOfficerVet] = useState(null);
   const [registeringCamp, setRegisteringCamp] = useState(null);
   const [registeredCamps, setRegisteredCamps] = useState({});
   const [completingScheduleItem, setCompletingScheduleItem] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
+  const detectedDistrict = user?.district || 'Pune';
+
+  useEffect(() => {
+    if (showVetModal) {
+      veterinaryService.getNearbyVeterinarians({
+        lat: userCoords?.[0],
+        lng: userCoords?.[1],
+        district: detectedDistrict,
+        limit: 1
+      }).then((res) => {
+        if (res?.nearestVets?.length > 0) {
+          setNearbyOfficerVet(res.nearestVets[0]);
+        }
+      }).catch(() => {});
+    }
+  }, [showVetModal, userCoords, detectedDistrict]);
+
   // Form for Mark as Completed
   const [completeFormData, setCompleteFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    administeredBy: isEnglish ? 'Dr. R. K. Shinde (Dispensary)' : isMarathi ? 'डॉ. आर. के. शिंदे (दवाखाना)' : 'डॉ. आर. के. शिंदे (पशु चिकित्सालय)',
+    administeredBy: isEnglish ? 'Veterinarian / Medical Officer' : isMarathi ? 'पशुवैद्यकीय अधिकारी' : 'पशु चिकित्सा अधिकारी',
     batchNumber: 'BATCH-2026-FMD',
     notes: isEnglish ? 'Administered subcutaneously at camp' : isMarathi ? 'शिबिरात लस देण्यात आली' : 'शिविर में टीका लगाया गया'
   });
@@ -645,7 +664,7 @@ export default function VaccinationPage() {
           </div>
 
           {/* Quick Actions Header Toolbar */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
             {/* Quick Action 1: Register for Camp */}
             <button
               type="button"
@@ -653,7 +672,7 @@ export default function VaccinationPage() {
                 const el = document.getElementById('nearby-camps-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition active:scale-95"
+              className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm flex items-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <Syringe className="w-4 h-4" />
               <span>{isEnglish ? 'Register for Camp' : isMarathi ? 'शिबीर नोंदणी' : 'शिविर पंजीकरण'}</span>
@@ -663,7 +682,7 @@ export default function VaccinationPage() {
             <button
               type="button"
               onClick={() => setShowVetModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition active:scale-95"
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-sm flex items-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
             >
               <PhoneCall className="w-4 h-4" />
               <span>{isEnglish ? 'Call Vet Officer' : isMarathi ? 'पशुवैद्यक अधिकारी' : 'पशु चिकित्सक को कॉल करें'}</span>
@@ -673,7 +692,7 @@ export default function VaccinationPage() {
             <button
               type="button"
               onClick={() => setShowHistoryModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-xs flex items-center gap-2 transition border border-stone-200"
+              className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-sm flex items-center gap-2 transition border border-stone-200 cursor-pointer"
             >
               <History className="w-4 h-4 text-slate-600" />
               <span>{isEnglish ? 'View History' : isMarathi ? 'लसीकरण इतिहास' : 'टीकाकरण इतिहास'}</span>
@@ -683,14 +702,14 @@ export default function VaccinationPage() {
       </div>
 
       {/* 2. "My Vaccination Schedule" Section */}
-      <div className="bg-white rounded-3xl border border-stone-200 p-6 shadow-xs space-y-4">
+      <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-7 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
           <div>
-            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-emerald-700" />
               <span>{isEnglish ? 'My Vaccination Schedule' : isMarathi ? 'माझे लसीकरण वेळापत्रक' : 'मेरा टीकाकरण शेड्यूल'}</span>
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500 mt-0.5">
               {isEnglish
                 ? 'Upcoming vaccine doses and overdue boosters for your registered livestock herd'
                 : isMarathi
@@ -699,7 +718,7 @@ export default function VaccinationPage() {
             </p>
           </div>
 
-          <div className="text-xs font-bold text-slate-500 bg-stone-100 px-3 py-1.5 rounded-xl self-start sm:self-auto flex items-center gap-1.5">
+          <div className="text-xs sm:text-sm font-bold text-slate-600 bg-stone-100 px-3.5 py-1.5 rounded-xl self-start sm:self-auto flex items-center gap-1.5 border border-stone-200">
             {!showAllSchedule && vaccinationSchedule.length > filteredSchedule.length ? (
               <>
                 <span className="text-emerald-700 font-extrabold">{displayedSchedule.length}</span>
@@ -717,7 +736,7 @@ export default function VaccinationPage() {
         {vaccinationSchedule.length === 0 ? (
           <div className="py-8 text-center text-slate-400 space-y-2">
             <ShieldCheck className="w-8 h-8 mx-auto text-emerald-600 opacity-60" />
-            <p className="text-xs font-medium text-slate-600">
+            <p className="text-sm font-medium text-slate-600">
               {isEnglish
                 ? 'All animals are up to date! No vaccinations scheduled.'
                 : isMarathi
@@ -729,14 +748,14 @@ export default function VaccinationPage() {
           <div className="py-8 text-center text-slate-500 space-y-3 bg-stone-50/60 rounded-2xl border border-stone-200/80 p-6">
             <ShieldCheck className="w-8 h-8 mx-auto text-emerald-600" />
             <div className="space-y-1">
-              <p className="text-sm font-bold text-slate-800">
+              <p className="text-base font-bold text-slate-800">
                 {isEnglish
                   ? 'No vaccinations due within the next 7 days'
                   : isMarathi
                   ? 'पुढील ७ दिवसांत कोणतीही लस देय नाही'
                   : 'अगले 7 दिनों में कोई टीका देय नहीं है'}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm text-slate-500">
                 {isEnglish
                   ? `You have ${vaccinationSchedule.length} vaccination record(s) scheduled further ahead.`
                   : isMarathi
@@ -747,15 +766,15 @@ export default function VaccinationPage() {
             <button
               type="button"
               onClick={() => setShowAllSchedule(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-xs transition cursor-pointer"
             >
               <span>{isEnglish ? 'View More (All Records)' : isMarathi ? 'आणखी पहा (सर्व रेकॉर्ड)' : 'और देखें (सभी रिकॉर्ड)'}</span>
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className="w-4 h-4" />
             </button>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayedSchedule.map((item, idx) => {
                 const isOverdue = item.isOverdue;
                 const overdueDays = Math.abs(item.diffDays);
@@ -775,41 +794,41 @@ export default function VaccinationPage() {
                 return (
                   <div
                     key={`${item.animalId}-${item.vaccineName}-${idx}`}
-                    className="p-4 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition flex flex-col justify-between space-y-3"
+                    className="p-5 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition flex flex-col justify-between space-y-3.5"
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {/* Animal Name & Tag */}
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                          <div className="font-black text-slate-900 text-base flex items-center gap-1.5">
                             <span>{item.species === 'Cattle' ? '🐄' : item.species === 'Buffalo' ? '🦬' : '🐐'}</span>
                             <span>{item.animalName}</span>
                           </div>
-                          <span className="text-[10px] font-mono font-bold text-slate-400 block mt-0.5">
+                          <span className="text-xs font-mono font-bold text-slate-500 block mt-0.5">
                             {item.tagId}
                           </span>
                         </div>
 
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${badgeColor}`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-black border ${badgeColor}`}>
                           {badgeText}
                         </span>
                       </div>
 
                       {/* Vaccine Name */}
-                      <div className="text-xs">
+                      <div className="text-sm">
                         <span className="text-slate-500 font-medium block">
                           {isEnglish ? 'Vaccine Due:' : isMarathi ? 'देय लस:' : 'देय टीका:'}
                         </span>
-                        <strong className="text-slate-900 font-bold text-xs">{item.vaccineName}</strong>
+                        <strong className="text-slate-900 font-black text-base">{item.vaccineName}</strong>
                       </div>
 
                       {/* Due Date */}
-                      <div className="text-xs flex items-center justify-between text-slate-600 bg-white p-2 rounded-xl border border-stone-200/60">
-                        <span className="text-slate-400 font-medium flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
+                      <div className="text-sm flex items-center justify-between text-slate-700 bg-white p-2.5 rounded-xl border border-stone-200/60">
+                        <span className="text-slate-500 font-semibold flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-emerald-600" />
                           <span>{isEnglish ? 'Due Date:' : isMarathi ? 'तारीख:' : 'तिथि:'}</span>
                         </span>
-                        <span className="font-bold text-slate-800">{item.dueDateStr}</span>
+                        <span className="font-black text-slate-900">{item.dueDateStr}</span>
                       </div>
                     </div>
 
@@ -825,9 +844,9 @@ export default function VaccinationPage() {
                           notes: isEnglish ? 'Administered on schedule' : isMarathi ? 'वेळेत लस दिली' : 'नियत समय पर टीका लगाया गया'
                         });
                       }}
-                      className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
                     >
-                      <Check className="w-3.5 h-3.5" />
+                      <Check className="w-4 h-4" />
                       <span>{isEnglish ? 'Mark as Completed' : isMarathi ? 'पूर्ण म्हणून नोंदवा' : 'पूर्ण चिह्नित करें'}</span>
                     </button>
                   </div>
@@ -841,7 +860,7 @@ export default function VaccinationPage() {
                 <button
                   type="button"
                   onClick={() => setShowAllSchedule((prev) => !prev)}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-white text-slate-800 hover:text-emerald-700 hover:border-emerald-300 text-xs sm:text-sm font-bold shadow-2xs hover:shadow-xs transition cursor-pointer active:scale-98"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-white text-slate-800 hover:text-emerald-700 hover:border-emerald-300 text-sm font-bold shadow-2xs hover:shadow-xs transition cursor-pointer active:scale-98"
                 >
                   <span>
                     {showAllSchedule
@@ -868,7 +887,7 @@ export default function VaccinationPage() {
       <div id="nearby-camps-section" className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-emerald-700" />
               <span>
                 {isEnglish
@@ -878,7 +897,7 @@ export default function VaccinationPage() {
                   : `आगामी टीकाकरण शिविर (${filteredCamps.length})`}
               </span>
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500 mt-0.5">
               {isEnglish
                 ? 'Community veterinary immunization camps within your surveillance radius'
                 : isMarathi
@@ -888,9 +907,9 @@ export default function VaccinationPage() {
           </div>
 
           {/* Radius Selector Pills */}
-          <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-2xl border border-stone-200 text-xs">
-            <span className="text-slate-500 font-bold px-2 flex items-center gap-1">
-              <Compass className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-1 bg-stone-100 p-1.5 rounded-2xl border border-stone-200 text-sm">
+            <span className="text-slate-600 font-bold px-2.5 flex items-center gap-1.5">
+              <Compass className="w-4 h-4 text-emerald-600" />
               <span>{isEnglish ? 'Radius:' : isMarathi ? 'त्रिज्या:' : 'दायरा:'}</span>
             </span>
             {[
@@ -903,7 +922,7 @@ export default function VaccinationPage() {
                 key={r.val}
                 type="button"
                 onClick={() => setRadiusFilter(r.val)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition ${
+                className={`px-3.5 py-1.5 rounded-xl font-bold transition ${
                   radiusFilter === r.val
                     ? 'bg-emerald-700 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -916,9 +935,9 @@ export default function VaccinationPage() {
         </div>
 
         {/* Search & Vaccine Type Filter Bar */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-3 shadow-xs flex flex-col sm:flex-row items-center gap-3">
+        <div className="bg-white rounded-2xl border border-stone-200 p-3.5 shadow-xs flex flex-col sm:flex-row items-center gap-3">
           <div className="relative w-full sm:flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder={
@@ -930,7 +949,7 @@ export default function VaccinationPage() {
               }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-stone-200 text-xs bg-stone-50 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-none transition"
+              className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-stone-50 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-none transition"
             />
           </div>
 
@@ -939,7 +958,7 @@ export default function VaccinationPage() {
             <select
               value={selectedVaccineFilter}
               onChange={(e) => setSelectedVaccineFilter(e.target.value)}
-              className="w-full sm:w-48 px-3 py-2 rounded-xl border border-stone-200 text-xs bg-stone-50 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full sm:w-52 px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-stone-50 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
             >
               <option value="All">{isEnglish ? 'All Vaccines' : isMarathi ? 'सर्व लसी' : 'सभी टीके'}</option>
               <option value="FMD">FMD (खुरपका-मुंहपका)</option>
@@ -997,45 +1016,45 @@ export default function VaccinationPage() {
               return (
                 <div
                   key={camp.id}
-                  className="bg-white rounded-3xl border border-stone-200 p-5 shadow-xs hover:border-emerald-300 hover:shadow-md transition flex flex-col justify-between space-y-4"
+                  className="bg-white rounded-3xl border border-stone-200 p-5 sm:p-6 shadow-xs hover:border-emerald-300 hover:shadow-md transition flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">
                     {/* Top Row: Vaccine Name & Cost Badge */}
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-black tracking-wider uppercase border border-emerald-200">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-black tracking-wider uppercase border border-emerald-200">
                           {camp.vaccineName}
                         </span>
-                        <h3 className="text-base font-black text-slate-900 mt-1 leading-snug">
+                        <h3 className="text-lg font-black text-slate-900 mt-1.5 leading-snug">
                           {isEnglish ? camp.fullNameEn : isMarathi ? camp.fullNameMr : camp.fullNameHi}
                         </h3>
                       </div>
 
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 shrink-0">
                         🟢 {isEnglish ? camp.costEn : isMarathi ? camp.costMr : camp.costHi}
                       </span>
                     </div>
 
                     {/* Date & Time */}
-                    <div className="bg-stone-50 p-3 rounded-2xl border border-stone-100 space-y-2 text-xs">
+                    <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 space-y-2 text-sm">
                       <div className="flex items-center gap-2 font-bold text-slate-800">
-                        <Calendar className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                        <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
                         <span>{isEnglish ? camp.dateEn : isMarathi ? camp.dateMr : camp.dateHi}</span>
                       </div>
 
                       {/* Village / Location */}
                       <div className="flex items-start gap-2 text-slate-600">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                        <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                         <span>{isEnglish ? camp.villageEn : isMarathi ? camp.villageMr : camp.villageHi}</span>
                       </div>
 
                       {/* Distance */}
-                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-stone-200/60">
-                        <span className="text-slate-500 flex items-center gap-1 font-medium">
-                          <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-stone-200/60">
+                        <span className="text-slate-500 flex items-center gap-1.5 font-medium">
+                          <Compass className="w-4 h-4 text-emerald-600" />
                           <span>{isEnglish ? 'Distance:' : isMarathi ? 'अंतर:' : 'दूरी:'}</span>
                         </span>
-                        <span className="font-extrabold text-emerald-700">
+                        <span className="font-black text-emerald-800">
                           {camp.distanceKm < 999
                             ? `${camp.distanceKm} km ${isEnglish ? 'away' : isMarathi ? 'दूर' : 'दूर'}`
                             : (isEnglish ? 'In District' : 'जिले में')}
@@ -1044,31 +1063,31 @@ export default function VaccinationPage() {
                     </div>
 
                     {/* Target Animals & Organizing Dept */}
-                    <div className="space-y-1 text-xs text-slate-600">
+                    <div className="space-y-1.5 text-sm text-slate-700">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">
+                        <span className="text-slate-500 font-medium">
                           {isEnglish ? 'Target Animals:' : isMarathi ? 'पात्र जनावरे:' : 'पात्र पशु:'}
                         </span>
-                        <span className="font-bold text-slate-800">
+                        <span className="font-bold text-slate-900">
                           {isEnglish ? camp.targetAnimalsEn : isMarathi ? camp.targetAnimalsMr : camp.targetAnimalsHi}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400 font-medium">
+                        <span className="text-slate-500 font-medium">
                           {isEnglish ? 'Organizing Dept:' : isMarathi ? 'आयोजक विभाग:' : 'आयोजक विभाग:'}
                         </span>
-                        <span className="font-semibold text-slate-700 text-right truncate max-w-[180px]" title={isEnglish ? camp.organizerEn : isMarathi ? camp.organizerMr : camp.organizerHi}>
+                        <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]" title={isEnglish ? camp.organizerEn : isMarathi ? camp.organizerMr : camp.organizerHi}>
                           {isEnglish ? camp.organizerEn.split(',')[0] : isMarathi ? camp.organizerMr.split(',')[0] : camp.organizerHi.split(',')[0]}
                         </span>
                       </div>
 
                       {/* Remaining Slots */}
-                      <div className="flex items-center justify-between pt-1 text-[11px]">
-                        <span className="text-slate-400 font-medium">
+                      <div className="flex items-center justify-between pt-1 text-xs">
+                        <span className="text-slate-500 font-medium">
                           {isEnglish ? 'Remaining Slots:' : isMarathi ? 'शिल्लक जागा:' : 'शेष स्लॉट:'}
                         </span>
-                        <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                        <span className="font-bold text-blue-800 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">
                           {camp.remainingSlots} {isEnglish ? 'slots available' : isMarathi ? 'जागा उपलब्ध' : 'स्लॉट उपलब्ध'}
                         </span>
                       </div>
@@ -1076,9 +1095,9 @@ export default function VaccinationPage() {
                   </div>
 
                   {/* Actions: Register & Get Directions */}
-                  <div className="pt-2 border-t border-stone-100 flex items-center gap-2">
+                  <div className="pt-3 border-t border-stone-100 flex items-center gap-2.5">
                     {isRegistered ? (
-                      <div className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5">
+                      <div className="flex-1 py-3 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-sm font-black flex items-center justify-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         <span>{registeredCamps[camp.id].token}</span>
                       </div>
@@ -1086,9 +1105,9 @@ export default function VaccinationPage() {
                       <button
                         type="button"
                         onClick={() => setRegisteringCamp(camp)}
-                        className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95"
+                        className="flex-1 py-3 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
                       >
-                        <Syringe className="w-3.5 h-3.5" />
+                        <Syringe className="w-4 h-4" />
                         <span>{isEnglish ? 'Register' : isMarathi ? 'नोंदणी करा' : 'पंजीकरण करें'}</span>
                       </button>
                     )}
@@ -1102,10 +1121,10 @@ export default function VaccinationPage() {
                           '_blank'
                         );
                       }}
-                      className="py-2.5 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition border border-stone-200"
+                      className="py-3 px-3.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-sm flex items-center justify-center gap-1.5 transition border border-stone-200 cursor-pointer"
                       title={isEnglish ? 'Get Directions on Google Maps' : isMarathi ? 'गुगल मॅपवर दिशा मिळवा' : 'गूगल मैप पर दिशा प्राप्त करें'}
                     >
-                      <Navigation className="w-3.5 h-3.5 text-blue-600" />
+                      <Navigation className="w-4 h-4 text-blue-600" />
                       <span>{isEnglish ? 'Directions' : isMarathi ? 'मार्ग' : 'दिशा'}</span>
                     </button>
                   </div>
@@ -1341,24 +1360,31 @@ export default function VaccinationPage() {
               </div>
             </div>
 
-            {/* Local Taluka Dispensary */}
+            {/* Local Taluka Dispensary (Dynamic from MongoDB) */}
             <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2 text-xs">
               <div className="font-bold text-slate-900 text-sm">
-                {isEnglish ? 'Baramati Rural Veterinary Dispensary' : isMarathi ? 'बारामती ग्रामीण पशुवैद्यकीय दवाखाना' : 'बारामती ग्रामीण पशु चिकित्सालय'}
+                {nearbyOfficerVet?.clinicName || (isEnglish ? `${detectedDistrict} Veterinary Dispensary` : isMarathi ? `${detectedDistrict} तालुका पशुवैद्यकीय दवाखाना` : `${detectedDistrict} ब्लॉक पशु चिकित्सालय`)}
               </div>
               <div className="text-slate-600 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                <span>Malegaon Road, Baramati (2.4 km away)</span>
+                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>
+                  {nearbyOfficerVet?.area || nearbyOfficerVet?.village || detectedDistrict}
+                  {nearbyOfficerVet?.distanceKm !== undefined ? ` (${nearbyOfficerVet.distanceKm} km away)` : ''}
+                </span>
               </div>
               <div className="text-slate-600">
-                <strong className="text-slate-800 font-semibold">{isEnglish ? 'Doctor In-Charge:' : isMarathi ? 'प्रभारी डॉक्टर:' : 'प्रभारी डॉक्टर:'}</strong> Dr. R. K. Shinde (02112-224411)
+                <strong className="text-slate-800 font-semibold">{isEnglish ? 'Doctor In-Charge:' : isMarathi ? 'प्रभारी डॉक्टर:' : 'प्रभारी डॉक्टर:'}</strong>{' '}
+                {nearbyOfficerVet?.name || 'Dr. Veterinary Medical Officer'}
+                {nearbyOfficerVet?.specialization && (
+                  <span className="block text-[11px] text-emerald-700 font-bold mt-0.5">{nearbyOfficerVet.specialization}</span>
+                )}
               </div>
               <div className="pt-2 flex gap-2">
                 <a
-                  href="tel:02112224411"
+                  href={`tel:${(nearbyOfficerVet?.phone || '1962').replace(/[^0-9+]/g, '')}`}
                   className="flex-1 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-center text-xs transition"
                 >
-                  📞 02112-224411
+                  📞 {nearbyOfficerVet?.phone || '1962'}
                 </a>
                 <Link
                   to="/veterinary-help"

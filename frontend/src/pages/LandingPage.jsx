@@ -24,6 +24,7 @@ import VoiceWaveform from '../components/VoiceWaveform';
 import voiceService, { INDIAN_LANGUAGES } from '../services/voiceService';
 import chatService from '../services/chatService';
 import { useAuth } from '../context/AuthContext';
+import LivestockSaathiLogo, { KisanSaathiEmblem } from '../components/LivestockSaathiLogo';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -338,6 +339,9 @@ export default function LandingPage() {
       <section id="kisan-saathi" className="py-16 px-4 sm:px-6 lg:px-8 bg-white border-y border-stone-200">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-2">
+            <div className="flex justify-center mb-3">
+              <KisanSaathiEmblem size={68} className="drop-shadow-sm" />
+            </div>
             <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
               {t('landing.stat_languages')} • Voice First
             </span>
@@ -476,7 +480,10 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="py-8 px-4 text-center text-xs text-slate-500 bg-white">
+      <footer className="py-10 px-4 text-center text-xs text-slate-500 bg-white border-t border-stone-200">
+        <div className="flex justify-center mb-3">
+          <LivestockSaathiLogo variant="horizontal" size="sm" showSubtitle={true} showTagline={false} />
+        </div>
         <p>© 2026 Livestock Saathi • {t('tagline')}</p>
         <p className="text-[11px] text-slate-400 mt-1">
           {t('landing.footer_sub')}

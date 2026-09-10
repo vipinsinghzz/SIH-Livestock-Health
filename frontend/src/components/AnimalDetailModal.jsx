@@ -530,9 +530,9 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
             </div>
             <div>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                <h2 className="text-xl sm:text-2xl font-black text-white">{modalAnimal.name}</h2>
+                <h2 className="text-2xl sm:text-3xl font-black text-white">{modalAnimal.name}</h2>
                 <span
-                  className={`text-xs font-black px-3.5 py-1 rounded-full border shadow-2xs ${
+                  className={`text-xs sm:text-sm font-black px-3.5 py-1 rounded-full border shadow-2xs ${
                     modalAnimal.healthStatus === 'Healthy'
                       ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400'
                       : modalAnimal.healthStatus === 'Needs Attention'
@@ -543,7 +543,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                   ● {statusLabel}
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-emerald-200/90 mt-1 font-mono">
+              <p className="text-sm sm:text-base text-emerald-200/90 mt-1 font-mono">
                 {t('animal_form.tag_id', 'Tag ID')}: {modalAnimal.tagId} • {speciesDisplayName}{breedDisplayName ? ` • ${breedDisplayName}` : ''} • {modalAnimal.age} {t('farmer_dash.years', 'Years')}
               </p>
             </div>
@@ -561,7 +561,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition cursor-pointer ${
                     activeTab === tab.key
                       ? 'bg-white text-emerald-950 shadow-sm'
                       : 'text-emerald-100/80 hover:bg-emerald-700/50'
@@ -632,7 +632,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
               >
                 <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
                   <FileCheck className="w-5 h-5 text-emerald-700" />
-                  <h4 className="font-extrabold text-slate-900 text-sm">
+                  <h4 className="font-black text-slate-900 text-lg">
                     {isEnglish
                       ? 'Update Health Status'
                       : isMarathi
@@ -673,7 +673,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                         type="button"
                         key={item.val}
                         onClick={() => setSelectedHealthStatus(item.val)}
-                        className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition text-center cursor-pointer ${
+                        className={`py-2.5 px-3 rounded-xl border text-sm font-bold transition text-center cursor-pointer ${
                           selectedHealthStatus === item.val
                             ? `${item.color} shadow-xs font-black`
                             : 'bg-stone-50 border-stone-200 text-slate-700 hover:bg-stone-100'
@@ -926,7 +926,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
 
                         {/* Title */}
                         <h4
-                          className={`font-black text-sm ${
+                          className={`font-black text-lg ${
                             isCritical ? 'text-red-950' : isAttention ? 'text-amber-950' : 'text-slate-900'
                           }`}
                         >
@@ -1135,7 +1135,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Syringe className="w-5 h-5 text-emerald-700" />
-                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  <h4 className="font-black text-slate-900 text-lg sm:text-xl">
                     {isEnglish ? 'Vaccination Management' : isMarathi ? 'लसीकरण व्यवस्थापन' : 'टीकाकरण प्रबंधन'}
                   </h4>
                 </div>

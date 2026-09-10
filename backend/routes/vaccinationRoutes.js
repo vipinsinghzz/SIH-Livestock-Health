@@ -12,7 +12,7 @@ const { protect, optionalProtect, authorize } = require('../middleware/auth');
 // Public / Farmer & Officer Camp Discovery
 router.get('/', optionalProtect, getVaccinationDrives);
 router.get('/my-registrations', protect, getMyRegistrations);
-router.post('/', protect, authorize('officer', 'admin'), createVaccinationDrive);
+router.post('/', protect, authorize('field_worker', 'veterinarian', 'officer', 'admin'), createVaccinationDrive);
 
 // Livestock Camp Registration (Farmers & Field Workers)
 router.post('/:id/register', optionalProtect, registerForCamp);

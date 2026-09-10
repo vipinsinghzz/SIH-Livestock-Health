@@ -20,13 +20,25 @@ import {
   Sparkles,
   FileText,
   CheckCircle2,
-  Plus
+  Plus,
+  Radio,
+  PhoneCall,
+  UserCheck,
+  Send,
+  Loader2,
+  ShieldCheck,
+  AlertOctagon,
+  MapPin,
+  Eye,
+  X
 } from 'lucide-react';
 import api from '../services/api';
 import diseaseDetectionService, { SYMPTOMS_27 } from '../services/diseaseDetectionService';
 import voiceService from '../services/voiceService';
 import animalService from '../services/animalService';
+import caseService from '../services/caseService';
 import { getCleanLang, getSpeciesDisplayName, getBreedDisplayName } from '../constants/livestockData';
+import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 
 export default function DiseaseDetectionPage() {
     const { t, i18n } = useTranslation();
@@ -117,6 +129,124 @@ export default function DiseaseDetectionPage() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [caseIdSaved, setCaseIdSaved] = useState('');
+
+  // PS-128 Disease-to-Veterinarian Referral State
+  const [userCoords, setUserCoords] = useState({ lat: 18.5204, lng: 73.8567 });
+  const [detectedDistrict, setDetectedDistrict] = useState('Pune');
+  const [districtVets, setDistrictVets] = useState([]);
+  const [referralCase, setReferralCase] = useState(null);
+  const [isCreatingReferral, setIsCreatingReferral] = useState(false);
+  const [referralSuccess, setReferralSuccess] = useState(false);
+  const [sseConnected, setSseConnected] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [referralError, setReferralError] = useState('');
+
+  // 1. Detect location and district automatically
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('pashurakshak_user');
+      const storedUser = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
+      if (storedUser?.district) {
+        setDetectedDistrict(storedUser.district);
+      }
+      if (storedUser?.location?.lat && storedUser?.location?.lng) {
+        setUserCoords(storedUser.location);
+      }
+    } catch (e) {}
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setUserCoords({ lat, lng });
+          try {
+            const res = await api.get(`/nadres/alerts?lat=${lat}&lng=${lng}`);
+            if (res.data?.district) {
+              setDetectedDistrict(res.data.district);
+            }
+          } catch (e) {}
+        },
+        (err) => console.warn('Geolocation fallback used:', err.message),
+        { timeout: 8000 }
+      );
+    }
+  }, []);
+
+  // 2. Fetch active veterinarians in detected district
+  React.useEffect(() => {
+    if (!detectedDistrict) return;
+    caseService.getDistrictVets(detectedDistrict)
+      .then((data) => {
+        if (data?.vets) setDistrictVets(data.vets);
+      })
+      .catch(() => {});
+  }, [detectedDistrict]);
+
+  // 3. Real-time Referral Case Status Listener (SSE + Polling fallback)
+  React.useEffect(() => {
+    if (!referralCase?._id) return;
+    const unsub = caseService.subscribeToCaseStream(
+      (event) => {
+        if (event.type === 'connected') setSseConnected(true);
+        if (event.case && (event.case._id === referralCase._id || event.case.caseId === referralCase.caseId)) {
+          setReferralCase(event.case);
+        }
+      },
+      () => setSseConnected(false)
+    );
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await caseService.getCaseById(referralCase._id);
+        if (res?.case) {
+          setReferralCase(res.case);
+        }
+      } catch (e) {}
+    }, 4000);
+
+    return () => {
+      unsub();
+      clearInterval(pollInterval);
+    };
+  }, [referralCase?._id]);
+
+  // 4. Dispatch Case to All Matching District Veterinarians
+  const handleDispatchReferral = async () => {
+    if (!analysisResult) return;
+    setIsCreatingReferral(true);
+    setReferralError('');
+    try {
+      const cleanCondition = analysisResult.possibleCondition || analysisResult.predictedDisease || 'Lumpy Skin Disease (LSD)';
+      const payload = {
+        animalId: selectedAnimal?._id || selectedAnimal?.id || null,
+        animalName: selectedAnimal?.name || animalName || 'Livestock',
+        species: selectedSpecies,
+        image: photoPreview || '',
+        disease: cleanCondition,
+        confidence: analysisResult.confidenceScore || 88,
+        risk: analysisResult.riskLevel || 'High',
+        coordinates: userCoords,
+        district: detectedDistrict,
+        symptoms: selectedSymptoms,
+        temperature: parseFloat(temperature || 0),
+        duration: parseFloat(duration || 0),
+        notes: customNotes
+      };
+
+      const res = await caseService.createCase(payload);
+      if (res?.case) {
+        setReferralCase(res.case);
+        setReferralSuccess(true);
+        setShowReferralModal(true);
+      }
+    } catch (err) {
+      console.error('Failed to create referral:', err);
+      setReferralError(err.response?.data?.message || 'Failed to dispatch referral alert. Please retry.');
+    } finally {
+      setIsCreatingReferral(false);
+    }
+  };
 
   const handleToggleSymptom = (id) => {
     if (selectedSymptoms.includes(id)) {
@@ -309,39 +439,42 @@ export default function DiseaseDetectionPage() {
     <div className="min-h-screen bg-[#fafaf9] py-6 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-12">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header & Step Indicator */}
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-2xs">
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/80 shadow-2xs">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900">
-                  {isEnglish ? 'Livestock Disease Early Detection' : 'पशु रोग पहचान (Disease Detection)'}
-                </h1>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  <Cpu className="w-3 h-3" /> lsd_model.keras
-                </span>
+            <div className="flex items-center gap-4">
+              <LivestockSaathiEmblem size={50} className="shrink-0 drop-shadow-xs" />
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                    {isEnglish ? 'Livestock Disease Early Detection' : 'पशु रोग पहचान (Disease Detection)'}
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-200">
+                    <Cpu className="w-3.5 h-3.5" /> lsd_model.keras
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600 mt-1">
+                  {isEnglish
+                    ? 'AI-assisted clinical evaluation and veterinary guidance using EfficientNetB0 CNN'
+                    : 'lsd_model.keras डीप लर्निंग मॉडल एवं 27 क्लीनिकल लक्षणों द्वारा जांच'}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isEnglish
-                  ? 'AI-assisted clinical evaluation and veterinary guidance using EfficientNetB0 CNN'
-                  : 'lsd_model.keras डीप लर्निंग मॉडल एवं 27 क्लीनिकल लक्षणों द्वारा जांच'}
-              </p>
             </div>
-            <span className="text-xs font-bold bg-stone-100 text-slate-700 px-3 py-1 rounded-full">
+            <span className="text-xs sm:text-sm font-bold bg-stone-100 text-slate-800 px-3.5 py-1.5 rounded-full shrink-0">
               {isEnglish ? `Step ${currentStep} / 4` : `चरण ${currentStep} / 4`}
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold">
-            <div className={`py-1.5 rounded-lg border transition ${currentStep >= 1 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+          <div className="grid grid-cols-4 gap-2 text-center text-xs sm:text-sm font-bold">
+            <div className={`py-2 rounded-xl border transition ${currentStep >= 1 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
               1. {isEnglish ? 'Animal' : 'पशु चयन'}
             </div>
-            <div className={`py-1.5 rounded-lg border transition ${currentStep >= 2 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+            <div className={`py-2 rounded-xl border transition ${currentStep >= 2 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
               2. {isEnglish ? 'Symptoms & Photo' : 'लक्षण व फोटो'}
             </div>
-            <div className={`py-1.5 rounded-lg border transition ${currentStep >= 3 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+            <div className={`py-2 rounded-xl border transition ${currentStep >= 3 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
               3. {isEnglish ? 'AI Triage' : 'AI जांच'}
             </div>
-            <div className={`py-1.5 rounded-lg border transition ${currentStep >= 4 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+            <div className={`py-2 rounded-xl border transition ${currentStep >= 4 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
               4. {isEnglish ? 'Result' : 'परिणाम'}
             </div>
           </div>
@@ -349,12 +482,12 @@ export default function DiseaseDetectionPage() {
 
         {/* STEP 1: SELECT ANIMAL */}
         {currentStep === 1 && (
-          <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-2xs space-y-6">
-            <div className="border-b border-stone-100 pb-3">
-              <h2 className="text-sm font-bold text-slate-800">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 border border-stone-200/80 shadow-2xs space-y-6">
+            <div className="border-b border-stone-100 pb-3.5">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900">
                 {isEnglish ? 'Step 1: Select Livestock for Disease Scan' : isMarathi ? 'चरण १: रोग तपासणीसाठी जनावर निवडा' : 'चरण 1: रोग जांच के लिए पशु चुनें'}
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-sm text-slate-600 mt-1 font-medium">
                 {isEnglish
                   ? 'Select from your registered herd. The AI scan result will automatically update the animal\'s health record.'
                   : isMarathi
@@ -366,7 +499,7 @@ export default function DiseaseDetectionPage() {
             {/* Registered Livestock Selection Grid */}
             {animals.length > 0 && (
               <div className="space-y-2.5">
-                <label className="text-xs font-bold text-slate-700 block">
+                <label className="text-sm font-bold text-slate-700 block">
                   {isEnglish ? 'Your Registered Livestock:' : isMarathi ? 'तुमची नोंदणीकृत जनावरे:' : 'आपके पंजीकृत पशु:'}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -397,11 +530,11 @@ export default function DiseaseDetectionPage() {
                             {animal.species === 'Buffalo' ? '🐃' : animal.species === 'Goat' ? '🐐' : animal.species === 'Sheep' ? '🐑' : '🐄'}
                           </span>
                           <div className="min-w-0">
-                            <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">{animal.name}</h4>
-                            <p className="text-[11px] text-slate-500 font-mono truncate">
+                            <h4 className="font-extrabold text-base sm:text-lg text-slate-900 truncate">{animal.name}</h4>
+                            <p className="text-xs text-slate-500 font-mono truncate">
                               Tag: {animal.tagId} • {speciesLabel}
                             </p>
-                            {breedLabel && <p className="text-[11px] text-emerald-800 font-medium truncate">{breedLabel}</p>}
+                            {breedLabel && <p className="text-xs text-emerald-800 font-medium truncate">{breedLabel}</p>}
                           </div>
                         </div>
 
@@ -503,7 +636,7 @@ export default function DiseaseDetectionPage() {
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
               >
                 {t('actions.next', 'Continue')} <ArrowRight className="w-4 h-4" />
               </button>
@@ -516,10 +649,10 @@ export default function DiseaseDetectionPage() {
           <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-2xs space-y-6">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div>
-                <h2 className="text-sm font-bold text-slate-800">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900">
                   {isEnglish ? 'Step 2: Select Symptoms & Upload Photo' : 'चरण 2: लक्षण चुनें और फोटो लगाएं'}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm text-slate-600 font-medium">
                   {isEnglish
                     ? 'Enter clinical parameters and skin photograph for the AI neural network'
                     : 'डीप लर्निंग मॉडल के लिए त्वचा की फोटो और सभी लक्षण दर्ज करें'}
@@ -533,11 +666,11 @@ export default function DiseaseDetectionPage() {
             {/* 1. Skin Photo Box (Image 2 style) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-emerald-600" />
                   {isEnglish ? 'Skin photo (optional)' : 'त्वचा की फोटो (वैकल्पिक)'}
                 </label>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-xs text-slate-400">
                   {isEnglish ? 'Input shape: 224x224 RGB' : '224x224 RGB इनपुट'}
                 </span>
               </div>
@@ -590,10 +723,10 @@ export default function DiseaseDetectionPage() {
             {/* 2. Symptoms Observed (All 27 symptoms from Image 2) */}
             <div className="space-y-2 pt-1">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                   <Activity className="w-4 h-4 text-emerald-600" />
                   {isEnglish ? 'Symptoms observed' : 'लक्षण पहचानें (Symptoms observed)'}
-                  <span className="text-[11px] font-normal text-slate-500">
+                  <span className="text-xs font-normal text-slate-500">
                     ({selectedSymptoms.length} / 27 {isEnglish ? 'selected' : 'चुने गए'})
                   </span>
                 </label>
@@ -615,14 +748,14 @@ export default function DiseaseDetectionPage() {
                       key={sym.id}
                       type="button"
                       onClick={() => handleToggleSymptom(sym.id)}
-                      className={`text-xs px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition ${
+                      className={`text-sm px-3.5 py-2 rounded-xl border flex items-center gap-2 transition cursor-pointer ${
                         isChecked
                           ? 'bg-emerald-700 text-white border-emerald-700 font-bold shadow-xs'
                           : 'bg-stone-50 hover:bg-stone-100 text-slate-700 border-stone-200'
                       }`}
                     >
                       <span
-                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${
+                        className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
                           isChecked ? 'bg-white text-emerald-800 border-white font-bold' : 'border-stone-400 bg-white'
                         }`}
                       >
@@ -714,14 +847,14 @@ export default function DiseaseDetectionPage() {
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1"
+                className="text-sm font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" /> {t('actions.back', 'Back')}
               </button>
               <button
                 type="button"
                 onClick={handleStartAnalysis}
-                className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition shadow-xs"
+                className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
                 {t('wizard.submit_triage', 'Run AI Triage & Submit Report')} →
@@ -733,9 +866,9 @@ export default function DiseaseDetectionPage() {
         {/* STEP 3: LOADING INFERENCE */}
         {currentStep === 3 && (
           <div className="bg-white rounded-2xl p-10 border border-stone-200/80 shadow-2xs text-center space-y-5">
-            <div className="relative w-16 h-16 mx-auto">
-              <div className="w-16 h-16 rounded-full border-4 border-emerald-200 border-t-emerald-700 animate-spin" />
-              <Cpu className="w-6 h-6 text-emerald-700 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-700 animate-spin" />
+              <LivestockSaathiEmblem size={52} className="drop-shadow-xs animate-pulse" />
             </div>
             <div className="space-y-2">
               <h3 className="text-base font-bold text-slate-900">
@@ -809,13 +942,13 @@ export default function DiseaseDetectionPage() {
             {/* Disease Heading */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
               <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase">
+                <span className="text-xs font-bold text-slate-400 uppercase">
                   {isEnglish ? 'Suspected Condition:' : 'संभावित बीमारी:'}
                 </span>
-                <h2 className="text-xl font-black text-slate-900 mt-0.5">
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-0.5">
                   {analysisResult.possibleCondition}
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">{analysisResult.explanation}</p>
+                <p className="text-sm text-slate-600 mt-1 font-medium">{analysisResult.explanation}</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -915,13 +1048,160 @@ export default function DiseaseDetectionPage() {
               </div>
             )}
 
+            {/* PS-128 Disease-to-Veterinarian Referral Card */}
+            <div className="bg-gradient-to-br from-rose-50 to-red-50/70 rounded-2xl p-4 sm:p-5 border-2 border-rose-200 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Radio className="w-4 h-4 animate-pulse" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-black text-rose-950">
+                      {isEnglish ? 'PS-128 District Veterinarian Referral' : isMarathi ? 'PS-128 जिल्हा पशुवैद्यकीय रेफरल' : 'PS-128 जिला पशु चिकित्सा रेफरल'}
+                    </h3>
+                    <p className="text-[11px] text-rose-800/80">
+                      {isEnglish
+                        ? `Live broadcast to all verified veterinarians in ${detectedDistrict} district`
+                        : `${detectedDistrict} जिले के सभी सक्रिय पशु चिकित्सकों को सीधा अलर्ट`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="px-2.5 py-1 bg-white/90 border border-rose-200 text-rose-900 font-bold rounded-lg flex items-center gap-1 shadow-2xs">
+                    <MapPin className="w-3 h-3 text-red-600" />
+                    <span>{detectedDistrict}</span>
+                  </span>
+                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold rounded-lg flex items-center gap-1">
+                    <UserCheck className="w-3 h-3 text-emerald-700" />
+                    <span>{districtVets.length || 2} {isEnglish ? 'Vets Online' : 'डॉक्टर सक्रिय'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Referral Status / Action */}
+              {referralCase ? (
+                <div className="p-3.5 bg-white rounded-xl border border-rose-200/90 shadow-2xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        {isEnglish ? 'Active Referral Case' : 'सक्रिय रेफरल केस'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-black text-slate-900">{referralCase.caseId}</span>
+                        <span
+                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                            referralCase.status === 'ACCEPTED'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : referralCase.status === 'IN_TREATMENT'
+                              ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                              : referralCase.status === 'RESOLVED'
+                              ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                              : 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                          }`}
+                        >
+                          {referralCase.status === 'OPEN' ? (isEnglish ? 'Pending Claim...' : 'दावे की प्रतीक्षा...') : referralCase.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowReferralModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer self-start sm:self-auto"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>{isEnglish ? 'Track Live Status' : 'लाइव स्थिति देखें'}</span>
+                    </button>
+                  </div>
+
+                  {referralCase.assignedVetId && (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-emerald-700 text-white flex items-center justify-center font-black shrink-0">
+                          Dr
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>{referralCase.assignedVetId.name}</span>
+                            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-semibold">Assigned Vet</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600">
+                            {referralCase.assignedVetId.department || `${detectedDistrict} District Animal Health Office`}
+                          </p>
+                        </div>
+                      </div>
+
+                      {referralCase.assignedVetId.phone && (
+                        <a
+                          href={`tel:${referralCase.assignedVetId.phone}`}
+                          className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg transition shadow-xs shrink-0 cursor-pointer"
+                        >
+                          <PhoneCall className="w-3.5 h-3.5" />
+                          <span>{isEnglish ? 'Call Doctor' : 'कॉल करें'} ({referralCase.assignedVetId.phone})</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {referralError && (
+                    <div className="p-2.5 bg-red-100 text-red-900 text-xs rounded-xl font-medium flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />
+                      <span>{referralError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleDispatchReferral}
+                    disabled={isCreatingReferral}
+                    className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-extrabold text-xs sm:text-sm py-3 px-4 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
+                  >
+                    {isCreatingReferral ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>{isEnglish ? 'Dispatching to District Vets...' : 'जिले के डॉक्टरों को अलर्ट भेजा जा रहा है...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>
+                          {isEnglish
+                            ? `Dispatch Case to All District Vets (${detectedDistrict})`
+                            : `${detectedDistrict} जिले के सभी डॉक्टरों को केस रेफर करें`}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                  <p className="text-[10px] text-slate-500 text-center">
+                    {isEnglish
+                      ? 'Atomic assignment: Only the first veterinarian to respond will be assigned.'
+                      : 'सिस्टम नियम: जो डॉक्टर पहले स्वीकार करेंगे, केस स्वतः उन्हें असाइन होगा।'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Case Saved Confirmation */}
+            {savedSuccess && (
+              <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl flex items-center gap-2 text-xs text-emerald-900 font-bold">
+                <Check className="w-4 h-4 text-emerald-700" />
+                <span>
+                  {isEnglish ? 'Report successfully filed to Surveillance System!' : 'रिपोर्ट पशु स्वास्थ्य निगरानी प्रणाली में दर्ज हो गई!'}
+                  {caseIdSaved && ` (Case ID: ${caseIdSaved})`}
+                </span>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="pt-2 flex flex-wrap gap-2.5">
               <Link
                 to="/veterinary-help"
-                className="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition shadow-xs"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold py-2.5 px-4 rounded-xl border border-stone-200 transition shadow-2xs"
               >
-                <Stethoscope className="w-4 h-4" /> {isEnglish ? 'Contact Nearest Veterinarian' : 'पशु चिकित्सक से संपर्क करें'}
+                <Stethoscope className="w-4 h-4 text-emerald-700" /> {isEnglish ? 'Browse Nearby Clinics' : 'नजदीकी अस्पताल देखें'}
               </Link>
               <button
                 type="button"
@@ -938,12 +1218,186 @@ export default function DiseaseDetectionPage() {
                   setPhotoPreview(null);
                   setSavedSuccess(false);
                   setCaseIdSaved('');
+                  setReferralCase(null);
                 }}
                 className="inline-flex items-center justify-center gap-1 bg-stone-50 hover:bg-stone-100 text-slate-600 text-xs font-semibold py-2.5 px-3 rounded-xl border border-stone-200 transition"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> {isEnglish ? 'New Test' : 'नई जांच'}
               </button>
             </div>
+
+            {/* Live Case Tracking Modal */}
+            {showReferralModal && referralCase && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 border border-stone-200 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        PS-128 Referral Case Tracking
+                      </span>
+                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <span>{referralCase.caseId}</span>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            referralCase.status === 'Investigating' || referralCase.status === 'ACCEPTED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : referralCase.status === 'Confirmed'
+                              ? 'bg-amber-100 text-amber-800'
+                              : referralCase.status === 'Containment' || referralCase.status === 'IN_TREATMENT'
+                              ? 'bg-purple-100 text-purple-800'
+                              : referralCase.status === 'Resolved' || referralCase.status === 'RESOLVED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800 animate-pulse'
+                          }`}
+                        >
+                          {referralCase.status}
+                        </span>
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowReferralModal(false)}
+                      className="p-1.5 rounded-full hover:bg-stone-100 text-slate-400 hover:text-slate-700 transition"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Disease & Animal Snapshot */}
+                  <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-slate-500 text-[11px] block">{isEnglish ? 'Suspected Disease' : 'संभावित बीमारी'}</span>
+                      <strong className="text-slate-900 font-black text-sm">{referralCase.disease}</strong>
+                      <span className="text-[11px] text-slate-600 block mt-0.5">
+                        {referralCase.species} • {referralCase.animalName || 'Livestock'} • {referralCase.confidence}% Confidence
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg font-black text-xs border border-red-200">
+                      {referralCase.risk} Risk
+                    </span>
+                  </div>
+
+                  {/* Progress Stepper - 5 Canonical Stages */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-slate-700 block">
+                      {isEnglish ? 'Referral Lifecycle (5 Stages):' : 'रेफरल प्रगति (5 चरण):'}
+                    </span>
+                    <div className="grid grid-cols-5 gap-1 text-center text-[9px] font-bold">
+                      <div className="p-2 rounded-lg bg-emerald-600 text-white">
+                        1. New ✓
+                      </div>
+                      <div
+                        className={`p-2 rounded-lg transition ${
+                          ['Investigating', 'ACCEPTED', 'Confirmed', 'Containment', 'IN_TREATMENT', 'Resolved', 'RESOLVED'].includes(referralCase.status)
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-stone-100 text-slate-400'
+                        }`}
+                      >
+                        2. Investigating {referralCase.assignedVetId ? '✓' : ''}
+                      </div>
+                      <div
+                        className={`p-2 rounded-lg transition ${
+                          ['Confirmed', 'Containment', 'IN_TREATMENT', 'Resolved', 'RESOLVED'].includes(referralCase.status)
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-stone-100 text-slate-400'
+                        }`}
+                      >
+                        3. Confirmed
+                      </div>
+                      <div
+                        className={`p-2 rounded-lg transition ${
+                          ['Containment', 'IN_TREATMENT', 'Resolved', 'RESOLVED'].includes(referralCase.status)
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-stone-100 text-slate-400'
+                        }`}
+                      >
+                        4. Containment
+                      </div>
+                      <div
+                        className={`p-2 rounded-lg transition ${
+                          ['Resolved', 'RESOLVED'].includes(referralCase.status)
+                            ? 'bg-emerald-700 text-white'
+                            : 'bg-stone-100 text-slate-400'
+                        }`}
+                      >
+                        5. Resolved
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Assigned Doctor Card or Waiting Status */}
+                  {referralCase.assignedVetId ? (
+                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-sm">
+                          Dr
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/70 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                            Attending Veterinary Doctor
+                          </span>
+                          <h4 className="text-base font-black text-slate-900">{referralCase.assignedVetId.name}</h4>
+                          <p className="text-xs text-slate-600">
+                            {referralCase.assignedVetId.department || `Animal Husbandry Department, ${detectedDistrict}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      {referralCase.assignedVetId.phone && (
+                        <a
+                          href={`tel:${referralCase.assignedVetId.phone}`}
+                          className="w-full inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-xs"
+                        >
+                          <PhoneCall className="w-4 h-4" />
+                          <span>{isEnglish ? 'Call Doctor Directly' : 'डॉक्टर से सीधा संपर्क करें'} ({referralCase.assignedVetId.phone})</span>
+                        </a>
+                      )}
+
+                      {referralCase.treatmentNotes && (
+                        <div className="p-3 bg-white rounded-xl border border-emerald-200 text-xs space-y-1">
+                          <strong className="block text-slate-800 font-bold">Doctor's Clinical Notes:</strong>
+                          <p className="text-slate-700">{referralCase.treatmentNotes}</p>
+                        </div>
+                      )}
+                      {referralCase.prescription && (
+                        <div className="p-3 bg-white rounded-xl border border-emerald-200 text-xs space-y-1">
+                          <strong className="block text-slate-800 font-bold">Prescription / Medications:</strong>
+                          <p className="text-slate-700 font-mono">{referralCase.prescription}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 mx-auto flex items-center justify-center">
+                        <Radio className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <h4 className="text-sm font-black text-amber-950">
+                        {isEnglish ? 'Notifying District Veterinarians...' : 'जिले के डॉक्टरों को नोटिफिकेशन भेज दिया गया है...'}
+                      </h4>
+                      <p className="text-xs text-amber-800/80 max-w-sm mx-auto">
+                        {isEnglish
+                          ? `Alert sent to ${referralCase.notifiedVets?.length || districtVets.length || 2} active veterinarians in ${detectedDistrict}. First veterinarian to accept will be assigned instantly.`
+                          : `${detectedDistrict} के ${referralCase.notifiedVets?.length || districtVets.length || 2} डॉक्टरों को अलर्ट भेज दिया गया है। जैसे ही कोई डॉक्टर स्वीकार करेंगे, उनकी जानकारी यहाँ आ जाएगी।`}
+                      </p>
+                      <span className="inline-block text-[10px] text-slate-400 font-medium pt-1">
+                        {sseConnected ? '🟢 Live SSE Connected' : '🟡 Polling for Live Updates'}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowReferralModal(false)}
+                      className="px-5 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold rounded-xl transition"
+                    >
+                      {isEnglish ? 'Close Window' : 'बंद करें'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

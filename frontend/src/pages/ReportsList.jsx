@@ -5,6 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import animalService from '../services/animalService';
 import LeafletMap from '../components/LeafletMap';
+import caseService from '../services/caseService';
+import veterinaryService from '../services/veterinaryService';
+import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -75,21 +78,26 @@ function formatRelativeTime(dateString, isEnglish, isMarathi) {
   return date.toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' });
 }
 
-export default function ReportsList() {
+export default function ReportsList({ isEmbedded = false }) {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
 
   const isEnglish = i18n.language?.startsWith('en');
   const isMarathi = i18n.language?.startsWith('mr');
+  const isVet = user?.role === 'field_worker' || user?.role === 'veterinarian';
+  const detectedDistrict = user?.district || 'Pune';
 
   // Reports & animals state
   const [reports, setReports] = useState([]);
   const [animals, setAnimals] = useState([]);
+  const [districtCases, setDistrictCases] = useState([]);
+  const [districtClusters, setDistrictClusters] = useState([]);
+  const [districtZones, setDistrictZones] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Farmer GPS / fallback coordinates (Default Baramati rural cluster center)
-  const defaultUserLat = user?.location?.lat && user.location.lat !== 0 ? user.location.lat : 18.1517;
-  const defaultUserLng = user?.location?.lng && user.location.lng !== 0 ? user.location.lng : 74.5772;
+  // Farmer / Vet GPS / fallback coordinates (Default cluster center)
+  const defaultUserLat = user?.location?.lat && user.location.lat !== 0 ? user.location.lat : 18.5204;
+  const defaultUserLng = user?.location?.lng && user.location.lng !== 0 ? user.location.lng : 73.8567;
   const [userCoords, setUserCoords] = useState([defaultUserLat, defaultUserLng]);
 
   // Filters
@@ -100,9 +108,25 @@ export default function ReportsList() {
   // Modals
   const [selectedAdvisoryAlert, setSelectedAdvisoryAlert] = useState(null);
   const [showVetModal, setShowVetModal] = useState(false);
+  const [nearbyOfficerVet, setNearbyOfficerVet] = useState(null);
   const [selectedCamp, setSelectedCamp] = useState(null);
   const [registeredCamps, setRegisteredCamps] = useState({});
   const [campSuccessToast, setCampSuccessToast] = useState('');
+
+  useEffect(() => {
+    if (showVetModal) {
+      veterinaryService.getNearbyVeterinarians({
+        lat: userCoords?.[0],
+        lng: userCoords?.[1],
+        district: detectedDistrict,
+        limit: 1
+      }).then((res) => {
+        if (res?.nearestVets?.length > 0) {
+          setNearbyOfficerVet(res.nearestVets[0]);
+        }
+      }).catch(() => {});
+    }
+  }, [showVetModal, userCoords, detectedDistrict]);
 
   // Sample upcoming vaccination camps data
   const vaccinationCamps = [
@@ -194,6 +218,18 @@ export default function ReportsList() {
     try {
       const res = await api.get('/reports?nearbyAlerts=true&limit=100');
       setReports(res.data.reports || []);
+
+      caseService.getCases({ district: detectedDistrict })
+        .then((r) => setDistrictCases(r.cases || []))
+        .catch(() => {});
+
+      caseService.getSpatialClusters({ district: detectedDistrict })
+        .then((r) => setDistrictClusters(r.clusters || []))
+        .catch(() => {});
+
+      caseService.getContainmentZones({ district: detectedDistrict })
+        .then((r) => setDistrictZones(r.zones || []))
+        .catch(() => {});
     } catch (err) {
       console.error('Error fetching nearby alerts:', err);
     } finally {
@@ -353,7 +389,7 @@ export default function ReportsList() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 pb-24 lg:pb-16 font-sans">
+    <div className={isEmbedded ? "space-y-6 font-sans" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 pb-24 lg:pb-16 font-sans"}>
       {/* Toast Notification */}
       {campSuccessToast && (
         <div className="fixed top-20 right-4 z-50 max-w-md bg-emerald-800 text-white px-5 py-3.5 rounded-2xl shadow-xl border border-emerald-600 flex items-start gap-3 animate-fade-in">
@@ -365,70 +401,101 @@ export default function ReportsList() {
         </div>
       )}
 
-      {/* 1. Page Header (Farmer-Friendly SIH PS-128) */}
+      {/* 1. Page Header (Veterinary Command & Surveillance) */}
       <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-              <ShieldAlert className="w-4 h-4 text-emerald-700" />
-              <span>
-                {isEnglish
-                  ? 'SIH PS-128 • Real-time Community Animal Health Surveillance'
-                  : isMarathi
-                  ? 'स्मार्ट इंडिया हॅकाथॉन PS-128 • थेट समुदाय पशु आरोग्य पाळत'
-                  : 'स्मार्ट इंडिया हैकाथॉन PS-128 • लाइव सामुदायिक पशु स्वास्थ्य निगरानी'}
-              </span>
-            </div>
+          <div className="flex items-start gap-4">
+            <LivestockSaathiEmblem size={56} className="shrink-0 drop-shadow-xs mt-1" />
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                <ShieldAlert className="w-4 h-4 text-emerald-700" />
+                <span>
+                  {isVet
+                    ? (isEnglish ? `Veterinary Epidemiological Outbreak Surveillance • ${detectedDistrict} District` : isMarathi ? `जिल्हा पशुवैद्यकीय साथरोग पाळत व नियंत्रण • ${detectedDistrict}` : `जिला पशु चिकित्सा महामारी रोग निगरानी एवं नियंत्रण • ${detectedDistrict}`)
+                    : (isEnglish ? 'SIH PS-128 • Real-time Community Animal Health Surveillance' : isMarathi ? 'स्मार्ट इंडिया हॅकाथॉन PS-128 • थेट समुदाय पशु आरोग्य पाळत' : 'स्मार्ट इंडिया हैकाथॉन PS-128 • लाइव सामुदायिक पशु स्वास्थ्य निगरानी')}
+                </span>
+              </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
-              {isEnglish
-                ? 'Nearby Disease Alerts'
-                : isMarathi
-                ? 'स्थानिक रोग प्रादुर्भाव अलर्ट'
-                : 'स्थानीय रोग प्रकोप अलर्ट'}
-            </h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
+                {isVet
+                  ? (isEnglish ? 'District Outbreak & Containment Command' : isMarathi ? 'जिल्हा प्रादुर्भाव व नियंत्रण कमांड' : 'जिला रोग प्रकोप एवं नियंत्रण कमांड')
+                  : (isEnglish ? 'Nearby Disease Alerts' : isMarathi ? 'स्थानिक रोग प्रादुर्भाव अलर्ट' : 'स्थानीय रोग प्रकोप अलर्ट')}
+              </h1>
 
             <p className="text-slate-600 text-sm max-w-2xl leading-relaxed">
-              {isEnglish
-                ? 'Active outbreak detection within your perimeter, color-coded containment maps, upcoming vaccination camps, and automated AI preventive protocols.'
-                : isMarathi
-                ? 'आपल्या परिसरातील सक्रिय रोगांचे अलर्ट, रंग-कोडेड नियंत्रण नकाशा, नजीकची लसीकरण शिबिरे आणि प्रतिबंधात्मक एआय सल्ला.'
-                : 'आपके क्षेत्र में सक्रिय रोग प्रकोप सूचनाएं, रंग-कोडित नियंत्रण मैप, आगामी टीकाकरण शिविर एवं स्वचालित एआई निवारक प्रोटोकॉल।'}
+              {isVet
+                ? (isEnglish
+                    ? `Live geospatial telemetry, ICAR-NIVEDI outbreak cluster monitoring, dynamic containment zones, and immediate ring vaccination control for ${detectedDistrict} district.`
+                    : isMarathi
+                    ? `${detectedDistrict} जिल्ह्यासाठी थेट भू-स्थानिक देखरेख, ICAR-NIVEDI रोग क्लस्टर मॉनिटरिंग, नियंत्रण क्षेत्र आणि रिंग लसीकरण व्यवस्थापन.`
+                    : `${detectedDistrict} जिले के लिए लाइव भू-स्थानिक निगरानी, ICAR-NIVEDI रोग क्लस्टर मॉनिटरिंग, नियंत्रण क्षेत्र और रिंग टीकाकरण प्रबंधन।`)
+                : (isEnglish
+                    ? 'Active outbreak detection within your perimeter, color-coded containment maps, upcoming vaccination camps, and automated AI preventive protocols.'
+                    : isMarathi
+                    ? 'आपल्या परिसरातील सक्रिय रोगांचे अलर्ट, रंग-कोडेड नियंत्रण नकाशा, नजीकची लसीकरण शिबिरे आणि प्रतिबंधात्मक एआय सल्ला.'
+                    : 'आपके क्षेत्र में सक्रिय रोग प्रकोप सूचनाएं, रंग-कोडित नियंत्रण मैप, आगामी टीकाकरण शिविर एवं स्वचालित एआई निवारक प्रोटोकॉल।')}
             </p>
           </div>
+        </div>
 
           {/* Quick Actions */}
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            {/* Quick Contact Nearby Vet Button */}
-            <button
-              type="button"
-              onClick={() => setShowVetModal(true)}
-              className="px-5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-amber-600/20 active:scale-95 transition"
-            >
-              <PhoneCall className="w-4 h-4" />
-              <span>
-                {isEnglish
-                  ? 'Contact Nearby Vet'
-                  : isMarathi
-                  ? 'पशुवैद्यकांशी संपर्क साधा'
-                  : 'पशु चिकित्सक से संपर्क करें'}
-              </span>
-            </button>
+            {isVet ? (
+              <>
+                <Link
+                  to="/vaccination"
+                  className="px-5 py-3 rounded-2xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-indigo-700/20 active:scale-95 transition"
+                >
+                  <Syringe className="w-4 h-4" />
+                  <span>
+                    {isEnglish ? 'Schedule Ring Vaccination' : isMarathi ? 'रिंग लसीकरण मोहीम' : 'रिंग टीकाकरण आयोजित करें'}
+                  </span>
+                </Link>
 
-            {/* Report Sick Animal */}
-            <Link
-              to="/report-sick"
-              className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>
-                {isEnglish
-                  ? 'Report Disease'
-                  : isMarathi
-                  ? 'रोग लक्षण नोंदवा'
-                  : 'रोग लक्षण दर्ज करें'}
-              </span>
-            </Link>
+                <Link
+                  to="/report-sick"
+                  className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>
+                    {isEnglish ? 'Log Field Case' : isMarathi ? 'फील्ड केस नोंदवा' : 'फील्ड केस दर्ज करें'}
+                  </span>
+                </Link>
+              </>
+            ) : (
+              <>
+                {/* Quick Contact Nearby Vet Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowVetModal(true)}
+                  className="px-5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-amber-600/20 active:scale-95 transition"
+                >
+                  <PhoneCall className="w-4 h-4" />
+                  <span>
+                    {isEnglish
+                      ? 'Contact Nearby Vet'
+                      : isMarathi
+                      ? 'पशुवैद्यकांशी संपर्क साधा'
+                      : 'पशु चिकित्सक से संपर्क करें'}
+                  </span>
+                </button>
+
+                {/* Report Sick Animal */}
+                <Link
+                  to="/report-sick"
+                  className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>
+                    {isEnglish
+                      ? 'Report Disease'
+                      : isMarathi
+                      ? 'रोग लक्षण नोंदवा'
+                      : 'रोग लक्षण दर्ज करें'}
+                  </span>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -437,7 +504,7 @@ export default function ReportsList() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
               <span>🗺️</span>
               <span>
                 {isEnglish
@@ -447,7 +514,7 @@ export default function ReportsList() {
                   : 'लाइव रोग प्रकोप मैप'}
               </span>
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-600 mt-0.5">
               {isEnglish
                 ? 'Interactive containment zones & color-coded risk markers (🟢 Safe, 🟡 Low, 🟠 Medium, 🔴 High)'
                 : isMarathi
@@ -456,14 +523,14 @@ export default function ReportsList() {
             </p>
           </div>
 
-          <div className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-stone-200">
-            <MapPin className="w-3.5 h-3.5 text-blue-600" />
+          <div className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-200">
+            <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
             <span>
               {isEnglish
-                ? `Center: ${user?.village || 'Baramati'}, ${user?.district || 'Pune'}`
+                ? `Center: ${user?.block || user?.village || 'Command Center'}, ${detectedDistrict}`
                 : isMarathi
-                ? `स्थान: ${user?.village || 'बारामती'}, ${user?.district || 'पुणे'}`
-                : `केंद्र: ${user?.village || 'बारामती'}, ${user?.district || 'पुणे'}`}
+                ? `स्थान: ${user?.block || user?.village || 'नियंत्रण केंद्र'}, ${detectedDistrict}`
+                : `केंद्र: ${user?.block || user?.village || 'कमांड सेंटर'}, ${detectedDistrict}`}
             </span>
           </div>
         </div>
@@ -471,8 +538,11 @@ export default function ReportsList() {
         {/* Map Canvas */}
         <LeafletMap
           reports={reports}
+          cases={districtCases}
+          clusters={districtClusters}
+          containmentZones={districtZones}
           height="460px"
-          isFarmerView={true}
+          isFarmerView={!isVet}
           userLocation={userCoords}
           radiusKm={radiusFilter === 'all' ? 50 : Number(radiusFilter)}
           lang={i18n.language}
@@ -484,7 +554,7 @@ export default function ReportsList() {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-red-600" />
               <span>
                 {isEnglish
@@ -494,7 +564,7 @@ export default function ReportsList() {
                   : `स्थानीय रोग अलर्ट (${filteredAlerts.length})`}
               </span>
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-600 mt-0.5">
               {isEnglish
                 ? 'Real-time epidemiological cluster reports sorted by distance from your farm'
                 : isMarathi
@@ -504,7 +574,7 @@ export default function ReportsList() {
           </div>
 
           {/* Radius Selector Pills */}
-          <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200 text-xs">
+          <div className="flex items-center gap-1.5 bg-stone-100 p-1.5 rounded-2xl border border-stone-200 text-xs sm:text-sm font-bold">
             <span className="text-slate-500 font-bold px-2 py-1 flex items-center gap-1">
               <Compass className="w-3.5 h-3.5" />
               <span>{isEnglish ? 'Radius:' : isMarathi ? 'त्रिज्या:' : 'दायरा:'}</span>
@@ -546,7 +616,7 @@ export default function ReportsList() {
               }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-stone-200 text-xs bg-stone-50 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-none transition"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-stone-50 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-none transition"
             />
           </div>
 
@@ -555,7 +625,7 @@ export default function ReportsList() {
             <select
               value={riskFilter}
               onChange={(e) => setRiskFilter(e.target.value)}
-              className="w-full sm:w-48 px-3 py-2 rounded-xl border border-stone-200 text-xs bg-stone-50 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              className="w-full sm:w-48 px-3 py-2.5 rounded-xl border border-stone-200 text-sm bg-stone-50 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-600"
             >
               <option value="All">{isEnglish ? 'All Risk Levels' : isMarathi ? 'सर्व धोका पातळी' : 'सभी जोखिम स्तर'}</option>
               <option value="High">🔴 {isEnglish ? 'High Risk' : isMarathi ? 'उच्च धोका' : 'उच्च जोखिम'}</option>
@@ -569,7 +639,10 @@ export default function ReportsList() {
         {/* 4. Disease Alert Cards Grid / Empty State */}
         {loading ? (
           <div className="py-16 flex flex-col items-center justify-center space-y-3">
-            <div className="w-10 h-10 rounded-full border-4 border-emerald-200 border-t-emerald-700 animate-spin" />
+            <div className="relative w-16 h-16 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-700 animate-spin" />
+              <LivestockSaathiEmblem size={40} className="drop-shadow-xs animate-pulse" />
+            </div>
             <p className="text-xs font-bold text-slate-500">
               {isEnglish
                 ? 'Scanning nearby disease surveillance networks...'
@@ -582,7 +655,7 @@ export default function ReportsList() {
           /* Empty State Requirement: If no outbreaks exist, display: "No disease outbreaks reported within 20 km." */
           <div className="bg-emerald-50/70 rounded-3xl border border-emerald-200 p-8 sm:p-12 text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
-              <ShieldCheck className="w-9 h-9" />
+              <LivestockSaathiEmblem size={44} className="drop-shadow-xs" />
             </div>
             <div className="space-y-1">
               <h3 className="text-lg sm:text-xl font-black text-emerald-950">
@@ -629,7 +702,7 @@ export default function ReportsList() {
                   {/* Top Row: Disease Title & Risk Badge */}
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-base font-black text-slate-900 leading-snug">
+                      <h3 className="text-lg font-black text-slate-900 leading-snug">
                         {diseaseTitle}
                       </h3>
                       {renderRiskBadge(alert.normalizedRisk)}
@@ -637,7 +710,7 @@ export default function ReportsList() {
 
                     {/* Species & Outbreak Indicator */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-0.5 rounded-lg bg-stone-100 text-slate-700 text-[11px] font-bold">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-stone-100 text-slate-700 text-xs font-bold">
                         {getSpeciesLabel(alert.species)}
                       </span>
                       {isOutbreak && (
@@ -1140,24 +1213,31 @@ export default function ReportsList() {
               </div>
             </div>
 
-            {/* Local Veterinary Dispensary */}
+            {/* Local Veterinary Dispensary (Dynamic from MongoDB) */}
             <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2 text-xs">
               <div className="font-bold text-slate-900 text-sm">
-                {isEnglish ? 'Baramati Taluka Veterinary Polyclinic' : isMarathi ? 'बारामती तालुका पशुवैद्यकीय दवाखाना' : 'बारामती ब्लॉक पशु चिकित्सालय'}
+                {nearbyOfficerVet?.clinicName || (isEnglish ? `${detectedDistrict} Veterinary Dispensary` : isMarathi ? `${detectedDistrict} तालुका पशुवैद्यकीय दवाखाना` : `${detectedDistrict} ब्लॉक पशु चिकित्सालय`)}
               </div>
               <div className="text-slate-600 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                <span>Malegaon Road, Baramati (2.4 km away)</span>
+                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>
+                  {nearbyOfficerVet?.area || nearbyOfficerVet?.village || detectedDistrict}
+                  {nearbyOfficerVet?.distanceKm !== undefined ? ` (${nearbyOfficerVet.distanceKm} km away)` : ''}
+                </span>
               </div>
               <div className="text-slate-600">
-                <strong className="text-slate-800 font-semibold">{isEnglish ? 'On-Call Officer:' : isMarathi ? 'पशुवैद्यक अधिकारी:' : 'चिकित्सा अधिकारी:'}</strong> Dr. R. K. Shinde (LDO)
+                <strong className="text-slate-800 font-semibold">{isEnglish ? 'On-Call Officer:' : isMarathi ? 'पशुवैद्यक अधिकारी:' : 'चिकित्सा अधिकारी:'}</strong>{' '}
+                {nearbyOfficerVet?.name || 'Dr. Veterinary Medical Officer'}
+                {nearbyOfficerVet?.specialization && (
+                  <span className="block text-[11px] text-emerald-700 font-bold mt-0.5">{nearbyOfficerVet.specialization}</span>
+                )}
               </div>
               <div className="pt-2 flex gap-2">
                 <a
-                  href="tel:02112224411"
+                  href={`tel:${(nearbyOfficerVet?.phone || '1962').replace(/[^0-9+]/g, '')}`}
                   className="flex-1 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-center text-xs transition"
                 >
-                  📞 02112-224411
+                  📞 {nearbyOfficerVet?.phone || '1962'}
                 </a>
                 <Link
                   to="/veterinary-help"

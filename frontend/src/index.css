@@ -4,11 +4,74 @@
 
 :root {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ensure Hindi font renders beautifully */
-[lang="hi"], .lang-hi {
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-size: 1.02rem; /* 16.3px minimum desktop body text */
+  line-height: 1.6;
+  color: #1e293b;
+}
+
+/* Ensure Hindi and Marathi scripts render with clear vowel marks and ample breathing room */
+[lang="hi"], .lang-hi, [lang="mr"], .lang-mr, .font-indic {
   font-family: 'Hind', 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: 0.012em;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Centralized / Global Typography System: Physical Size Floor
+   ========================================================================== */
+
+/* Elevate all arbitrary micro-text classes so NO text is ever below 14px */
+.text-\[8px\], [class*="text-[8px]"],
+.text-\[9px\], [class*="text-[9px]"],
+.text-\[10px\], [class*="text-[10px]"],
+.text-\[11px\], [class*="text-[11px]"],
+.text-\[12px\], [class*="text-[12px]"],
+.text-\[13px\], [class*="text-[13px]"] {
+  font-size: 0.885rem !important; /* ~14.2px (strictly enforces 14px minimum!) */
+  line-height: 1.35rem !important;
+}
+
+/* Form controls global legibility boost (16px minimum prevents mobile zoom & ensures effortless reading) */
+input, select, textarea {
+  font-size: 1rem !important; /* 16px minimum */
+  line-height: 1.5 !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #94a3b8;
+  font-size: 1rem !important; /* 16px placeholder */
+}
+
+/* Buttons global readability */
+button, .btn, a[role="button"] {
+  font-size: max(0.96rem, 15px);
+  letter-spacing: 0.01em;
+}
+
+/* Mobile responsive typography floor: never allow text below 14px */
+@media (max-width: 640px) {
+  body {
+    font-size: 1rem;
+  }
+  .text-xs, [class*="text-xs"] {
+    font-size: 0.885rem !important; /* 14.2px minimum on mobile */
+  }
+}
+
+/* Headings default letter spacing and visual polish */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
 }
 
 /* Custom scrollbars */

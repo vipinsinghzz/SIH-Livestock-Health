@@ -39,6 +39,19 @@ export default {
         sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
         indic: ['"Hind"', '"Plus Jakarta Sans"', 'sans-serif']
       },
+      fontSize: {
+        // Physical typography scale enforcing minimum desktop font sizes globally
+        '2xs': ['0.85rem', { lineHeight: '1.25rem' }],     // 13.6px (badges & compact status text)
+        xs: ['0.9rem', { lineHeight: '1.38rem' }],          // 14.4px (small labels, helper text, tags - min 14px!)
+        sm: ['1.02rem', { lineHeight: '1.58rem' }],         // 16.3px (card text, normal body, buttons, nav items - 16px min!)
+        base: ['1.125rem', { lineHeight: '1.72rem' }],      // 18.0px (standard primary body text)
+        lg: ['1.28rem', { lineHeight: '1.88rem' }],         // 20.5px (card titles - 19–21px!)
+        xl: ['1.48rem', { lineHeight: '2.08rem' }],         // 23.7px (section headings - 22–26px!)
+        '2xl': ['1.75rem', { lineHeight: '2.32rem' }],      // 28.0px (major section headings)
+        '3xl': ['2.15rem', { lineHeight: '2.72rem' }],      // 34.4px (main page headings - 30–36px!)
+        '4xl': ['2.7rem', { lineHeight: '3.25rem' }],       // 43.2px (hero page headings)
+        '5xl': ['3.4rem', { lineHeight: '1.15' }],          // 54.4px (giant stats & counters)
+      },
       boxShadow: {
         '2xs': '0 1px 2px 0 rgba(0, 0, 0, 0.04)',
         'xs': '0 1px 2px 0 rgba(0, 0, 0, 0.06)',

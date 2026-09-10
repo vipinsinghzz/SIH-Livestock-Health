@@ -1,3 +1,4 @@
+import i18n from '../i18n/i18n';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 
@@ -82,6 +83,8 @@ export const AuthProvider = ({ children }) => {
       farmer_santosh: { email: 'santosh@pashurakshak.in', password: 'Farmer@123' },
       farmer_sunita: { email: 'sunita@pashurakshak.in', password: 'Farmer@123' },
       field_worker: { email: 'vet@pashurakshak.in', password: 'Vet@123' },
+      field_worker_2: { email: 'vet2@pashurakshak.in', password: 'Vet@123' },
+      vet2: { email: 'vet2@pashurakshak.in', password: 'Vet@123' },
       officer: { email: 'officer@pashurakshak.in', password: 'Admin@123' },
       admin: { email: 'officer@pashurakshak.in', password: 'Admin@123' }
     };
