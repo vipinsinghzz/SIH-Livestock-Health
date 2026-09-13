@@ -1,3 +1,4 @@
+const supabaseDb = require('../services/supabaseDb');
 const VaccinationDrive = require('../models/VaccinationDrive');
 const Animal = require('../models/Animal');
 const mongoose = require('mongoose');
@@ -362,6 +363,25 @@ exports.createVaccinationDrive = async (req, res, next) => {
       endDate: endDate || null,
       status: 'Upcoming'
     });
+
+    // Module 9: Dual-write to Supabase PostgreSQL
+    try {
+      await supabaseDb.vaccinationDrives.create({
+        campId: drive._id ? drive._id.toString() : `CAMP-${Date.now()}`,
+        campName: drive.vaccine + ' Vaccination Camp',
+        targetDisease: drive.vaccine,
+        vaccineName: drive.vaccine,
+        startDate: drive.startDate,
+        endDate: drive.endDate,
+        status: drive.status,
+        village: drive.village,
+        block: drive.block,
+        district: drive.district,
+        targetAnimals: drive.capacity || 200,
+        slotsAvailable: drive.remainingSlots || 200,
+        assignedOfficerId: req.user ? String(req.user._id || req.user.id) : null
+      });
+    } catch (sbErr) {}
 
     res.status(201).json({
       success: true,

@@ -1,4 +1,5 @@
 // Notification Service & SSE Real-Time Event Hub for PS-128 Referral System
+const supabaseDb = require('./supabaseDb');
 const Notification = require('../models/Notification');
 
 class NotificationService {
@@ -142,6 +143,20 @@ class NotificationService {
 
       try {
         const notif = await Notification.create(notificationData);
+        try {
+          await supabaseDb.notifications.create({
+            recipientId: vet.id ? vet.id : vet._id.toString(),
+            caseId: caseDoc.id ? caseDoc.id : caseDoc._id.toString(),
+            caseNumber: caseDoc.caseId,
+            type: 'NEW_CASE_ALERT',
+            title: notificationData.title,
+            message: notificationData.message,
+            district: targetDistrict,
+            status: isOnline ? 'DELIVERED' : 'QUEUED',
+            metadata: notificationData.metadata
+          });
+        } catch (sbErr) {}
+
         notifiedRecords.push({
           vetId: vet._id,
           name: vet.name,

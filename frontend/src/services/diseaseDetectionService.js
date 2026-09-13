@@ -76,42 +76,27 @@ export const diseaseDetectionService = {
       console.warn('[DiseaseDetectionService] API call failed, using local deep learning fallback:', apiError.message);
     }
 
-    // Local fallback calculation if backend is completely unreachable
-    const isLsd = symptoms.includes('skin_nodules') || symptoms.includes('skin_pustules');
-    const visualProb = image ? (isLsd ? 0.91 : 0.48) : null;
-    const confidence = isLsd ? 92 : (symptoms.length > 0 ? 76 : 50);
-
+    // Graceful offline fallback: Do NOT claim a fabricated disease diagnosis when AI is unreachable
     const fallbackResult = {
-      success: true,
-      modelVersion: 'lsd_model.keras (EfficientNetB0)',
+      success: false,
+      aiUnavailable: true,
+      isUnavailable: true,
+      modelVersion: 'lsd_model.keras (Temporarily Unavailable)',
       modelName: 'lsd_model.keras',
       hasImage: !!image,
-      visualScore: visualProb,
-      possibleCondition: isLsd ? 'Lumpy Skin Disease (लम्पी त्वचा रोग)' : 'Clinical Bovine Syndrome',
-      confidenceScore: confidence,
-      riskLevel: isLsd ? 'High' : 'Moderate',
-      description: isLsd
-        ? 'Viral skin disease characterized by nodular lesions and fever.'
-        : 'Infectious clinical presentation requiring veterinary consultation.',
-      explanation: image
-        ? `lsd_model.keras (EfficientNetB0) visual analysis: ${Math.round((visualProb || 0.85) * 100)}% match for Lumpy Skin lesions.`
-        : `Clinical symptom correlation based on ${symptoms.join(', ')}.`,
+      visualScore: null,
+      possibleCondition: 'AI Screening Temporarily Unavailable',
+      confidenceScore: 0,
+      riskLevel: symptoms.includes('skin_nodules') || symptoms.includes('high_fever') ? 'High' : 'Moderate',
+      description: 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.',
+      explanation: 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.',
       clinicalObservations: symptoms.map((s) => s.replace('_', ' ').toUpperCase()),
       immediateFirstAid: [
-        'Isolate the infected animal immediately in a clean, shaded, fly-proof shed.',
-        'Apply herbal fly repellents (neem oil) to prevent biting insect spread.',
-        'Clean burst skin lesions with mild potassium permanganate or povidone-iodine solution.',
-        'Feed soft green fodder, oral electrolytes, and clean drinking water.',
-        'Contact veterinary dispensary for supportive antipyretic & antibiotic therapy.'
+        'Isolate the animal in a clean, shaded, well-ventilated shed.',
+        'Provide clean, fresh drinking water and digestible green fodder.',
+        'Contact the local veterinary dispensary or field doctor for physical examination.'
       ],
-      suspectedDiseases: [
-        {
-          name: isLsd ? 'Lumpy Skin Disease (लम्पी त्वचा रोग)' : 'Clinical Bovine Syndrome',
-          confidenceScore: confidence / 100,
-          urgency: 'High',
-          rationale: 'Symptoms and visual features match'
-        }
-      ],
+      suspectedDiseases: [],
       species,
       symptoms,
       temperature,

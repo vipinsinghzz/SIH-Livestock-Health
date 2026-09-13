@@ -1,3 +1,4 @@
+const supabaseDb = require('../services/supabaseDb');
 const Animal = require('../models/Animal');
 const Report = require('../models/Report');
 
@@ -11,20 +12,17 @@ exports.getAnimals = async (req, res, next) => {
 
     // Farmers only see their own animals by default
     if (req.user.role === 'farmer') {
-      query.ownerId = req.user._id;
+      query.ownerId = String(req.user._id || req.user.id);
     } else if (ownerId) {
-      query.ownerId = ownerId;
+      query.ownerId = String(ownerId);
     }
 
     if (species) query.species = species;
-    if (village) query.village = new RegExp(village, 'i');
-    if (block) query.block = new RegExp(block, 'i');
-    if (district) query.district = new RegExp(district, 'i');
+    if (village) query.village = village;
+    if (block) query.block = block;
+    if (district) query.district = district;
 
-    const animals = await Animal.find(query)
-      .populate('ownerId', 'name phone email village')
-      .sort({ createdAt: -1 })
-      .lean();
+    const animals = await supabaseDb.animals.find(query);
 
     res.status(200).json({
       success: true,
@@ -41,9 +39,7 @@ exports.getAnimals = async (req, res, next) => {
 // @access  Private
 exports.getAnimalById = async (req, res, next) => {
   try {
-    const animal = await Animal.findById(req.params.id)
-      .populate('ownerId', 'name phone email village block district')
-      .lean();
+    const animal = await supabaseDb.animals.findById(req.params.id);
 
     if (!animal) {
       return res.status(404).json({
@@ -52,15 +48,9 @@ exports.getAnimalById = async (req, res, next) => {
       });
     }
 
-    // Fetch linked past reports for this animal
-    const pastReports = await Report.find({ animalId: animal._id }).sort({ createdAt: -1 }).lean();
-
     res.status(200).json({
       success: true,
-      animal: {
-        ...animal,
-        pastReports
-      }
+      animal
     });
   } catch (error) {
     next(error);
@@ -99,15 +89,20 @@ exports.createAnimal = async (req, res, next) => {
 
     const finalTagId = (tagId || `MH-12-P-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase();
 
-    const existingTag = await Animal.findOne({ tagId: finalTagId });
-    if (existingTag && tagId) {
-      return res.status(400).json({
-        success: false,
-        message: `An animal with Tag ID '${finalTagId}' is already registered.`
-      });
+    // Verify tag uniqueness if tagId provided
+    if (tagId) {
+      const existing = await supabaseDb.animals.find({ tagId: finalTagId });
+      if (existing && existing.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `An animal with Tag ID '${finalTagId}' is already registered.`
+        });
+      }
     }
 
-    const animal = await Animal.create({
+    const effectiveOwnerId = ownerId || String(req.user._id || req.user.id);
+
+    const animal = await supabaseDb.animals.create({
       tagId: finalTagId,
       name: name || finalTagId,
       species,
@@ -124,9 +119,9 @@ exports.createAnimal = async (req, res, next) => {
           notes: 'Profile added to Livestock Saathi'
         }
       ],
-      ownerId: ownerId || req.user._id,
-      village: village || req.user.village || 'Default Village',
-      block: block || req.user.block || 'Default Block',
+      ownerId: effectiveOwnerId,
+      village: village || req.user.village || 'Baramati Rural',
+      block: block || req.user.block || 'Baramati',
       district: district || req.user.district || 'Pune',
       vaccinationHistory: vaccinationHistory || [],
       treatmentHistory: treatmentHistory || []
@@ -147,117 +142,95 @@ exports.createAnimal = async (req, res, next) => {
 // @access  Private
 exports.updateAnimal = async (req, res, next) => {
   try {
-    const {
-      name,
-      breed,
-      age,
-      gender,
-      healthStatus,
-      milkYieldDaily,
-      village,
-      block,
-      newVaccination,
-      newTreatment,
-      newTimelineEvent
-    } = req.body;
-
-    let animal = null;
     const animalId = req.params.id;
-    const mongoose = require('mongoose');
-    if (mongoose.Types.ObjectId.isValid(animalId)) {
-      animal = await Animal.findById(animalId);
-    }
-    if (!animal) {
-      animal = await Animal.findOne({ tagId: animalId });
-    }
+    const existing = await supabaseDb.animals.findById(animalId);
 
-    if (!animal) {
+    if (!existing) {
       return res.status(404).json({
         success: false,
         message: 'Animal not found.'
       });
     }
 
-    if (name) animal.name = name;
-    if (breed) animal.breed = breed;
-    if (age !== undefined) animal.age = parseInt(age, 10);
-    if (gender) animal.gender = gender;
-    if (healthStatus) animal.healthStatus = healthStatus;
-    if (milkYieldDaily) animal.milkYieldDaily = milkYieldDaily;
-    if (village) animal.village = village;
-    if (block) animal.block = block;
+    const updates = { ...req.body };
 
-    // Full array updates (sent by VaccinationPage and other components)
-    if (Array.isArray(req.body.vaccinationHistory)) {
-      animal.vaccinationHistory = req.body.vaccinationHistory;
-    }
-    if (Array.isArray(req.body.vaccinations)) {
-      animal.vaccinations = req.body.vaccinations;
-    }
-    if (Array.isArray(req.body.timeline)) {
-      animal.timeline = req.body.timeline;
+    // Format new vaccination event if present
+    if (req.body.newVaccination) {
+      const nv = req.body.newVaccination;
+      const vName = nv.vaccine || nv.name;
+      if (vName) {
+        const vHistory = existing.vaccinationHistory || [];
+        vHistory.push({
+          vaccine: vName,
+          date: nv.date || new Date(),
+          nextDue: nv.nextDue || null,
+          dose: nv.dose || 'Primary Dose',
+          batchNumber: nv.batchNumber || '',
+          administeredBy: nv.administeredBy || '',
+          camp: nv.camp || '',
+          notes: nv.notes || ''
+        });
+        updates.vaccinationHistory = vHistory;
+      }
     }
 
-    if (newVaccination && (newVaccination.vaccine || newVaccination.name)) {
-      const vName = newVaccination.vaccine || newVaccination.name;
-      const vDate = newVaccination.date || new Date();
-      const vNextDue = newVaccination.nextDue || null;
-
-      animal.vaccinationHistory.push({
-        vaccine: vName,
-        date: vDate,
-        nextDue: vNextDue,
-        dose: newVaccination.dose || 'Primary Dose',
-        batchNumber: newVaccination.batchNumber || '',
-        administeredBy: newVaccination.administeredBy || '',
-        camp: newVaccination.camp || '',
-        notes: newVaccination.notes || ''
+    // Format new treatment if present
+    if (req.body.newTreatment && req.body.newTreatment.condition) {
+      const nt = req.body.newTreatment;
+      const tHistory = existing.treatmentHistory || [];
+      tHistory.push({
+        condition: nt.condition,
+        date: nt.date || new Date(),
+        treatment: nt.treatment || 'Prescribed medication',
+        vetId: String(req.user._id || req.user.id)
       });
-
-      // Also ensure vaccinations list is kept in sync
-      animal.vaccinations.push({
-        name: vName,
-        date: vDate,
-        nextDue: vNextDue,
-        status: newVaccination.status || 'Completed',
-        batchNumber: newVaccination.batchNumber || '',
-        camp: newVaccination.camp || ''
-      });
+      updates.treatmentHistory = tHistory;
     }
 
-    if (newTreatment && newTreatment.condition) {
-      animal.treatmentHistory.push({
-        condition: newTreatment.condition,
-        date: newTreatment.date || new Date(),
-        treatment: newTreatment.treatment || 'Prescribed medication',
-        vetId: req.user._id
+    // Format new timeline event if present
+    if (req.body.newTimelineEvent && req.body.newTimelineEvent.title) {
+      const ne = req.body.newTimelineEvent;
+      const timeline = existing.timeline || [];
+      timeline.unshift({
+        type: ne.type || 'Health Check',
+        title: ne.title,
+        date: ne.date || new Date().toLocaleDateString('en-GB'),
+        doctor: ne.doctor || '',
+        notes: ne.notes || '',
+        image: ne.image || '',
+        status: ne.status || '',
+        disease: ne.disease || ''
       });
+      updates.timeline = timeline;
     }
 
-    if (newTimelineEvent && newTimelineEvent.title) {
-      animal.timeline.unshift({
-        type: newTimelineEvent.type || 'Health Check',
-        title: newTimelineEvent.title,
-        date: newTimelineEvent.date || new Date().toLocaleDateString('en-GB'),
-        doctor: newTimelineEvent.doctor || '',
-        notes: newTimelineEvent.notes || '',
-        image: newTimelineEvent.image || '',
-        status: newTimelineEvent.status || '',
-        disease: newTimelineEvent.disease || '',
-        confidence: newTimelineEvent.confidence || null,
-        symptoms: Array.isArray(newTimelineEvent.symptoms) ? newTimelineEvent.symptoms : [],
-        advisory: newTimelineEvent.advisory || '',
-        temperature: newTimelineEvent.temperature || null,
-        duration: newTimelineEvent.duration || null
-      });
-    }
-
-    await animal.save();
+    const updated = await supabaseDb.animals.updateById(existing.id || existing._id, updates);
 
     res.status(200).json({
       success: true,
       message: 'Animal record updated successfully.',
-      animal
+      animal: updated || existing
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete an animal record
+// @route   DELETE /api/animals/:id
+// @access  Private
+exports.deleteAnimal = async (req, res, next) => {
+  try {
+    const success = await supabaseDb.animals.deleteById(req.params.id);
+    if (!success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Animal not found or could not be deleted.'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Animal record deleted successfully.'
     });
   } catch (error) {
     next(error);

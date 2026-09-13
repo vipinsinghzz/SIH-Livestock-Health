@@ -1,4 +1,5 @@
 import api from './api';
+import { supabase } from '../config/supabaseClient';
 
 export const authService = {
   async login(email, password) {
@@ -29,9 +30,15 @@ export const authService = {
     return saved ? JSON.parse(saved) : null;
   },
 
-  logout() {
+  async logout() {
+    try {
+      if (supabase?.auth?.signOut) {
+        await supabase.auth.signOut();
+      }
+    } catch (e) {}
     localStorage.removeItem('pashurakshak_token');
     localStorage.removeItem('pashurakshak_user');
+    localStorage.removeItem('cached_animals');
   }
 };
 

@@ -917,7 +917,7 @@ export default function FarmerDashboard() {
               <Camera className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-xs text-slate-500 font-bold block mb-1">Early Diagnosis</span>
+              <span className="text-xs text-slate-500 font-bold block mb-1">Early Screening</span>
               <h3 className="text-lg font-black text-slate-900 leading-snug">📷 {t('farmer_dash.scan_disease')}</h3>
             </div>
           </Link>

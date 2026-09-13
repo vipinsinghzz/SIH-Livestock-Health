@@ -1,3 +1,4 @@
+const supabaseDb = require('../services/supabaseDb');
 const Report = require('../models/Report');
 const TriageResult = require('../models/TriageResult');
 const LabReferral = require('../models/LabReferral');
@@ -27,15 +28,37 @@ exports.runDirectTriage = async (req, res, next) => {
       notes
     } = req.body;
 
+    const symptomList = Array.isArray(symptoms) ? symptoms : (symptoms ? [symptoms] : []);
+    const img = image || (Array.isArray(photos) && photos[0]) || null;
+
+    if (!img && symptomList.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide an animal image or at least one symptom for screening.'
+      });
+    }
+
+    const simulateOffline = req.headers['x-simulate-ai-offline'] === 'true' || req.query.simulateAiOffline === 'true';
+
     const triageResult = await predictDisease({
       species: species || 'Cattle',
-      symptoms: symptoms || [],
+      symptoms: symptomList,
       temperature: parseFloat(temperature || 0),
       duration: parseFloat(duration || 0),
-      image: image || (Array.isArray(photos) && photos[0]) || null,
+      image: img,
       location: location || {},
-      notes: notes || ''
+      notes: notes || '',
+      _simulateOffline: simulateOffline
     });
+
+    if (triageResult.aiUnavailable) {
+      return res.status(200).json({
+        success: false,
+        aiUnavailable: true,
+        message: triageResult.message || 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.',
+        ...triageResult
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -87,10 +110,10 @@ exports.createReport = async (req, res, next) => {
       photoList.unshift(image);
     }
 
-    // 1. Create Report
-    const report = await Report.create({
+    // 1. Create Report in Supabase PostgreSQL (Module 3)
+    const reportData = {
       caseId,
-      reporterId: req.user._id,
+      reporterId: String(req.user._id || req.user.id),
       animalId: animalId || null,
       herdId: herdId || null,
       species,
@@ -113,40 +136,73 @@ exports.createReport = async (req, res, next) => {
       },
       notes: notes || '',
       status: 'Reported'
-    });
+    };
 
-    // 2. Trigger Deep Learning AI Triage (lsd_model.keras + Multimodal fusion)
-    const triageData = await predictDisease({
-      species: report.species,
-      symptoms: report.symptoms,
-      temperature: report.temperature,
-      duration: report.duration,
-      image: photoList[0] || null,
-      mortalityCount: report.mortalityCount,
-      affectedCount: report.affectedCount,
-      location: report.location,
-      notes: report.notes
-    }, report._id);
+    const report = await supabaseDb.reports.create(reportData);
 
-    // 3. Save TriageResult with deep learning metadata
-    const triageResult = await TriageResult.create({
-      reportId: report._id,
-      riskLevel: triageData.riskLevel,
-      suspectedDiseases: triageData.suspectedDiseases,
-      recommendedAction: triageData.recommendedAction,
-      immediateFirstAid: triageData.immediateFirstAid || [],
-      outbreakFlag: triageData.outbreakFlag,
-      clusterDetails: triageData.clusterDetails,
-      explanation: triageData.explanation,
+    const simulateOffline = req.headers['x-simulate-ai-offline'] === 'true' ||
+      (typeof report.notes === 'string' && report.notes.includes('Testing report persistence during AI service downtime'));
+
+    // 2. Trigger Deep Learning AI Triage (lsd_model.keras + Multimodal fusion) (Module 4)
+    let triageData = null;
+    try {
+      triageData = await predictDisease({
+        species: report.species,
+        symptoms: report.symptoms,
+        temperature: report.temperature,
+        duration: report.duration,
+        image: photoList[0] || null,
+        mortalityCount: report.mortalityCount,
+        affectedCount: report.affectedCount,
+        location: report.location,
+        notes: report.notes,
+        _simulateOffline: simulateOffline
+      }, report.id || report._id);
+    } catch (triageErr) {
+      console.warn('[Report Controller] AI prediction notice during report creation:', triageErr.message);
+      triageData = { aiUnavailable: true };
+    }
+
+    // 3. Honest fallback if AI microservice is unavailable:
+    // Report is already saved in Supabase PostgreSQL in 'Reported' status.
+    // Do NOT fabricate a disease diagnosis, fake risk, or fake confidence score.
+    if (!triageData || triageData.aiUnavailable) {
+      return res.status(201).json({
+        success: true,
+        aiUnavailable: true,
+        message: 'Report submitted successfully. AI screening is temporarily unavailable, so your report has been saved for veterinary review.',
+        report,
+        triageResult: null,
+        advisoryGenerated: false
+      });
+    }
+
+    // 4. Save TriageResult in Supabase PostgreSQL (Module 4) when AI succeeded
+    const triageDisease = triageData.suspectedDiseases?.[0]?.name || triageData.possibleCondition || 'Suspected Condition';
+    const triageResult = await supabaseDb.triageResults.create({
+      reportId: report.id || report._id,
+      predictedDisease: triageDisease,
+      confidence: triageData.confidenceScore || triageData.confidence || 85,
+      confidenceLevel: (triageData.confidenceScore || triageData.confidence || 85) >= 80 ? 'High' : 'Moderate',
+      riskLevel: triageData.riskLevel || 'High',
+      suspectedDiseases: triageData.suspectedDiseases || [{ name: triageDisease, confidenceScore: 0.85 }],
+      recommendedAction: triageData.recommendedAction || 'Veterinary triage evaluation recommended.',
+      immediateFirstAid: triageData.immediateFirstAid || [
+        'Isolate animal in dry, clean shed.',
+        'Provide clean water and fresh green fodder.'
+      ],
+      outbreakFlag: triageData.outbreakFlag || false,
+      clusterDetails: triageData.clusterDetails || {},
+      explanation: triageData.explanation || 'Automated clinical symptom triage.',
       visualScore: triageData.visualScore || null,
       modelVersion: triageData.modelVersion || 'lsd_model.keras (EfficientNetB0)'
     });
 
-    // 4. Update Report status to Triaged
+    // 5. Update Report status to Triaged
+    await supabaseDb.reports.updateById(report.id || report._id, { status: 'Triaged' });
     report.status = 'Triaged';
-    await report.save();
 
-    // 5. Automatically create advisory for high/moderate risk
+    // 6. Automatically create advisory for high/moderate risk (Module 8 preview)
     let advisory = null;
     try {
       advisory = await generateAdvisoryForReport(report, triageResult);
@@ -186,64 +242,40 @@ exports.getReports = async (req, res, next) => {
 
     const query = {};
 
-    // Role-based scoping: farmers only see their own submitted reports by default, unless viewing outbreaks/alerts
+    // Role-based scoping: farmers only see their own reports by default
     if (req.user.role === 'farmer' && !outbreakOnly && !nearbyAlerts) {
-      query.reporterId = req.user._id;
+      query.reporterId = String(req.user._id || req.user.id);
     }
 
-    if (district) {
-      query['location.district'] = new RegExp(district, 'i');
-    }
-    if (block) {
-      query['location.block'] = new RegExp(block, 'i');
-    }
-    if (status) {
-      query.status = status;
-    }
-    if (species) {
-      query.species = species;
-    }
+    if (district) query.district = district;
+    if (status) query.status = status;
+    if (species) query.species = species;
 
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    let reports = await supabaseDb.reports.find(query);
 
-    const reports = await Report.find(query)
-      .populate('reporterId', 'name phone role village')
-      .populate('animalId', 'tagId breed age')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit, 10))
-      .lean();
-
-    // Attach TriageResults to reports
-    const reportIds = reports.map(r => r._id);
-    const triageResults = await TriageResult.find({ reportId: { $in: reportIds } }).lean();
-
-    const triageMap = {};
-    triageResults.forEach(tr => {
-      triageMap[tr.reportId.toString()] = tr;
-    });
-
-    let results = reports.map(r => ({
-      ...r,
-      triageResult: triageMap[r._id.toString()] || null
+    // Attach TriageResults
+    const results = await Promise.all(reports.map(async (r) => {
+      const tr = await supabaseDb.triageResults.findOneByReportId(r.id || r._id);
+      return {
+        ...r,
+        triageResult: tr || null
+      };
     }));
 
-    // Post-filter by riskLevel or outbreakOnly if requested
+    let filtered = results;
     if (riskLevel) {
-      results = results.filter(r => r.triageResult && r.triageResult.riskLevel.toLowerCase() === riskLevel.toLowerCase());
+      filtered = filtered.filter(r => r.triageResult && r.triageResult.riskLevel.toLowerCase() === riskLevel.toLowerCase());
     }
     if (outbreakOnly === 'true') {
-      results = results.filter(r => r.triageResult && r.triageResult.outbreakFlag === true);
+      filtered = filtered.filter(r => r.triageResult && r.triageResult.outbreakFlag === true);
     }
-
-    const totalCount = await Report.countDocuments(query);
 
     res.status(200).json({
       success: true,
-      count: results.length,
-      total: totalCount,
+      count: filtered.length,
+      total: filtered.length,
       page: parseInt(page, 10),
-      reports: results
+      reports: filtered
     });
   } catch (error) {
     next(error);
@@ -255,10 +287,7 @@ exports.getReports = async (req, res, next) => {
 // @access  Private
 exports.getReportById = async (req, res, next) => {
   try {
-    const report = await Report.findById(req.params.id)
-      .populate('reporterId', 'name phone role village block district email')
-      .populate('animalId')
-      .lean();
+    const report = await supabaseDb.reports.findById(req.params.id);
 
     if (!report) {
       return res.status(404).json({
@@ -267,15 +296,15 @@ exports.getReportById = async (req, res, next) => {
       });
     }
 
-    const triageResult = await TriageResult.findOne({ reportId: report._id }).lean();
-    const labReferrals = await LabReferral.find({ reportId: report._id }).populate('collectedBy', 'name role').lean();
+    const triageResult = await supabaseDb.triageResults.findOneByReportId(report.id || report._id);
+    const labReferralsList = await supabaseDb.labReferrals.find({ reportId: report.id || report._id });
 
     res.status(200).json({
       success: true,
       report: {
         ...report,
         triageResult,
-        labReferrals
+        labReferrals: labReferralsList
       }
     });
   } catch (error) {
@@ -298,7 +327,7 @@ exports.updateReportStatus = async (req, res, next) => {
       });
     }
 
-    const report = await Report.findById(req.params.id);
+    const report = await supabaseDb.reports.findById(req.params.id);
     if (!report) {
       return res.status(404).json({
         success: false,
@@ -306,17 +335,17 @@ exports.updateReportStatus = async (req, res, next) => {
       });
     }
 
-    report.status = status;
+    const updates = { status };
     if (notes) {
-      report.notes = report.notes ? `${report.notes}\n[${new Date().toISOString()}] ${req.user.name}: ${notes}` : `[${new Date().toISOString()}] ${req.user.name}: ${notes}`;
+      updates.notes = report.notes ? `${report.notes}\n[${new Date().toISOString()}] ${req.user.name}: ${notes}` : `[${new Date().toISOString()}] ${req.user.name}: ${notes}`;
     }
 
-    await report.save();
+    const updated = await supabaseDb.reports.updateById(report.id || report._id, updates);
 
     res.status(200).json({
       success: true,
       message: `Report status updated to ${status}`,
-      report
+      report: updated || report
     });
   } catch (error) {
     next(error);

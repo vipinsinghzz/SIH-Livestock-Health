@@ -3,9 +3,20 @@
 node_modules/
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 *.sqlite
 *.log
+
+# Local scan uploads & runtime uploads
+backend/uploads/
+uploads/
+
+# Production build artifacts
+dist/
+frontend/dist/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

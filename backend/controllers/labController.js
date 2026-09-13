@@ -1,3 +1,4 @@
+const supabaseDb = require('../services/supabaseDb');
 const LabReferral = require('../models/LabReferral');
 const Report = require('../models/Report');
 
@@ -15,7 +16,7 @@ exports.createLabReferral = async (req, res, next) => {
       });
     }
 
-    const report = await Report.findById(reportId);
+    const report = await supabaseDb.reports.findById(reportId);
     if (!report) {
       return res.status(404).json({
         success: false,
@@ -23,22 +24,22 @@ exports.createLabReferral = async (req, res, next) => {
       });
     }
 
-    const referral = await LabReferral.create({
-      reportId,
+    // Module 7: Create in Supabase PostgreSQL
+    const referral = await supabaseDb.labReferrals.create({
+      reportId: report.id || report._id,
       sampleType,
-      collectionDate: collectionDate || new Date(),
+      collectionDate: collectionDate || new Date().toISOString(),
       referredLab: referredLab || 'District Disease Diagnostic Laboratory (DDDL), Pune',
       status: 'Collected',
-      collectedBy: req.user._id,
+      collectedBy: String(req.user._id || req.user.id),
       resultSummary: {
         notes: notes || ''
       }
     });
 
-    // Automatically elevate report status to 'Escalated' if it was 'Reported' or 'Triaged'
+    // Elevate report status to 'Escalated' if it was 'Reported' or 'Triaged'
     if (['Reported', 'Triaged', 'Field Verified'].includes(report.status)) {
-      report.status = 'Escalated';
-      await report.save();
+      await supabaseDb.reports.updateById(report.id || report._id, { status: 'Escalated' });
     }
 
     res.status(201).json({
@@ -79,19 +80,19 @@ exports.updateLabReferral = async (req, res, next) => {
 
     // If result confirmed, add audit trail to report
     if (status === 'Result Confirmed' && confirmedDisease) {
-      const report = await Report.findById(referral.reportId);
+      const report = await supabaseDb.reports.findById(referral.reportId);
       if (report) {
-        report.notes = report.notes
+        const updatedNotes = report.notes
           ? `${report.notes}\n[LAB CONFIRMED] ${confirmedDisease}`
           : `[LAB CONFIRMED] ${confirmedDisease}`;
-        await report.save();
+        await supabaseDb.reports.updateById(report.id || report._id, { notes: updatedNotes });
       }
     }
 
     res.status(200).json({
       success: true,
       message: 'Lab referral updated.',
-      referral
+      referral: supabaseDb.toCamel(referral.toObject ? referral.toObject() : referral)
     });
   } catch (error) {
     next(error);
@@ -109,15 +110,7 @@ exports.getLabReferrals = async (req, res, next) => {
     if (status) query.status = status;
     if (sampleType) query.sampleType = sampleType;
 
-    const referrals = await LabReferral.find(query)
-      .populate({
-        path: 'reportId',
-        select: 'caseId species symptoms location status mortalityCount',
-        populate: { path: 'reporterId', select: 'name phone' }
-      })
-      .populate('collectedBy', 'name role')
-      .sort({ createdAt: -1 })
-      .lean();
+    const referrals = await supabaseDb.labReferrals.find(query);
 
     res.status(200).json({
       success: true,

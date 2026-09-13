@@ -36,19 +36,22 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, 'lsd_model.keras')
 
+lsd_model = None
+model_load_error = None
+
 logger.info(f"Loading deep learning model from: {MODEL_PATH}")
 if not os.path.exists(MODEL_PATH):
-    logger.error(f"FATAL: Model file not found at {MODEL_PATH}")
-    sys.exit(1)
+    model_load_error = f"Model file not found at {os.path.basename(MODEL_PATH)}"
+    logger.warning(f"AI Service notice: {model_load_error}")
+else:
+    try:
+        lsd_model = keras.models.load_model(MODEL_PATH)
+        logger.info(f"Model loaded successfully! Input: {lsd_model.input_shape}, Output: {lsd_model.output_shape}")
+    except Exception as e:
+        model_load_error = f"Failed to load model weights: {type(e).__name__}"
+        logger.error(f"Failed to load lsd_model.keras: {e}")
 
-try:
-    lsd_model = keras.models.load_model(MODEL_PATH)
-    logger.info(f"Model loaded successfully! Input: {lsd_model.input_shape}, Output: {lsd_model.output_shape}")
-except Exception as e:
-    logger.exception(f"Failed to load lsd_model.keras: {e}")
-    sys.exit(1)
-
-# Clinical symptom dictionary for multimodal veterinary diagnosis
+# Clinical symptom dictionary for multimodal AI preliminary risk assessment
 # Correlating the 27 symptoms from the UI with major livestock diseases
 DISEASE_PROFILES = [
     {
@@ -182,12 +185,19 @@ def preprocess_image(image_input):
     Accepts:
       - base64 data string (with or without data:image/...;base64, prefix)
       - raw bytes
+      - HTTP / HTTPS image URL (e.g. Supabase signed URL)
     """
     try:
         if isinstance(image_input, str):
-            if ',' in image_input:
-                image_input = image_input.split(',', 1)[1]
-            image_bytes = base64.b64decode(image_input)
+            if image_input.startswith(('http://', 'https://')):
+                import urllib.request
+                req = urllib.request.Request(image_input, headers={'User-Agent': 'LivestockSaathi-AI/1.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    image_bytes = resp.read()
+            else:
+                if ',' in image_input:
+                    image_input = image_input.split(',', 1)[1]
+                image_bytes = base64.b64decode(image_input)
         elif hasattr(image_input, 'read'):
             image_bytes = image_input.read()
         else:
@@ -248,15 +258,27 @@ def score_symptoms_for_disease(disease, symptoms_set, temperature, duration, spe
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({
-        "status": "online",
-        "service": "Livestock Saathi Deep Learning AI Service",
-        "model": "lsd_model.keras",
-        "architecture": "EfficientNetB0 (Keras 3 + PyTorch)",
-        "input_shape": list(lsd_model.input_shape),
-        "output_shape": list(lsd_model.output_shape),
-        "timestamp": time.time()
-    })
+    if lsd_model is not None:
+        return jsonify({
+            "status": "healthy",
+            "modelLoaded": True,
+            "modelVersion": "lsd_model.keras",
+            "architecture": "EfficientNetB0 (Keras 3 + TensorFlow)",
+            "backend": os.environ.get('KERAS_BACKEND', 'tensorflow'),
+            "inputShape": list(lsd_model.input_shape),
+            "outputShape": list(lsd_model.output_shape),
+            "service": "Livestock Saathi Deep Learning AI Service",
+            "timestamp": time.time()
+        }), 200
+    else:
+        return jsonify({
+            "status": "degraded",
+            "modelLoaded": False,
+            "modelVersion": "lsd_model.keras (unavailable)",
+            "service": "Livestock Saathi Deep Learning AI Service",
+            "error": model_load_error or "Model unavailable",
+            "timestamp": time.time()
+        }), 503
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -286,14 +308,17 @@ def predict():
         img_array = None
 
         if image_data:
-            img_array = preprocess_image(image_data)
-            if img_array is not None:
-                has_image = True
-                # Forward pass through EfficientNetB0 lsd_model.keras
-                res = lsd_model.predict(img_array, verbose=0)
-                raw_visual = float(res[0][0])
-                visual_score = float(np.clip(raw_visual, 0.01, 0.99))
-                logger.info(f"Image evaluated by lsd_model.keras: visual_score={visual_score:.4f}")
+            if lsd_model is not None:
+                img_array = preprocess_image(image_data)
+                if img_array is not None:
+                    has_image = True
+                    # Forward pass through EfficientNetB0 lsd_model.keras
+                    res = lsd_model.predict(img_array, verbose=0)
+                    raw_visual = float(res[0][0])
+                    visual_score = float(np.clip(raw_visual, 0.01, 0.99))
+                    logger.info(f"Image evaluated by lsd_model.keras: visual_score={visual_score:.4f}")
+            else:
+                logger.warning("Image provided but lsd_model is unavailable; relying on clinical symptom analysis.")
 
         # 2. Evaluate candidate diseases across clinical symptoms + visual prediction
         candidates = []
@@ -375,7 +400,9 @@ def predict():
 
         result = {
             "success": True,
-            "modelVersion": "lsd_model.keras (EfficientNetB0)",
+            "assessmentType": "AI-Assisted Preliminary Screening",
+            "disclaimer": "AI-assisted preliminary screening and risk assessment only. Not a veterinary diagnosis or medical certificate.",
+            "modelVersion": "lsd_model.keras (EfficientNetB0)" if lsd_model else "lsd_model.keras (unavailable)",
             "modelName": "lsd_model.keras",
             "hasImage": has_image,
             "visualScore": visual_score,
@@ -406,10 +433,11 @@ def predict():
         logger.exception(f"Error handling /predict: {e}")
         return jsonify({
             "success": False,
-            "error": str(e)
+            "error": "Internal AI inference error"
         }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('AI_SERVICE_PORT', 5050))
-    logger.info(f"Starting Livestock Saathi AI Microservice on port {port}...")
-    app.run(host='127.0.0.1', port=port, debug=False)
+    host = os.environ.get('AI_SERVICE_HOST', '0.0.0.0')
+    logger.info(f"Starting Livestock Saathi AI Microservice on {host}:{port}...")
+    app.run(host=host, port=port, debug=False)

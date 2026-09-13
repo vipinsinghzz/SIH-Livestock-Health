@@ -1,0 +1,33 @@
+# Git & IDE
+.git
+.gitignore
+.agents
+.gemini
+.vscode
+.idea
+
+# Python virtualenvs & bytecache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node.js artifacts
+node_modules/
+dist/
+build/
+npm-debug.log*
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Temporary files & logs
+*.log
+scratch/
+tmp/

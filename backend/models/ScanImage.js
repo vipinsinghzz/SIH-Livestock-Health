@@ -40,6 +40,30 @@ const scanImageSchema = new mongoose.Schema(
     duration: {
       type: Number,
       default: 0
+    },
+    storagePath: {
+      type: String,
+      default: ''
+    },
+    bucketId: {
+      type: String,
+      default: 'livestock-scans'
+    },
+    fileSizeBytes: {
+      type: Number,
+      default: 0
+    },
+    mimeType: {
+      type: String,
+      default: 'image/jpeg'
+    },
+    isPrivate: {
+      type: Boolean,
+      default: true
+    },
+    sha256Hash: {
+      type: String,
+      default: ''
     }
   },
   {

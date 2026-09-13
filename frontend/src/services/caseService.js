@@ -1,4 +1,5 @@
 import api from './api';
+import { getApiUrl } from '../config/apiConfig';
 
 class CaseService {
   /**
@@ -120,7 +121,7 @@ class CaseService {
     const token = localStorage.getItem('pashurakshak_token');
     if (!token) return () => {};
 
-    const url = `/api/cases/stream?token=${encodeURIComponent(token)}`;
+    const url = getApiUrl(`/cases/stream?token=${encodeURIComponent(token)}`);
     let eventSource = null;
     let isClosed = false;
 

@@ -70,24 +70,28 @@ const ADVISORY_TEMPLATES = {
 
 async function generateAdvisoryForReport(report, triageResult) {
   try {
-    if (!['Moderate', 'High', 'Critical'].includes(triageResult.riskLevel) && !triageResult.outbreakFlag) {
+    if (!triageResult || (!['Moderate', 'High', 'Critical'].includes(triageResult.riskLevel) && !triageResult.outbreakFlag)) {
       return null;
     }
 
-    const topDisease = triageResult.suspectedDiseases?.[0]?.name || 'General Livestock Alert';
+    const topDisease = triageResult.suspectedDiseases?.[0]?.name || triageResult.predictedDisease || 'General Livestock Alert';
+    const block = report?.location?.block || report?.block || 'Baramati';
+    const village = report?.location?.village || report?.village || 'All';
+    const district = report?.location?.district || report?.district || 'Pune';
+
     const template = ADVISORY_TEMPLATES[topDisease] || {
       en: {
-        title: `Health Warning: ${topDisease} in ${report.location.block}`,
-        message: `${triageResult.explanation} Recommended Action: ${triageResult.recommendedAction}`
+        title: `Health Warning: ${topDisease} in ${block}`,
+        message: `${triageResult.explanation || 'Suspected condition identified.'} Recommended Action: ${triageResult.recommendedAction || 'Seek veterinary inspection.'}`
       },
       hi: {
-        title: `स्वास्थ्य चेतावनी: ${report.location.block} में ${topDisease} के लक्षण`,
-        message: `${triageResult.explanation} अनुशंसित कार्रवाई: ${triageResult.recommendedAction}`
+        title: `स्वास्थ्य चेतावनी: ${block} में ${topDisease} के लक्षण`,
+        message: `${triageResult.explanation || 'रोग के लक्षण पाए गए हैं।'} अनुशंसित कार्रवाई: ${triageResult.recommendedAction || 'पशु चिकित्सक से संपर्क करें।'}`
       }
     };
 
     const advisory = await Advisory.create({
-      reportId: report._id,
+      reportId: report?._id || report?.id,
       title: {
         en: template.en.title,
         hi: template.hi.title

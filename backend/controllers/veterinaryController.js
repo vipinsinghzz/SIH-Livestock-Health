@@ -2,15 +2,16 @@
  * Veterinary Controller for Livestock Saathi
  * File: backend/controllers/veterinaryController.js
  * 
- * Implements "Nearby Veterinary Help" using the EXISTING User model (role: 'veterinarian').
+ * Implements "Nearby Veterinary Help" using Supabase public.profiles (role: 'veterinarian').
  * Supports:
- * - GPS latitude/longitude proximity calculation (Haversine formula)
+ * - GPS latitude/longitude proximity calculation (Haversine formula & PostGIS)
  * - Filtering of ACTIVE & AVAILABLE veterinarians
  * - Top 3 nearest veterinarians sorted ascending (nearest -> farthest)
  * - District-based fallback when GPS is unavailable
  * - Specialization and emergency filtering
  */
 
+const supabaseDb = require('../services/supabaseDb');
 const User = require('../models/User');
 
 // Haversine formula to compute great-circle distance between two GPS coordinates in kilometers
@@ -104,75 +105,6 @@ exports.getNearbyVeterinarians = async (req, res) => {
     const userLat = hasCoordinates ? parseFloat(lat) : null;
     const userLng = hasCoordinates ? parseFloat(lng) : null;
 
-    // Filter only ACTIVE / AVAILABLE vets
-    const baseQuery = {
-      role: 'veterinarian',
-      isActive: true,
-      $or: [
-        { availability: { $in: ['AVAILABLE', 'ACTIVE', 'ON_CALL'] } },
-        { isAvailable: true }
-      ]
-    };
-
-    // If district filter is explicitly requested or used as fallback
-    if (district && district.trim() && district !== 'All') {
-      const cleanDistrict = district.trim();
-      baseQuery.district = new RegExp(`^${escapeRegex(cleanDistrict)}`, 'i');
-    }
-
-    // Specialization filter
-    if (specialization && specialization.trim() && specialization !== 'All') {
-      baseQuery.specialization = new RegExp(escapeRegex(specialization.trim()), 'i');
-    }
-
-    // Category filter (Government / Private / Diagnostic)
-    if (category && category !== 'All') {
-      if (category === 'Government') {
-        baseQuery.department = { $regex: /government|zilla parishad|taluka/i };
-      } else if (category === 'Private') {
-        baseQuery.department = { $regex: /private/i };
-      }
-    }
-
-    // Emergency filter
-    if (emergencyOnly === 'true' || emergencyOnly === true) {
-      baseQuery.emergencyAvailable = true;
-    }
-
-    // Search query
-    if (search && search.trim()) {
-      const s = search.trim();
-      baseQuery.$and = baseQuery.$and || [];
-      baseQuery.$and.push({
-        $or: [
-          { name: { $regex: s, $options: 'i' } },
-          { block: { $regex: s, $options: 'i' } },
-          { village: { $regex: s, $options: 'i' } },
-          { district: { $regex: s, $options: 'i' } },
-          { specialization: { $regex: s, $options: 'i' } },
-          { clinicName: { $regex: s, $options: 'i' } },
-          { phone: { $regex: s, $options: 'i' } }
-        ]
-      });
-    }
-
-    // Fetch matching veterinarians
-    let vets = await User.find(baseQuery)
-      .select('-passwordHash')
-      .lean();
-
-    // If district query returned no results and a district was specified, fallback to all Maharashtra
-    if (vets.length === 0 && district && district !== 'All') {
-      delete baseQuery.district;
-      vets = await User.find(baseQuery)
-        .select('-passwordHash')
-        .lean();
-    }
-
-    // Determine reference coordinates for distance calculation:
-    // 1. Farmer's GPS coordinates if available
-    // 2. Or district centroid if district provided
-    // 3. Or Pune/Baramati default centroid (Maharashtra center-west)
     let refLat = userLat;
     let refLng = userLng;
     let distanceSource = 'GPS';
@@ -186,67 +118,40 @@ exports.getNearbyVeterinarians = async (req, res) => {
         refLat = DISTRICT_CENTROIDS[req.user.district].lat;
         refLng = DISTRICT_CENTROIDS[req.user.district].lng;
       } else {
-        refLat = 18.5204; // Pune
+        refLat = 18.5204; // Pune centroid
         refLng = 73.8567;
       }
     }
 
-    // Compute distance for each veterinarian
-    const processedVets = vets.map((v) => {
-      let distanceKm = 0;
-      const vLat = v.location?.lat;
-      const vLng = v.location?.lng;
+    // Module 5: Query Supabase public.profiles for veterinarians
+    let vets = await supabaseDb.veterinarians.findNearby(refLat, refLng, district);
 
-      if (vLat && vLng && refLat && refLng) {
-        distanceKm = Number(haversineDistance(refLat, refLng, vLat, vLng).toFixed(1));
-      } else {
-        distanceKm = 5.0; // default nominal distance
-      }
+    // Apply filtering
+    if (emergencyOnly === 'true' || emergencyOnly === true) {
+      vets = vets.filter(v => v.emergencyAvailable === true);
+    }
+    if (specialization && specialization !== 'All') {
+      const specLower = specialization.toLowerCase();
+      vets = vets.filter(v => (v.specialization || '').toLowerCase().includes(specLower));
+    }
+    if (search && search.trim()) {
+      const s = search.toLowerCase().trim();
+      vets = vets.filter(v =>
+        (v.name || '').toLowerCase().includes(s) ||
+        (v.district || '').toLowerCase().includes(s) ||
+        (v.block || '').toLowerCase().includes(s) ||
+        (v.clinicName || '').toLowerCase().includes(s)
+      );
+    }
 
-      return {
-        _id: v._id,
-        id: v._id.toString(),
-        name: v.name,
-        nameEn: v.name,
-        nameHi: v.name,
-        nameMr: v.name,
-        phone: v.phone,
-        email: v.email,
-        district: v.district || 'Pune',
-        block: v.block || '',
-        village: v.village || '',
-        area: v.area || `${v.block || ''}, ${v.district || ''}`.trim(),
-        clinicName: v.clinicName || `${v.block || v.district || 'Veterinary'} Dispensary`,
-        facilityEn: v.clinicName || `${v.block || v.district || 'Veterinary'} Dispensary`,
-        specialization: v.specialization || 'General Veterinary Physician',
-        availability: v.availability || 'AVAILABLE',
-        isAvailable: v.isAvailable !== false,
-        isActive: v.isActive !== false,
-        isEmergency: v.emergencyAvailable !== false,
-        isDummy: v.isDummy || false,
-        dataSource: v.dataSource || 'SYSTEM',
-        rating: v.rating || 4.8,
-        experience: v.experience || 6,
-        experienceEn: `${v.experience || 6} years experience`,
-        services: v.services || ['Emergency Treatment', 'Vaccination', 'Clinical Triage'],
-        location: v.location,
-        distanceKm,
-        department: v.department || 'Animal Husbandry Department'
-      };
-    });
-
-    // Sort ascending: nearest -> farthest
-    processedVets.sort((a, b) => a.distanceKm - b.distanceKm);
-
-    // Extract the top 3 nearest veterinarians
-    const nearestVets = processedVets.slice(0, 3);
-    const paginatedVets = processedVets.slice(0, parseInt(limit, 10));
+    const nearestVets = vets.slice(0, 3);
+    const paginatedVets = vets.slice(0, parseInt(limit, 10));
 
     return res.status(200).json({
       success: true,
-      meta: {
-        totalFound: processedVets.length,
-        returned: paginatedVets.length,
+      count: paginatedVets.length,
+      totalAvailable: vets.length,
+      searchMetadata: {
         hasGpsLocation: hasCoordinates,
         distanceSource,
         userCoordinates: hasCoordinates ? { lat: userLat, lng: userLng } : null,
@@ -273,10 +178,7 @@ exports.getNearbyVeterinarians = async (req, res) => {
  */
 exports.getVeterinarianById = async (req, res) => {
   try {
-    const vet = await User.findOne({
-      _id: req.params.id,
-      role: 'veterinarian'
-    }).select('-passwordHash').lean();
+    const vet = await supabaseDb.profiles.findById(req.params.id);
 
     if (!vet) {
       return res.status(404).json({
@@ -305,33 +207,26 @@ exports.getVeterinarianById = async (req, res) => {
  */
 exports.getDistrictsWithVets = async (req, res) => {
   try {
-    const counts = await User.aggregate([
-      {
-        $match: {
-          role: 'veterinarian',
-          isActive: true
-        }
-      },
-      {
-        $group: {
-          _id: '$district',
-          vetCount: { $sum: 1 },
-          availableCount: {
-            $sum: {
-              $cond: [{ $in: ['$availability', ['AVAILABLE', 'ACTIVE']] }, 1, 0]
-            }
-          }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+    const allVets = await supabaseDb.profiles.find({ role: 'veterinarian' });
 
-    const districts = counts.map((c) => ({
-      name: c._id,
-      vetCount: c.vetCount,
-      availableCount: c.availableCount,
-      coordinates: DISTRICT_CENTROIDS[c._id] || null
-    }));
+    const districtMap = {};
+    for (const v of allVets) {
+      const d = v.district || 'Pune';
+      if (!districtMap[d]) {
+        districtMap[d] = { vetCount: 0, availableCount: 0 };
+      }
+      districtMap[d].vetCount++;
+      if (v.isAvailable || v.availability === 'AVAILABLE' || v.availability === 'ACTIVE') {
+        districtMap[d].availableCount++;
+      }
+    }
+
+    const districts = Object.keys(districtMap).map(d => ({
+      name: d,
+      vetCount: districtMap[d].vetCount,
+      availableCount: districtMap[d].availableCount,
+      coordinates: DISTRICT_CENTROIDS[d] || null
+    })).sort((a, b) => a.name.localeCompare(b.name));
 
     return res.status(200).json({
       success: true,

@@ -19,7 +19,8 @@ import {
   Phone,
   User,
   CheckCircle2,
-  Share2
+  Share2,
+  Info
 } from 'lucide-react';
 
 const customPin = L.divIcon({
@@ -170,14 +171,14 @@ export default function ReportDetail() {
           </div>
         )}
 
-        {/* AI Triage Diagnosis Card */}
+        {/* AI Triage Preliminary Screening Card */}
         {triage && (
           <div className="p-5 rounded-2xl bg-stone-50 border border-stone-200 space-y-4">
             <div className="flex items-center justify-between border-b border-stone-200 pb-2.5">
               <div className="flex items-center gap-2">
                 <Cpu className="w-4 h-4 text-emerald-700" />
                 <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-                  पशु एआई ट्राइएज मूल्यांकन (AI Veterinary Assessment)
+                  पशु एआई ट्राइएज प्रारंभिक जांच (AI Preliminary Triage Screening)
                 </h3>
               </div>
               <span className="text-[10px] font-mono text-slate-400">
@@ -185,9 +186,17 @@ export default function ReportDetail() {
               </span>
             </div>
 
+            {/* Medical Disclaimer Banner */}
+            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-900">
+              <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>महत्वपूर्ण सूचना / Disclaimer:</strong> AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis. अंतिम पुष्टि अधिकृत पशु चिकित्सक (Registered Veterinarian) द्वारा ही की जानी चाहिए।
+              </span>
+            </div>
+
             {/* Suspected Diseases */}
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-600">संभावित बीमारियां (Differential Diagnoses):</span>
+              <span className="text-xs font-bold text-slate-600">संभावित बीमारियां (Suspected Conditions / Preliminary Indications):</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {(triage.suspectedDiseases || []).map((dis, idx) => (
                   <div key={idx} className="p-3 bg-white rounded-xl border border-stone-200 text-xs">
@@ -215,11 +224,6 @@ export default function ReportDetail() {
               </div>
               <p className="text-amber-950 font-medium">{triage.recommendedAction}</p>
             </div>
-
-            {/* Medical disclaimer */}
-            <p className="text-[11px] text-slate-500 italic bg-white p-2.5 rounded-xl border border-stone-200">
-              ℹ️ प्रारंभिक AI आकलन केवल सहायता हेतु है — अंतिम पुष्टि अधिकृत पशु चिकित्सक द्वारा की जानी चाहिए।
-            </p>
           </div>
         )}
 

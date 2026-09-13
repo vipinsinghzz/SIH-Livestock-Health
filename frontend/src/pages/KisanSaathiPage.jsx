@@ -61,7 +61,7 @@ class KisanSaathiErrorBoundary extends React.Component {
             </div>
             <h2 className="text-base font-bold text-slate-900">Kisan Saathi Console Recovered</h2>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Your consultation session is safe. Click below to continue your diagnosis or conversation.
+              Your consultation session is safe. Click below to continue your screening or conversation.
             </p>
             <button
               onClick={() => {
@@ -303,7 +303,7 @@ function KisanSaathiContent() {
   // Run AI Disease Diagnosis (connecting to lsd_model.keras via /api/reports/triage & Gemini summary)
   const handleRunDiagnosis = async () => {
     if (!imagePreview && selectedSymptoms.length === 0) {
-      alert('Please upload an animal image or select at least 1 symptom to run AI diagnosis.');
+      alert('Please upload an animal image or select at least 1 symptom to run AI screening.');
       return;
     }
 
@@ -346,6 +346,15 @@ function KisanSaathiContent() {
           state: detectedState
         }
       });
+
+      // If AI service is unavailable or offline, do not claim a fabricated diagnosis
+      if (result.aiUnavailable) {
+        setDiagnosisResult({
+          aiUnavailable: true,
+          message: result.message || 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.'
+        });
+        return;
+      }
 
       // 2. Resolve predicted condition, confidence score, and risk
       const cleanCondition =
@@ -390,9 +399,10 @@ function KisanSaathiContent() {
 
           const scanTimelineEvent = {
             type: 'Health Check',
-            title: `AI रोग जांच: ${cleanCondition} (${risk} Risk)`,
+            title: `AI प्रारंभिक जांच: ${cleanCondition} (${risk} Risk)`,
             date: new Date().toLocaleDateString('en-GB'),
-            doctor: 'Kisan Saathi AI (lsd_model.keras + Gemini)',
+            doctor: 'AI Preliminary Screening (Kisan Saathi)',
+            assessedBy: 'AI Preliminary Screening (Kisan Saathi)',
             image: imagePreview || '',
             status: newHealthStatus,
             disease: cleanCondition,
@@ -403,7 +413,7 @@ function KisanSaathiContent() {
             tempUnit,
             duration: rawDuration,
             durationUnit,
-            notes: `AI जांच में ${cleanCondition} के संकेत (${confidence}% सटीकता, ${risk} जोखिम) मिले। तापमान: ${vitalsDisplay}, अवधि: ${durationDisplay}। सलाह: ${firstAidAdvice}`
+            notes: `AI प्रारंभिक जांच में ${cleanCondition} के संकेत (${confidence}% सटीकता, ${risk} जोखिम) मिले। AI-assisted preliminary screening — not a final veterinary diagnosis. तापमान: ${vitalsDisplay}, अवधि: ${durationDisplay}। सलाह: ${firstAidAdvice}`
           };
 
           const updates = {
@@ -485,12 +495,12 @@ function KisanSaathiContent() {
       // Structured localized fallback if Gemini LLM is offline
       if (!geminiReply) {
         if (langCode === 'mr') {
-          geminiReply = `नमस्कार! आपल्या ${selectedAnimal?.name || 'जनावराच्या'} तपासणीत एआय मॉडेलनुसार "${cleanCondition}" ची शक्यता (${confidence}% अचूकता, धोका: ${risk}) आढळली आहे.\n\nतातडीचे प्राथमिक उपचार:\n१. बाधित जनावराला इतर निरोगी जनावरांपासून ताबडतोब वेगळे बांधा.\n२. अंगावर कडुनिंबाच्या अर्काची फवारणी करा जेणेकरून माशांचा प्रादुर्भाव टाळता येईल.\n३. भरपूर स्वच्छ पाणी आणि मऊ हिरवा चारा द्या.\n४. अधिक मार्गदर्शनासाठी १९६२ पशु हेल्पलाईनवर संपर्क साधा.`;
+          geminiReply = `नमस्कार! आपल्या ${selectedAnimal?.name || 'जनावराच्या'} तपासणीत एआय मॉडेलनुसार "${cleanCondition}" ची प्राथमिक शक्यता (${confidence}% अचूकता, धोका: ${risk}) आढळली आहे.\n\nतातडीचे प्राथमिक उपचार:\n१. बाधित जनावराला इतर निरोगी जनावरांपासून ताबडतोब वेगळे बांधा.\n२. अंगावर कडुनिंबाच्या अर्काची फवारणी करा जेणेकरून माशांचा प्रादुर्भाव टाळता येईल.\n३. भरपूर स्वच्छ पाणी आणि मऊ हिरवा चारा द्या.\n४. अधिक मार्गदर्शनासाठी १९६२ पशु हेल्पलाईनवर संपर्क साधा.\n\n*टीप: हे AI-आधारित प्राथमिक स्क्रिनिंग आहे — अंतिम पशुवैद्यकीय निदान नाही.*`;
         } else if (langCode === 'en') {
-          geminiReply = `AI Disease Diagnosis Complete for ${selectedAnimal?.name || 'your animal'}: Potential condition is "${cleanCondition}" (${confidence}% confidence, ${risk} Risk).\n\nImmediate First-Aid Guidelines:\n1. Isolate the affected animal immediately in a dry, shaded shed to stop disease spread.\n2. Apply herbal fly repellents (neem decoction) to prevent biting vector flies.\n3. Provide clean drinking water and soft green fodder with electrolyte supplements.\n4. Call veterinary helpline 1962 or consult your local veterinary officer promptly.`;
+          geminiReply = `AI Preliminary Screening for ${selectedAnimal?.name || 'your animal'}: Potential condition is "${cleanCondition}" (${confidence}% confidence, ${risk} Risk).\n\nImmediate First-Aid Guidelines:\n1. Isolate the affected animal immediately in a dry, shaded shed to stop disease spread.\n2. Apply herbal fly repellents (neem decoction) to prevent biting vector flies.\n3. Provide clean drinking water and soft green fodder with electrolyte supplements.\n4. Call veterinary helpline 1962 or consult your local veterinary officer promptly.\n\n*Note: AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis.*`;
         } else {
           // Default Hindi
-          geminiReply = `नमस्ते! आपके पशु ${selectedAnimal?.name || 'गाय'} की जांच में एआई मॉडल के अनुसार "${cleanCondition}" की संभावना (${confidence}% सटीकता, जोखिम: ${risk}) पाई गई है।\n\nतत्काल प्राथमिक उपचार:\n१. बीमार पशु को तुरंत स्वस्थ पशुओं से अलग साफ व हवादार स्थान पर रखें।\n२. शरीर पर मक्खियों व कीड़ों से बचाव के लिए नीम के पानी का छिड़काव करें।\n३. ताजा व साफ पीने का पानी दें और सुपाच्य हरा चारा खिलाएं।\n४. किसी भी मानवीय दवा का प्रयोग न करें और तुरंत 1962 टोल-फ्री हेल्पलाइन पर पशु चिकित्सक से संपर्क करें।`;
+          geminiReply = `नमस्ते! आपके पशु ${selectedAnimal?.name || 'गाय'} की जांच में एआई मॉडल के अनुसार "${cleanCondition}" की प्राथमिक संभावना (${confidence}% सटीकता, जोखिम: ${risk}) पाई गई है।\n\nतत्काल प्राथमिक उपचार:\n१. बीमार पशु को तुरंत स्वस्थ पशुओं से अलग साफ व हवादार स्थान पर रखें।\n२. शरीर पर मक्खियों व कीड़ों से बचाव के लिए नीम के पानी का छिड़काव करें।\n३. ताजा व साफ पीने का पानी दें और सुपाच्य हरा चारा खिलाएं।\n४. किसी भी मानवीय दवा का प्रयोग न करें और तुरंत 1962 टोल-फ्री हेल्पलाइन पर पशु चिकित्सक से संपर्क करें।\n\n*सूचना: यह AI-सहायित प्रारंभिक स्क्रीनिंग है — अंतिम पशुचिकित्सकीय निदान नहीं है।*`;
         }
       }
 
@@ -525,8 +535,8 @@ function KisanSaathiContent() {
         setIsSpeaking(false);
       });
     } catch (err) {
-      console.error('Diagnosis evaluation failed:', err);
-      alert('AI Diagnosis error. Connecting to fallback clinical guidelines.');
+      console.error('Screening evaluation failed:', err);
+      alert('AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.');
     } finally {
       setIsAnalyzing(false);
       setIsConsulting(false);
@@ -819,17 +829,17 @@ function KisanSaathiContent() {
               </div>
             ) : (
               <div className="p-3 bg-stone-50 rounded-xl text-center text-xs text-slate-500">
-                No animals registered yet. You can still use AI Diagnosis and Outbreak Alerts below!
+                No animals registered yet. You can still use AI Screening and Outbreak Alerts below!
               </div>
             )}
           </div>
 
-          {/* Card B: PS128 Feature 1 - AI Disease Diagnosis (Camera/Image + 27 Symptoms + lsd_model.keras) */}
+          {/* Card B: PS128 Feature 1 - AI Preliminary Screening (Camera/Image + 27 Symptoms + lsd_model.keras) */}
           <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                 <Stethoscope className="w-5 h-5 text-emerald-600" />
-                <span>AI Disease Diagnosis (रोग निदान)</span>
+                <span>AI Preliminary Screening (रोग प्रारंभिक जांच)</span>
               </div>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-50 text-blue-800 border border-blue-200">
                 lsd_model.keras
@@ -1026,7 +1036,7 @@ function KisanSaathiContent() {
               {isAnalyzing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{analysisStage || 'Running AI Diagnosis...'}</span>
+                  <span>{analysisStage || 'Running AI Screening...'}</span>
                 </>
               ) : (
                 <>
@@ -1036,36 +1046,67 @@ function KisanSaathiContent() {
               )}
             </button>
 
-            {/* Diagnosis Result Box */}
+            {/* AI Preliminary Screening Result Box */}
             {diagnosisResult && (
-              <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-950">AI Assessment Result</span>
-                  <span className="px-2 py-0.5 rounded-full font-black text-[10px] bg-emerald-200 text-emerald-900">
-                    {(diagnosisResult.confidence || diagnosisResult.confidenceScore || 90)}% Match
-                  </span>
+              diagnosisResult.aiUnavailable ? (
+                <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-200 space-y-2 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>AI Screening Temporarily Unavailable (स्क्रीनिंग अस्थायी रूप से अनुपलब्ध)</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    {diagnosisResult.message || 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.'}
+                  </p>
                 </div>
-                <div className="text-sm font-black text-slate-900">
-                  {diagnosisResult.predictedDisease || diagnosisResult.possibleCondition || 'Lumpy Skin Disease (लम्पी त्वचा रोग)'}
+              ) : (
+                <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-200 space-y-2.5 text-xs">
+                  {/* Medical Disclaimer Banner */}
+                  <div className="bg-white/90 border border-emerald-200 rounded-lg p-2 flex items-start gap-1.5 text-[10px] text-slate-600 leading-snug">
+                    <Info className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis.</strong> (यह प्रारंभिक AI जोखिम जांच है, अधिकृत पशुचिकित्सकीय निदान नहीं।)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-950">AI Preliminary Screening Result</span>
+                    <span className="px-2 py-0.5 rounded-full font-black text-[10px] bg-emerald-200 text-emerald-900">
+                      {(diagnosisResult.confidence || diagnosisResult.confidenceScore || 90)}% Match
+                    </span>
+                  </div>
+                  <div className="text-sm font-black text-slate-900">
+                    {diagnosisResult.predictedDisease || diagnosisResult.possibleCondition || 'Lumpy Skin Disease (लम्पी त्वचा रोग)'}
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-relaxed">
+                    Severity / Risk: <span className="font-bold text-rose-700">{diagnosisResult.severity || diagnosisResult.riskLevel || 'High'}</span>.
+                    Immediate action: {diagnosisResult.recommendedActions?.[0] || 'Isolate animal and disinfect shed.'}
+                  </p>
+
+                  {/* Urgent Veterinary Consultation for High/Critical Risk */}
+                  {['High', 'Critical'].includes(diagnosisResult.severity || diagnosisResult.riskLevel) && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-[11px] text-rose-900 font-semibold flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                      <span>
+                        उच्च जोखिम (High Risk): कृपया तुरंत नजदीकी पशु चिकित्सालय अथवा पशु चिकित्सक (Registered Veterinarian) से संपर्क कर विधिवत शारीरिक जांच कराएं।
+                      </span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        `I received an AI preliminary screening indicating possible ${diagnosisResult.predictedDisease} for my ${
+                          selectedAnimal?.name || 'animal'
+                        }. What immediate biosecurity, first-aid, and veterinary consultation steps should I take?`
+                      )
+                    }
+                    className="w-full py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-lg border border-emerald-300 text-[11px] transition shadow-2xs"
+                  >
+                    💬 Discuss this screening with Kisan Saathi
+                  </button>
                 </div>
-                <p className="text-[11px] text-slate-700 leading-relaxed">
-                  Severity: <span className="font-bold text-rose-700">{diagnosisResult.severity || 'High'}</span>.
-                  Immediate action: {diagnosisResult.recommendedActions?.[0] || 'Isolate animal and disinfect shed.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleSendMessage(
-                      `I received an AI diagnosis of ${diagnosisResult.predictedDisease} for my ${
-                        selectedAnimal?.name || 'animal'
-                      }. What immediate steps, medication, and biosecurity measures should I take?`
-                    )
-                  }
-                  className="w-full py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 font-bold rounded-lg border border-emerald-300 text-[11px] transition shadow-2xs"
-                >
-                  💬 Discuss this diagnosis with Kisan Saathi
-                </button>
-              </div>
+              )
             )}
           </div>
 

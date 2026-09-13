@@ -7,15 +7,67 @@ const morgan = require('morgan');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (Optional legacy store; does not block or crash if unavailable)
+connectDB().catch(err => {
+  console.warn('[Database Warning] MongoDB connection attempt failed:', err.message);
+});
 
 const app = express();
 
-// Middleware
+// Helper to resolve and normalize allowed CORS origins
+function resolveAllowedOrigins() {
+  const defaultLocalOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000'
+  ];
+
+  const envOrigins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map(url => url.trim().replace(/\/+$/, '')).filter(Boolean)
+    : [];
+
+  if (process.env.NODE_ENV === 'production' && envOrigins.length > 0) {
+    return envOrigins;
+  }
+
+  return Array.from(new Set([...envOrigins, ...defaultLocalOrigins]));
+}
+
+// Middleware: Production-safe credentialed CORS
 app.use(cors({
-  origin: '*',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow non-browser / server-to-server / curl requests with no origin header
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const normalizedOrigin = origin.trim().replace(/\/+$/, '');
+    const allowedList = resolveAllowedOrigins();
+
+    const isExplicitlyAllowed = allowedList.some(allowed => {
+      return allowed.trim().replace(/\/+$/, '') === normalizedOrigin;
+    });
+
+    if (isExplicitlyAllowed) {
+      return callback(null, true);
+    }
+
+    // In non-production environments, allow any localhost or 127.0.0.1 port
+    if (process.env.NODE_ENV !== 'production') {
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
+        return callback(null, true);
+      }
+    }
+
+    // Reject unauthorized origin
+    return callback(new Error(`CORS policy rejection: Origin '${origin}' is not allowed.`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'apikey']
 }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
@@ -30,13 +82,21 @@ const fs = require('fs');
 // Auto-spawn Python Deep Learning AI Service (lsd_model.keras)
 let aiServiceProcess = null;
 function startPythonAiService() {
+  if (process.env.SPAWN_LOCAL_AI === 'false') {
+    console.log(`[AI Engine] Local Python process auto-spawn disabled (SPAWN_LOCAL_AI=false). Using external AI_SERVICE_URL: ${process.env.AI_SERVICE_URL || 'http://127.0.0.1:5050'}`);
+    return;
+  }
+
   const pythonScript = path.join(__dirname, 'services', 'ai_service.py');
   
   let pythonExec = process.env.PYTHON_PATH || 'python';
   if (pythonExec === 'python') {
-    const localVenv = path.join(__dirname, '.venv', 'Scripts', 'python.exe');
-    if (fs.existsSync(localVenv)) {
-      pythonExec = localVenv;
+    const localVenvWin = path.join(__dirname, '.venv', 'Scripts', 'python.exe');
+    const localVenvUnix = path.join(__dirname, '.venv', 'bin', 'python');
+    if (fs.existsSync(localVenvWin)) {
+      pythonExec = localVenvWin;
+    } else if (fs.existsSync(localVenvUnix)) {
+      pythonExec = localVenvUnix;
     }
   }
 
@@ -79,15 +139,44 @@ const cleanupProcess = () => {
 process.on('SIGINT', () => { cleanupProcess(); process.exit(0); });
 process.on('SIGTERM', () => { cleanupProcess(); process.exit(0); });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'online',
+const { checkAiHealth } = require('./services/aiModelService');
+const { supabase, isLiveSupabase } = require('./config/supabaseClient');
+
+// Machine-readable health check endpoints (supporting cloud orchestrators and reverse proxies)
+const healthHandler = async (req, res) => {
+  let aiHealth = { online: false, status: 'unknown' };
+  try {
+    aiHealth = await checkAiHealth();
+  } catch (e) {
+    aiHealth = { online: false, error: 'Health probe failed' };
+  }
+
+  const isDbConfigured = Boolean(isLiveSupabase ? supabase : true);
+  const isAiHealthy = Boolean(aiHealth.online && aiHealth.modelLoaded);
+
+  res.status(isDbConfigured ? 200 : 503).json({
+    status: isDbConfigured ? (isAiHealthy ? 'healthy' : 'degraded') : 'unhealthy',
     service: 'Livestock Saathi Surveillance API',
-    aiModel: 'lsd_model.keras (EfficientNetB0)',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    uptimeSeconds: Math.floor(process.uptime()),
+    database: {
+      type: 'Supabase PostgreSQL',
+      connected: isDbConfigured,
+      mode: isLiveSupabase ? 'live' : 'resilient_mock'
+    },
+    aiService: {
+      url: process.env.AI_SERVICE_URL || 'http://127.0.0.1:5050',
+      status: aiHealth.status || (aiHealth.online ? 'healthy' : 'unavailable'),
+      modelLoaded: Boolean(aiHealth.modelLoaded),
+      fallbackMode: !isAiHealthy
+    },
     timestamp: new Date().toISOString()
   });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Serve static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -116,8 +205,8 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`🚀 Livestock Saathi API Server running on port ${PORT}`);
-  console.log(`🤖 AI Engine: lsd_model.keras (EfficientNetB0 + PyTorch Backend)`);
-  console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🤖 AI Engine: lsd_model.keras (EfficientNetB0 + Keras 3 / TensorFlow Backend)`);
+  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
   console.log(`=======================================================`);
 
   // Start Python AI microservice

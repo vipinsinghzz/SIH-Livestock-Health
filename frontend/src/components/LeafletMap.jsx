@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import { Link } from 'react-router-dom';
@@ -12,8 +12,12 @@ import {
   CheckCircle,
   AlertTriangle,
   Syringe,
-  FileText
+  FileText,
+  Wifi,
+  Clock,
+  Filter
 } from 'lucide-react';
+import realtimeService from '../services/realtimeService';
 
 // Distance calculation helper (Haversine formula in km)
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -107,12 +111,97 @@ export default function LeafletMap({
   onSelectCase = null,
   onSelectZone = null,
   radiusKm = 20,
+  district = 'Pune',
+  enableRealtime = true,
   lang = 'hi'
 }) {
   const [selectedRiskFilter, setSelectedRiskFilter] = useState('All');
+  const [selectedTimeFilter, setSelectedTimeFilter] = useState('All');
+  const [selectedDiseaseFilter, setSelectedDiseaseFilter] = useState('All');
   const [showWeatherOverlay, setShowWeatherOverlay] = useState(false);
   const [showContainmentZones, setShowContainmentZones] = useState(true);
   const [showClusterPerimeters, setShowClusterPerimeters] = useState(true);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+
+  // Live state merged with props
+  const [liveCases, setLiveCases] = useState(cases);
+  const [liveContainmentZones, setLiveContainmentZones] = useState(containmentZones);
+  const [liveClusters, setLiveClusters] = useState(clusters);
+
+  // Synchronize when parent props change
+  useEffect(() => {
+    setLiveCases(cases);
+  }, [cases]);
+
+  useEffect(() => {
+    setLiveContainmentZones(containmentZones);
+  }, [containmentZones]);
+
+  useEffect(() => {
+    setLiveClusters(clusters);
+  }, [clusters]);
+
+  // Supabase Realtime Subscription
+  useEffect(() => {
+    if (!enableRealtime) return;
+
+    setIsRealtimeConnected(true);
+    const unsubscribe = realtimeService.subscribeToDistrictCases(district, (event) => {
+      if (!event || !event.type) return;
+
+      if (event.type === 'case:new') {
+        setLiveCases((prev) => {
+          const matchId = event._id || event.caseId;
+          if (prev.some((c) => (c._id || c.caseId) === matchId)) return prev;
+          return [event, ...prev];
+        });
+      } else if (event.type === 'case:status_changed') {
+        setLiveCases((prev) =>
+          prev.map((c) => {
+            const matchId = event._id || event.caseId;
+            if ((c._id || c.caseId) === matchId) {
+              return { ...c, ...event };
+            }
+            return c;
+          })
+        );
+      } else if (event.type === 'containment:new') {
+        setLiveContainmentZones((prev) => {
+          const matchId = event._id || event.zoneId;
+          if (prev.some((z) => (z._id || z.zoneId) === matchId)) return prev;
+          return [event, ...prev];
+        });
+      } else if (event.type === 'containment:status_changed') {
+        setLiveContainmentZones((prev) =>
+          prev.map((z) => {
+            const matchId = event._id || event.zoneId;
+            if ((z._id || z.zoneId) === matchId) {
+              return { ...z, ...event };
+            }
+            return z;
+          })
+        );
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+      setIsRealtimeConnected(false);
+    };
+  }, [district, enableRealtime]);
+
+  // Unique disease options for filter
+  const diseaseOptions = useMemo(() => {
+    const set = new Set();
+    liveCases.forEach((c) => { if (c.disease) set.add(c.disease); });
+    reports.forEach((r) => {
+      const d = r.triageResult?.suspectedDiseases?.[0]?.name;
+      if (d) set.add(d);
+    });
+    return Array.from(set);
+  }, [liveCases, reports]);
 
   // Language flags
   const isEnglish = lang === 'en' || lang.startsWith('en');
@@ -122,8 +211,8 @@ export default function LeafletMap({
   let defaultCenter = [18.5204, 73.8567]; // Pune District Default
   if (userLocation && userLocation[0] && userLocation[1]) {
     defaultCenter = [userLocation[0], userLocation[1]];
-  } else if (cases.length > 0 && cases[0].coordinates?.lat) {
-    defaultCenter = [cases[0].coordinates.lat, cases[0].coordinates.lng];
+  } else if (liveCases.length > 0 && liveCases[0].coordinates?.lat) {
+    defaultCenter = [liveCases[0].coordinates.lat, liveCases[0].coordinates.lng];
   } else if (reports.length > 0 && reports[0].location?.lat) {
     defaultCenter = [reports[0].location.lat, reports[0].location.lng];
   }
@@ -139,20 +228,46 @@ export default function LeafletMap({
     return level;
   };
 
-  // Filter cases by risk
-  const filteredCases = cases.filter((c) => {
+  // Time filter helper
+  const matchesTimeWindow = (dateStr) => {
+    if (selectedTimeFilter === 'All') return true;
+    if (!dateStr) return true;
+    const itemDate = new Date(dateStr).getTime();
+    if (isNaN(itemDate)) return true;
+    const now = Date.now();
+    if (selectedTimeFilter === '24h') return now - itemDate <= 24 * 60 * 60 * 1000;
+    if (selectedTimeFilter === '7d') return now - itemDate <= 7 * 24 * 60 * 60 * 1000;
+    if (selectedTimeFilter === '30d') return now - itemDate <= 30 * 24 * 60 * 60 * 1000;
+    return true;
+  };
+
+  // Filter cases by risk, time, and disease
+  const filteredCases = liveCases.filter((c) => {
     if (!c.coordinates || !c.coordinates.lat || !c.coordinates.lng) return false;
-    if (selectedRiskFilter === 'All') return true;
-    const r = normalizeRisk(c.risk);
-    return r.toLowerCase() === selectedRiskFilter.toLowerCase();
+    if (selectedRiskFilter !== 'All') {
+      const r = normalizeRisk(c.risk);
+      if (r.toLowerCase() !== selectedRiskFilter.toLowerCase()) return false;
+    }
+    if (selectedDiseaseFilter !== 'All' && c.disease !== selectedDiseaseFilter) {
+      return false;
+    }
+    if (!matchesTimeWindow(c.createdAt)) return false;
+    return true;
   });
 
-  // Filter reports by risk
+  // Filter reports by risk, time, and disease
   const filteredReports = reports.filter((r) => {
     if (!r.location || !r.location.lat || !r.location.lng) return false;
-    if (selectedRiskFilter === 'All') return true;
-    const rRisk = normalizeRisk(r.triageResult?.riskLevel);
-    return rRisk.toLowerCase() === selectedRiskFilter.toLowerCase();
+    if (selectedRiskFilter !== 'All') {
+      const rRisk = normalizeRisk(r.triageResult?.riskLevel);
+      if (rRisk.toLowerCase() !== selectedRiskFilter.toLowerCase()) return false;
+    }
+    if (selectedDiseaseFilter !== 'All') {
+      const topDisease = r.triageResult?.suspectedDiseases?.[0]?.name;
+      if (topDisease !== selectedDiseaseFilter) return false;
+    }
+    if (!matchesTimeWindow(r.createdAt)) return false;
+    return true;
   });
 
   const getRiskBadgeClasses = (risk) => {
@@ -193,7 +308,7 @@ export default function LeafletMap({
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-bold text-slate-700 mr-1 flex items-center gap-1">
             <Layers className="w-3.5 h-3.5 text-emerald-600" />
-            {isEnglish ? 'Risk Filter:' : isMarathi ? 'फिल्टर:' : 'फिल्टर:'}
+            {isEnglish ? 'Risk:' : isMarathi ? 'जोखीम:' : 'जोखिम:'}
           </span>
           {[
             { id: 'All', label: isEnglish ? 'All' : isMarathi ? 'सर्व' : 'सभी' },
@@ -216,8 +331,48 @@ export default function LeafletMap({
           ))}
         </div>
 
-        {/* Toggle Overlays */}
+        {/* Time Window Filter */}
+        <div className="flex items-center gap-1">
+          <Clock className="w-3.5 h-3.5 text-slate-500" />
+          <select
+            value={selectedTimeFilter}
+            onChange={(e) => setSelectedTimeFilter(e.target.value)}
+            className="bg-stone-100 border border-stone-200 rounded-lg px-2 py-1 text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          >
+            <option value="All">All Time</option>
+            <option value="24h">Last 24h</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+          </select>
+        </div>
+
+        {/* Disease Filter (if multiple diseases present) */}
+        {diseaseOptions.length > 1 && (
+          <div className="flex items-center gap-1">
+            <Filter className="w-3.5 h-3.5 text-slate-500" />
+            <select
+              value={selectedDiseaseFilter}
+              onChange={(e) => setSelectedDiseaseFilter(e.target.value)}
+              className="bg-stone-100 border border-stone-200 rounded-lg px-2 py-1 text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500 max-w-[130px] truncate"
+            >
+              <option value="All">All Diseases</option>
+              {diseaseOptions.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Toggle Overlays & Realtime Indicator */}
         <div className="flex items-center gap-2 flex-wrap">
+          {enableRealtime && isRealtimeConnected && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <Wifi className="w-3 h-3 text-emerald-600" />
+              <span>Live Realtime</span>
+            </div>
+          )}
+
           <button
             onClick={() => setShowContainmentZones(!showContainmentZones)}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold border transition ${
@@ -227,10 +382,10 @@ export default function LeafletMap({
             }`}
           >
             <ShieldAlert className="w-3.5 h-3.5" />
-            <span>{isEnglish ? 'Containment Zones' : 'नियंत्रण क्षेत्र'}</span>
+            <span>{isEnglish ? 'Containment' : 'नियंत्रण'}</span>
           </button>
 
-          {clusters.length > 0 && (
+          {liveClusters.length > 0 && (
             <button
               onClick={() => setShowClusterPerimeters(!showClusterPerimeters)}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold border transition ${
@@ -254,7 +409,7 @@ export default function LeafletMap({
               }`}
             >
               <CloudRain className="w-3.5 h-3.5" />
-              <span>Weather Risk</span>
+              <span>Weather</span>
             </button>
           )}
         </div>
@@ -301,7 +456,7 @@ export default function LeafletMap({
 
           {/* Active Containment Zones */}
           {showContainmentZones &&
-            containmentZones.map((zone) => {
+            liveContainmentZones.map((zone) => {
               const isActive = zone.status === 'ACTIVE';
               const isContained = zone.status === 'CONTAINED';
               const color = isActive ? '#dc2626' : isContained ? '#f59e0b' : '#64748b';
@@ -366,7 +521,7 @@ export default function LeafletMap({
 
           {/* Spatial Outbreak Clusters (<= 5km) */}
           {showClusterPerimeters &&
-            clusters
+            liveClusters
               .filter((cl) => cl.isOutbreak)
               .map((cluster) => (
                 <Circle
@@ -408,10 +563,21 @@ export default function LeafletMap({
             const riskLevel = normalizeRisk(c.risk);
             const isOutbreak = c.status === 'Containment' || riskLevel === 'Critical';
 
+            // Coordinate privacy for farmers: fuzz non-own case coordinates if not already fuzzed
+            let lat = c.coordinates.lat;
+            let lng = c.coordinates.lng;
+            if (isFarmerView && !c.isOwnCase) {
+              if (!c.fuzzed && lat && lng) {
+                const hash = Math.sin((lat * 1000) + (lng * 1000)) * 10000;
+                lat = lat + ((hash - Math.floor(hash)) - 0.5) * 0.02;
+                lng = lng + (((hash * 1.5) - Math.floor(hash * 1.5)) - 0.5) * 0.02;
+              }
+            }
+
             return (
               <Marker
                 key={`case-${c._id || c.caseId}`}
-                position={[c.coordinates.lat, c.coordinates.lng]}
+                position={[lat, lng]}
                 icon={createRiskIcon(riskLevel, isOutbreak, true)}
               >
                 <Popup className="custom-popup">
@@ -448,7 +614,9 @@ export default function LeafletMap({
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500">Location:</span>
                         <span className="text-slate-800 font-medium">
-                          {c.farmerLocation?.village || c.farmerLocation?.block || c.districtId}
+                          {isFarmerView && !c.isOwnCase
+                            ? `${c.districtId || 'District'} (Vicinity ~1.5km)`
+                            : (c.farmerLocation?.village || c.farmerLocation?.block || c.districtId)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -463,8 +631,8 @@ export default function LeafletMap({
                       </div>
                     </div>
 
-                    {/* Lesion image thumbnail if present */}
-                    {c.image && (
+                    {/* Lesion image thumbnail if present (concealed in farmer view for other farmers' animals) */}
+                    {c.image && (!isFarmerView || c.isOwnCase) && (
                       <div className="rounded-lg overflow-hidden border border-stone-200 h-24 bg-stone-100">
                         <img
                           src={c.image}

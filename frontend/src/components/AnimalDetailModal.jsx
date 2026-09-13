@@ -47,6 +47,7 @@ import {
   getSpeciesDisplayName,
   getBreedDisplayName
 } from '../constants/livestockData';
+import { getImageUrl } from '../config/apiConfig';
 
 
 const QUICK_SYMPTOMS = [
@@ -980,10 +981,10 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                                     </span>
                                     <div className="relative group w-fit max-w-xs rounded-xl overflow-hidden border border-stone-200 shadow-xs bg-white">
                                       <img
-                                        src={item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : `http://localhost:5000${item.image}`}
+                                        src={getImageUrl(item.image)}
                                         alt="Scan Lesion"
                                         className="w-48 h-36 object-cover cursor-pointer hover:scale-105 transition duration-200"
-                                        onClick={() => window.open(item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : `http://localhost:5000${item.image}`, '_blank')}
+                                        onClick={() => window.open(getImageUrl(item.image), '_blank')}
                                       />
                                       <span className="absolute bottom-1 right-1 bg-black/75 text-white text-[10px] px-2 py-0.5 rounded font-mono pointer-events-none">
                                         🔍 {isEnglish ? 'Tap to enlarge' : isMarathi ? 'मोठे पहा' : 'बड़ा देखें'}

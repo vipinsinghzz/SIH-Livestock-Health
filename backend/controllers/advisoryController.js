@@ -1,3 +1,4 @@
+const supabaseDb = require('../services/supabaseDb');
 const Advisory = require('../models/Advisory');
 
 // @desc    Get all advisories (filtered by district/block/severity)
@@ -9,19 +10,13 @@ exports.getAdvisories = async (req, res, next) => {
     const query = {};
 
     if (district && district !== 'All') {
-      query.$or = [{ targetDistrict: 'All' }, { targetDistrict: new RegExp(district, 'i') }];
-    }
-    if (block && block !== 'All') {
-      query.$or = [{ targetBlock: 'All' }, { targetBlock: new RegExp(block, 'i') }];
+      query.targetDistrict = district;
     }
     if (severity) {
       query.severity = severity;
     }
 
-    const advisories = await Advisory.find(query)
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
+    const advisories = await supabaseDb.advisories.find(query);
 
     res.status(200).json({
       success: true,
@@ -47,9 +42,19 @@ exports.createAdvisory = async (req, res, next) => {
       });
     }
 
-    const advisory = await Advisory.create({
-      title: typeof title === 'object' ? title : { en: title, hi: title },
-      message: typeof message === 'object' ? message : { en: message, hi: message },
+    const titleEn = typeof title === 'object' ? (title.en || title.hi) : title;
+    const titleHi = typeof title === 'object' ? (title.hi || title.en) : title;
+    const msgEn = typeof message === 'object' ? (message.en || message.hi) : message;
+    const msgHi = typeof message === 'object' ? (message.hi || message.en) : message;
+
+    // Module 8: Create in Supabase PostgreSQL
+    const advisory = await supabaseDb.advisories.create({
+      titleEn,
+      titleHi,
+      title: { en: titleEn, hi: titleHi },
+      messageEn: msgEn,
+      messageHi: msgHi,
+      message: { en: msgEn, hi: msgHi },
       severity: severity || 'Moderate',
       disease: disease || 'General Livestock Alert',
       targetVillage: targetVillage || 'All',

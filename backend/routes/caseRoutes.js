@@ -10,6 +10,8 @@ const {
   getDistrictVets,
   streamCases,
   getSpatialOutbreakClusters,
+  getNearbyCases,
+  getOutbreakRiskAnalysis,
   createContainmentZone,
   getContainmentZones,
   updateContainmentZoneStatus,
@@ -32,6 +34,16 @@ router.get(
   '/clusters',
   authorize('field_worker', 'veterinarian', 'officer', 'admin'),
   getSpatialOutbreakClusters
+);
+
+// PostGIS Radius Search
+router.get('/nearby', getNearbyCases);
+
+// On-demand Epidemiological Outbreak Risk Analysis Pipeline
+router.get(
+  '/risk-analysis',
+  authorize('field_worker', 'veterinarian', 'officer', 'admin'),
+  getOutbreakRiskAnalysis
 );
 
 // Dynamic AI Preventive Advisory

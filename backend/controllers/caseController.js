@@ -1,4 +1,6 @@
 // Controller for PS-128 Disease-to-Veterinarian Referral & Outbreak Response System
+const mongoose = require('mongoose');
+const supabaseDb = require('../services/supabaseDb');
 const DiseaseCase = require('../models/DiseaseCase');
 const ContainmentZone = require('../models/ContainmentZone');
 const VaccinationDrive = require('../models/VaccinationDrive');
@@ -7,6 +9,8 @@ const User = require('../models/User');
 const Animal = require('../models/Animal');
 const geocodingService = require('../services/geocodingService');
 const notificationService = require('../services/notificationService');
+const gisService = require('../services/gisService');
+const realtimeHub = require('../services/realtimeHub');
 
 // Helper to escape regex special characters
 function escapeRegex(str = '') {
@@ -162,10 +166,11 @@ exports.createCase = async (req, res) => {
     const contactPhone = isVetStaff && farmerPhone ? farmerPhone : (req.user.phone || '');
 
     // 6. Create the DiseaseCase in MongoDB
+    const safeAnimalId = animalId && mongoose.Types.ObjectId.isValid(animalId) ? animalId : null;
     const newCase = await DiseaseCase.create({
       caseId,
       farmerId: req.user._id,
-      animalId: animalId || null,
+      animalId: safeAnimalId,
       animalName: animalName || '',
       species: species || 'Cattle',
       image: image || '',
@@ -221,6 +226,38 @@ exports.createCase = async (req, res) => {
     if (assignedVet) {
       await newCase.populate('assignedVetId', 'name phone email registrationNo department');
     }
+
+    // Module 6: Dual-write Disease Case to Supabase PostgreSQL
+    try {
+      await supabaseDb.diseaseCases.create({
+        caseId: newCase.caseId,
+        farmerId: String(req.user._id || req.user.id),
+        animalId: animalId || null,
+        animalName: animalName || '',
+        species: species || 'Cattle',
+        imageUrl: image || '',
+        disease,
+        confidence: confidence ? Math.round(Number(confidence)) : 88,
+        risk: risk || 'High',
+        districtId: detectedDistrict,
+        state: detectedState,
+        latitude: lat,
+        longitude: lng,
+        symptoms: Array.isArray(symptoms) ? symptoms : [symptoms],
+        temperature: parseFloat(temperature || 0),
+        duration: parseFloat(duration || 0),
+        affectedCount: countAffected,
+        notes: notes || '',
+        status: targetStatus,
+        assignedVetId: assignedVet ? String(assignedVet) : null
+      });
+    } catch (sbErr) {
+      console.warn('[CaseController] Supabase dual-write notice:', sbErr.message);
+    }
+
+    try {
+      await realtimeHub.notifyCaseCreated(newCase, matchingVets);
+    } catch (rtErr) {}
 
     res.status(201).json({
       success: true,
@@ -423,7 +460,8 @@ exports.claimCase = async (req, res) => {
       });
     }
 
-    const existingCheck = await DiseaseCase.findById(id);
+    const caseQuery = id.startsWith('CASE-') ? { caseId: id } : (mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { caseId: id });
+    const existingCheck = await DiseaseCase.findOne(caseQuery);
     if (!existingCheck) {
       return res.status(404).json({
         success: false,
@@ -444,7 +482,7 @@ exports.claimCase = async (req, res) => {
     // Matches if status is 'New' or legacy 'OPEN' and assignedVetId is null
     const updatedCase = await DiseaseCase.findOneAndUpdate(
       {
-        _id: id,
+        ...caseQuery,
         status: { $in: ['New', 'OPEN'] },
         assignedVetId: null
       },
@@ -472,7 +510,7 @@ exports.claimCase = async (req, res) => {
 
     if (!updatedCase) {
       // Either case does not exist or was ALREADY CLAIMED by another vet!
-      const currentCase = await DiseaseCase.findById(id).populate('assignedVetId', 'name phone email');
+      const currentCase = await DiseaseCase.findOne(caseQuery).populate('assignedVetId', 'name phone email');
 
       if (currentCase && !['New', 'OPEN'].includes(currentCase.status)) {
         return res.status(409).json({
@@ -496,8 +534,18 @@ exports.claimCase = async (req, res) => {
       { $set: { status: 'READ' } }
     );
 
-    // Broadcast SSE update to farmer and other district vets
-    notificationService.notifyCaseUpdate(updatedCase, 'CASE_CLAIMED');
+    // Module 6: Sync claim to Supabase PostgreSQL
+    try {
+      await supabaseDb.diseaseCases.claimCase(
+        updatedCase.caseId || id,
+        String(req.user._id || req.user.id),
+        req.user.name
+      );
+    } catch (sbErr) {}
+
+    try {
+      await realtimeHub.notifyCaseClaimed(updatedCase, req.user);
+    } catch (rtErr) {}
 
     res.json({
       success: true,
@@ -550,7 +598,8 @@ exports.updateCaseStatus = async (req, res) => {
       });
     }
 
-    const caseDoc = await DiseaseCase.findById(id);
+    const caseQuery = id.startsWith('CASE-') ? { caseId: id } : (mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { caseId: id });
+    const caseDoc = await DiseaseCase.findOne(caseQuery);
     if (!caseDoc) {
       return res.status(404).json({
         success: false,
@@ -626,8 +675,33 @@ exports.updateCaseStatus = async (req, res) => {
       }
     }
 
-    // Broadcast SSE update
+    // Module 6: Sync status update to Supabase PostgreSQL
+    try {
+      await supabaseDb.diseaseCases.updateStatus(
+        caseDoc.caseId || caseDoc._id.toString(),
+        canonicalStatus,
+        timelineNote,
+        String(req.user._id || req.user.id),
+        req.user.name
+      );
+    } catch (sbErr) {}
+
+    // Broadcast SSE & Supabase Realtime update
     notificationService.notifyCaseUpdate(caseDoc, 'CASE_STATUS_UPDATE');
+
+    try {
+      await supabaseDb.auditLogs.log(
+        'UPDATE_CASE_STATUS',
+        'disease_case',
+        caseDoc.caseId || caseDoc._id.toString(),
+        String(req.user._id || req.user.id),
+        { oldStatus: currentStatus, newStatus: canonicalStatus, note: timelineNote }
+      );
+    } catch (auditErr) {}
+
+    try {
+      await realtimeHub.notifyCaseStatusUpdated(caseDoc, req.user, currentStatus, canonicalStatus);
+    } catch (rtErr) {}
 
     res.json({
       success: true,
@@ -652,129 +726,10 @@ exports.updateCaseStatus = async (req, res) => {
 exports.getSpatialOutbreakClusters = async (req, res) => {
   try {
     const targetDistrict = req.query.district || req.user.district || 'Pune';
-    const districtRegex = new RegExp(`^${escapeRegex(targetDistrict.trim())}$`, 'i');
+    const distanceKm = parseFloat(req.query.distanceKm || req.query.radiusKm) || 5.0;
+    const minCases = parseInt(req.query.minCases, 10) || 2;
 
-    // Fetch active cases in the district
-    const activeCases = await DiseaseCase.find({
-      districtId: districtRegex,
-      status: { $nin: ['Resolved', 'RESOLVED'] }
-    })
-      .select('_id caseId disease species risk status affectedCount coordinates farmerLocation createdAt confidence image')
-      .lean();
-
-    if (!activeCases.length) {
-      return res.json({
-        success: true,
-        district: targetDistrict,
-        count: 0,
-        clusters: []
-      });
-    }
-
-    // Group cases by disease
-    const diseaseGroups = {};
-    for (const c of activeCases) {
-      const dKey = (c.disease || 'Unknown').trim();
-      if (!diseaseGroups[dKey]) {
-        diseaseGroups[dKey] = [];
-      }
-      diseaseGroups[dKey].push(c);
-    }
-
-    const clusters = [];
-    let clusterCounter = 1;
-
-    // Cluster threshold in km
-    const CLUSTER_THRESHOLD_KM = 5.0;
-
-    for (const [diseaseName, cases] of Object.entries(diseaseGroups)) {
-      // Spatial clustering using connected component / nearest neighbor chaining
-      const visited = new Set();
-
-      for (let i = 0; i < cases.length; i++) {
-        if (visited.has(i)) continue;
-
-        const currentCluster = [cases[i]];
-        visited.add(i);
-
-        // Expand cluster
-        for (let j = 0; j < currentCluster.length; j++) {
-          const pivot = currentCluster[j];
-          for (let k = 0; k < cases.length; k++) {
-            if (!visited.has(k)) {
-              const candidate = cases[k];
-              const dist = haversineDistance(
-                pivot.coordinates.lat,
-                pivot.coordinates.lng,
-                candidate.coordinates.lat,
-                candidate.coordinates.lng
-              );
-              if (dist <= CLUSTER_THRESHOLD_KM) {
-                visited.add(k);
-                currentCluster.push(candidate);
-              }
-            }
-          }
-        }
-
-        // Calculate centroid
-        const avgLat =
-          currentCluster.reduce((sum, c) => sum + c.coordinates.lat, 0) / currentCluster.length;
-        const avgLng =
-          currentCluster.reduce((sum, c) => sum + c.coordinates.lng, 0) / currentCluster.length;
-
-        // Calculate maximum span from centroid
-        let maxDistFromCenter = 0;
-        let totalAffected = 0;
-        const speciesSet = new Set();
-
-        for (const c of currentCluster) {
-          totalAffected += c.affectedCount || 1;
-          if (c.species) speciesSet.add(c.species);
-          const d = haversineDistance(avgLat, avgLng, c.coordinates.lat, c.coordinates.lng);
-          if (d > maxDistFromCenter) maxDistFromCenter = d;
-        }
-
-        // Cluster radius = max distance + 1km buffer (minimum 2.5km, maximum 15km)
-        const radiusKm = Math.min(15, Math.max(2.5, Math.round((maxDistFromCenter + 1.0) * 10) / 10));
-
-        // Determine Risk Tier
-        let riskTier = 'Moderate';
-        const hasCritical = currentCluster.some((c) => c.risk === 'Critical');
-        if (hasCritical || totalAffected >= 10 || currentCluster.length >= 3) {
-          riskTier = 'Critical';
-        } else if (currentCluster.length >= 2 || totalAffected >= 5) {
-          riskTier = 'High';
-        }
-
-        const isOutbreak = currentCluster.length >= 2;
-        const distSlug = targetDistrict.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'DIS');
-        const clusterId = `CLUST-${distSlug}-${clusterCounter++}`;
-
-        clusters.push({
-          clusterId,
-          disease: diseaseName,
-          species: Array.from(speciesSet),
-          center: {
-            lat: Math.round(avgLat * 10000) / 10000,
-            lng: Math.round(avgLng * 10000) / 10000
-          },
-          radiusKm,
-          caseCount: currentCluster.length,
-          totalAffected,
-          risk: riskTier,
-          isOutbreak,
-          cases: currentCluster
-        });
-      }
-    }
-
-    // Sort: Critical & outbreaks first
-    clusters.sort((a, b) => {
-      if (a.isOutbreak && !b.isOutbreak) return -1;
-      if (!a.isOutbreak && b.isOutbreak) return 1;
-      return b.totalAffected - a.totalAffected;
-    });
+    const clusters = await gisService.getOutbreakClusters(targetDistrict, distanceKm, minCases);
 
     res.json({
       success: true,
@@ -789,6 +744,116 @@ exports.getSpatialOutbreakClusters = async (req, res) => {
       message: 'Failed to compute spatial outbreak clusters.',
       error: err.message
     });
+  }
+};
+
+/**
+ * @desc    Get cases within radius (PostGIS ST_DWithin)
+ * @route   GET /api/cases/nearby
+ * @access  Private
+ */
+exports.getNearbyCases = async (req, res) => {
+  try {
+    const { lat, lng, radiusKm = 15, days = 30, district } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ success: false, message: 'Latitude and longitude coordinates are required.' });
+    }
+
+    const userRole = req.user ? req.user.role : 'farmer';
+    const callerId = req.user ? (req.user._id ? req.user._id.toString() : (req.user.id || '')) : '';
+
+    // Enforce role-based radius and query constraints
+    let effectiveRadius = parseFloat(radiusKm);
+    let maxLimit = 100;
+    let effectiveDistrict = district;
+
+    if (userRole === 'farmer') {
+      // Farmers capped at 10.0 km radius and 30 cases maximum
+      effectiveRadius = Math.min(effectiveRadius || 10.0, 10.0);
+      maxLimit = 30;
+      // Enforce farmer's own district to prevent cross-district surveillance enumeration
+      if (req.user && req.user.district) {
+        effectiveDistrict = req.user.district;
+      }
+    } else if (userRole === 'veterinarian' || userRole === 'field_worker') {
+      effectiveRadius = Math.min(effectiveRadius || 15.0, 30.0);
+      maxLimit = 100;
+    } else {
+      effectiveRadius = Math.min(effectiveRadius || 25.0, 100.0);
+      maxLimit = 200;
+    }
+
+    const rawCases = await gisService.getCasesInRadius(lat, lng, effectiveRadius, days, effectiveDistrict);
+    
+    // Privacy protection: Fuzz peer farmer coordinates and mask village details
+    const cases = rawCases.slice(0, maxLimit).map(c => {
+      const isOwnCase = callerId && (c.farmerId === callerId || c.ownerId === callerId);
+      if (userRole !== 'farmer' || isOwnCase) {
+        return c;
+      }
+      // Fuzz peer farmer coordinates to protect farm privacy
+      const fuzzed = gisService.fuzzCoordinates ? gisService.fuzzCoordinates(c.latitude, c.longitude, 1.5) : {
+        lat: Math.round(c.latitude * 100) / 100,
+        lng: Math.round(c.longitude * 100) / 100
+      };
+      return {
+        ...c,
+        latitude: fuzzed.lat,
+        longitude: fuzzed.lng,
+        village: 'Vicinity (~1.5km)',
+        isFuzzed: true
+      };
+    });
+
+    res.json({
+      success: true,
+      count: cases.length,
+      radiusKm: effectiveRadius,
+      days: parseInt(days, 10),
+      cases
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch nearby cases.', error: err.message });
+  }
+};
+
+/**
+ * @desc    On-demand epidemiological risk calculation & surveillance pipeline
+ * @route   GET /api/cases/risk-analysis
+ * @access  Private
+ */
+exports.getOutbreakRiskAnalysis = async (req, res) => {
+  try {
+    const { caseId, lat, lng, disease, affectedCount = 1, district = 'Pune' } = req.query;
+    const refLat = parseFloat(lat) || 18.5204;
+    const refLng = parseFloat(lng) || 73.8567;
+
+    const nearbyCases = await gisService.getCasesInRadius(refLat, refLng, 15.0, 30, district);
+    const containmentInfo = await gisService.getContainmentStatus(refLat, refLng);
+    const vaccinationInfo = await gisService.getVaccinationCoverage(refLat, refLng, 10.0);
+    const clusters = await gisService.getOutbreakClusters(district, 5.0, 2);
+
+    const riskResult = gisService.calculateOutbreakRisk(
+      { caseId, disease, affectedCount: parseInt(affectedCount, 10), status: 'Investigating' },
+      nearbyCases,
+      clusters,
+      containmentInfo,
+      vaccinationInfo
+    );
+
+    res.json({
+      success: true,
+      district,
+      coordinates: { lat: refLat, lng: refLng },
+      riskAnalysis: riskResult,
+      nearbyCasesSummary: {
+        totalInRadius: nearbyCases.length,
+        insideContainment: containmentInfo.insideContainment,
+        vaccinationCoveragePct: vaccinationInfo.coveragePercentage
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to compute risk analysis.', error: err.message });
   }
 };
 
@@ -891,11 +956,44 @@ exports.createContainmentZone = async (req, res) => {
       notificationService.notifyCaseUpdate(linkedCase, 'CONTAINMENT_ESTABLISHED');
     }
 
+    // Module 10: Dual-write to Supabase PostgreSQL
+    try {
+      await supabaseDb.containmentZones.create({
+        zoneId: newZone.zoneId,
+        caseId: linkedCase ? (linkedCase.caseId || linkedCase._id.toString()) : null,
+        disease: targetDisease,
+        district: targetDistrict,
+        block: targetBlock,
+        village: targetVillage,
+        centerLat: newZone.center?.lat,
+        centerLng: newZone.center?.lng,
+        radiusKm: newZone.radiusKm,
+        status: newZone.status,
+        enforcedRules: newZone.enforcedRules,
+        createdByVetId: String(req.user._id || req.user.id),
+        creatorName: req.user.name
+      });
+    } catch (sbErr) {}
+
     // Broadcast to district veterinary network
     notificationService.broadcastToDistrictVets(targetDistrict, 'CONTAINMENT_ZONE_CREATED', {
       zone: newZone,
       timestamp: new Date()
     });
+
+    try {
+      await realtimeHub.notifyContainmentZone(newZone, 'CREATED');
+    } catch (rtErr) {}
+
+    try {
+      await supabaseDb.auditLogs.log(
+        'CREATE_CONTAINMENT_ZONE',
+        'containment_zone',
+        newZone.zoneId,
+        String(req.user._id || req.user.id),
+        { disease: targetDisease, district: targetDistrict, radiusKm: newZone.radiusKm }
+      );
+    } catch (auditErr) {}
 
     res.status(201).json({
       success: true,
@@ -930,11 +1028,37 @@ exports.getContainmentZones = async (req, res) => {
       query.status = status;
     }
 
-    const zones = await ContainmentZone.find(query)
+    const rawZones = await ContainmentZone.find(query)
       .populate('caseId', 'caseId disease risk species affectedCount coordinates status')
       .populate('createdByVetId', 'name phone email registrationNo')
       .populate('ringVaccinationDriveId', 'campId vaccine status campDate capacity')
       .sort({ createdAt: -1 });
+
+    const userRole = req.user ? req.user.role : 'farmer';
+    const zones = rawZones.map(z => {
+      if (userRole !== 'farmer') {
+        return z;
+      }
+      // Farmer view: public biosecurity health alert only, no private case or vet contact details
+      const center = z.center || { lat: z.centerLat, lng: z.centerLng };
+      const fuzzedCenter = {
+        lat: center.lat ? Math.round(center.lat * 100) / 100 : null,
+        lng: center.lng ? Math.round(center.lng * 100) / 100 : null
+      };
+      return {
+        _id: z._id,
+        zoneId: z.zoneId,
+        disease: z.disease,
+        district: z.district,
+        block: z.block,
+        village: z.village,
+        center: fuzzedCenter,
+        radiusKm: z.radiusKm,
+        status: z.status,
+        enforcedRules: z.enforcedRules,
+        createdAt: z.createdAt
+      };
+    });
 
     res.json({
       success: true,
@@ -998,6 +1122,10 @@ exports.updateContainmentZoneStatus = async (req, res) => {
       zone,
       timestamp: new Date()
     });
+
+    try {
+      await realtimeHub.notifyContainmentZone(zone, 'UPDATED');
+    } catch (rtErr) {}
 
     res.json({
       success: true,
@@ -1097,6 +1225,20 @@ exports.scheduleRingVaccination = async (req, res) => {
       drive,
       timestamp: new Date()
     });
+
+    try {
+      await realtimeHub.notifyRingVaccination(drive);
+    } catch (rtErr) {}
+
+    try {
+      await supabaseDb.auditLogs.log(
+        'SCHEDULE_RING_VACCINATION',
+        'vaccination_drive',
+        drive.campId,
+        String(req.user._id || req.user.id),
+        { caseId: caseDoc.caseId || caseDoc._id.toString(), disease: caseDoc.disease, capacity: targetCapacity }
+      );
+    } catch (auditErr) {}
 
     res.status(201).json({
       success: true,

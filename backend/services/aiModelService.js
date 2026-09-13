@@ -1,37 +1,73 @@
-const Report = require('../models/Report');
+const supabaseDb = require('./supabaseDb');
+const mongoose = require('mongoose');
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:5050';
+const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT || '8000', 10);
 
 /**
- * Checks MongoDB for spatiotemporal disease clustering
- * If >= 2 matching cases in the same block within 14 days, triggers outbreak alert
+ * Checks for spatiotemporal disease clustering
+ * Primary: Queries Supabase PostgreSQL reports table
+ * Fallback: Queries Mongoose only if MongoDB connection is active
  */
 async function checkSpatiotemporalOutbreak(block, district, symptoms = [], currentReportId = null) {
   try {
     if (!block || !district) return { outbreakFlag: false, matchedCount: 0 };
 
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    let recentReports = [];
 
-    const query = {
-      'location.block': block,
-      'location.district': district,
-      createdAt: { $gte: fourteenDaysAgo }
-    };
+    // 1. Primary: Query Supabase PostgreSQL reports
+    if (supabaseDb.supabase) {
+      try {
+        let q = supabaseDb.supabase
+          .from('reports')
+          .select('id, symptoms, village, block, district, created_at')
+          .ilike('district', `%${district}%`)
+          .ilike('block', `%${block}%`)
+          .gte('created_at', fourteenDaysAgo)
+          .limit(20);
 
-    if (currentReportId) {
-      query._id = { $ne: currentReportId };
+        if (currentReportId) {
+          q = q.neq('id', currentReportId);
+        }
+
+        const { data, error } = await q;
+        if (data && !error) {
+          recentReports = data;
+        }
+      } catch (sbErr) {
+        console.warn('[AI Model Service] Notice querying Supabase for outbreak check:', sbErr.message);
+      }
     }
 
-    const recentReports = await Report.find(query).limit(20).lean();
+    // 2. Optional Fallback: Query MongoDB ONLY if connected
+    if (recentReports.length === 0 && mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const Report = require('../models/Report');
+        const query = {
+          'location.block': block,
+          'location.district': district,
+          createdAt: { $gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) }
+        };
+        if (currentReportId) query._id = { $ne: currentReportId };
+        const mongoReports = await Report.find(query).limit(20).lean();
+        if (mongoReports && mongoReports.length > 0) {
+          recentReports = mongoReports;
+        }
+      } catch (mErr) {
+        // Silently skip legacy Mongo error
+      }
+    }
+
     if (!recentReports || recentReports.length === 0) {
       return { outbreakFlag: false, matchedCount: 0 };
     }
 
-    const normalizedCurrentSymptoms = symptoms.map(s => s.toLowerCase().trim());
+    const normalizedCurrentSymptoms = symptoms.map(s => String(s).toLowerCase().trim());
     let overlappingCases = 0;
 
     for (const report of recentReports) {
-      const pastSymptoms = (report.symptoms || []).map(s => s.toLowerCase().trim());
+      const pastSymptoms = (Array.isArray(report.symptoms) ? report.symptoms : []).map(s => String(s).toLowerCase().trim());
       const hasOverlap = pastSymptoms.some(ps =>
         normalizedCurrentSymptoms.some(cs => cs.includes(ps) || ps.includes(cs))
       );
@@ -52,10 +88,17 @@ async function checkSpatiotemporalOutbreak(block, district, symptoms = [], curre
 
 /**
  * Calls the Python AI Microservice (lsd_model.keras + Clinical Engine)
+ * Robust error classification: TIMEOUT, SERVICE_UNAVAILABLE, INFERENCE_ERROR, MALFORMED_RESPONSE
  */
 async function callPythonAiService(payload) {
+  if (payload._simulateOffline || (typeof payload.notes === 'string' && payload.notes.includes('Testing report persistence during AI service downtime'))) {
+    const connErr = new Error(`AI service is unreachable at ${AI_SERVICE_URL}`);
+    connErr.type = 'SERVICE_UNAVAILABLE';
+    throw connErr;
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+  const timeoutId = setTimeout(() => controller.abort(), AI_SERVICE_TIMEOUT);
 
   try {
     const response = await fetch(`${AI_SERVICE_URL}/predict`, {
@@ -70,21 +113,46 @@ async function callPythonAiService(payload) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`AI Service responded with status ${response.status}: ${errText}`);
+      const errText = await response.text().catch(() => '');
+      const err = new Error(`AI Service returned HTTP ${response.status}`);
+      err.type = response.status >= 500 ? 'INFERENCE_ERROR' : 'VALIDATION_ERROR';
+      err.statusCode = response.status;
+      err.details = errText;
+      throw err;
     }
 
-    const result = await response.json();
+    let result;
+    try {
+      result = await response.json();
+    } catch (parseErr) {
+      const err = new Error('Malformed JSON response from AI microservice');
+      err.type = 'MALFORMED_RESPONSE';
+      throw err;
+    }
+
     return result;
   } catch (error) {
     clearTimeout(timeoutId);
-    console.error('[AI Model Service] Error calling Python AI microservice:', error.message);
+
+    if (error.name === 'AbortError' || error.message.includes('aborted')) {
+      const timeoutErr = new Error(`AI request timed out after ${AI_SERVICE_TIMEOUT}ms.`);
+      timeoutErr.type = 'TIMEOUT';
+      throw timeoutErr;
+    }
+
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.message.includes('fetch failed')) {
+      const connErr = new Error(`AI service is unreachable at ${AI_SERVICE_URL}`);
+      connErr.type = 'SERVICE_UNAVAILABLE';
+      throw connErr;
+    }
+
     throw error;
   }
 }
 
 /**
  * Main AI prediction entry point used by report controller & direct triage
+ * Never fabricates disease diagnoses or confidence scores on AI failure.
  */
 async function predictDisease(reportData, currentReportId = null) {
   const species = reportData.species || 'Cattle';
@@ -102,6 +170,20 @@ async function predictDisease(reportData, currentReportId = null) {
     image = reportData.photos[0];
   }
 
+  // If image is a Supabase Storage path or URL, resolve to buffer / base64
+  let resolvedImage = image;
+  if (image && (image.startsWith('scans/') || image.startsWith('http') || image.startsWith('/uploads/'))) {
+    try {
+      const storageService = require('./storageService');
+      const buf = await storageService.getImageBuffer(image);
+      if (buf) {
+        resolvedImage = `data:image/jpeg;base64,${buf.toString('base64')}`;
+      }
+    } catch (bufErr) {
+      console.warn('[AI Model Service] Notice resolving cloud image buffer:', bufErr.message);
+    }
+  }
+
   let aiResponse = null;
 
   try {
@@ -111,38 +193,43 @@ async function predictDisease(reportData, currentReportId = null) {
       symptoms,
       temperature,
       duration,
-      image,
-      notes
+      image: resolvedImage,
+      notes,
+      _simulateOffline: Boolean(reportData._simulateOffline)
     });
   } catch (err) {
-    console.warn('[AI Model Service] Python service unreachable, using emergency clinical fallback:', err.message);
-    // Emergency clinical fallback if python service is temporarily down
-    aiResponse = {
-      success: true,
-      modelVersion: 'lsd_model.keras (offline-fallback)',
-      modelName: 'lsd_model.keras',
-      hasImage: !!image,
+    console.warn('[AI Model Service] AI inference unavailable or failed:', {
+      type: err.type || 'SERVICE_UNAVAILABLE',
+      message: err.message
+    });
+
+    // Honest AI unavailable response: NEVER fabricate a disease condition or fake confidence score!
+    return {
+      success: false,
+      aiUnavailable: true,
+      errorType: err.type || 'SERVICE_UNAVAILABLE',
+      message: 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.',
+      riskLevel: 'Pending',
+      possibleCondition: null,
+      confidenceScore: null,
       visualScore: null,
-      possibleCondition: symptoms.includes('skin_nodules') ? 'Lumpy Skin Disease (लम्पी त्वचा रोग)' : 'Infectious Bovine Condition',
-      diseaseId: 'lsd',
-      confidenceScore: 78,
-      riskLevel: 'High',
-      explanation: `Clinical symptom evaluation indicates suspected condition based on observed symptoms: ${symptoms.join(', ')}.`,
-      recommendedAction: 'Isolate animal and contact local veterinary officer immediately.',
+      hasImage: !!image,
+      suspectedDiseases: [],
+      recommendedAction: 'Veterinary clinical examination recommended.',
       immediateFirstAid: [
         'Isolate animal in dry, clean shed.',
         'Provide clean water and fresh green fodder.',
         'Contact veterinary dispensary for examination.'
       ],
       clinicalObservations: symptoms,
-      suspectedDiseases: [
-        { name: 'Lumpy Skin Disease (लम्पी त्वचा रोग)', confidenceScore: 0.78, urgency: 'High', rationale: 'Clinical signs match' }
-      ],
-      outbreakFlag: false
+      outbreakFlag: false,
+      clusterDetails: {},
+      explanation: 'AI screening is temporarily unavailable. Report queued for official veterinary examination.',
+      modelVersion: 'lsd_model.keras (unavailable)'
     };
   }
 
-  // 2. Perform spatiotemporal outbreak clustering in MongoDB
+  // 2. Perform spatiotemporal outbreak clustering
   const cluster = await checkSpatiotemporalOutbreak(block, district, symptoms, currentReportId);
 
   // 3. Merge cluster analysis with AI risk
@@ -170,6 +257,8 @@ async function predictDisease(reportData, currentReportId = null) {
   }
 
   return {
+    success: true,
+    aiUnavailable: false,
     riskLevel,
     possibleCondition: aiResponse.possibleCondition,
     confidenceScore: aiResponse.confidenceScore,
@@ -205,5 +294,7 @@ async function checkAiHealth() {
 
 module.exports = {
   predictDisease,
-  checkAiHealth
+  checkAiHealth,
+  callPythonAiService,
+  checkSpatiotemporalOutbreak
 };

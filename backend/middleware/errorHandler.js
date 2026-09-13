@@ -23,9 +23,22 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ success: false, message: messages.join(', ') });
   }
 
-  res.status(error.statusCode || 500).json({
+  // CORS rejection
+  if (err.message && err.message.startsWith('CORS policy rejection')) {
+    return res.status(403).json({
+      success: false,
+      message: err.message
+    });
+  }
+
+  const statusCode = error.statusCode || 500;
+  const clientMessage = (process.env.NODE_ENV === 'production' && statusCode >= 500)
+    ? 'Internal Server Error'
+    : (error.message || 'Internal Server Error');
+
+  res.status(statusCode).json({
     success: false,
-    message: error.message || 'Internal Server Error'
+    message: clientMessage
   });
 };
 

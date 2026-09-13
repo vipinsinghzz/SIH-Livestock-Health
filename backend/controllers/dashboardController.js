@@ -1,3 +1,4 @@
+const supabaseDb = require('../services/supabaseDb');
 const Report = require('../models/Report');
 const TriageResult = require('../models/TriageResult');
 const VaccinationDrive = require('../models/VaccinationDrive');
