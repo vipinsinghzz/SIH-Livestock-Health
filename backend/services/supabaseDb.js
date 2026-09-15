@@ -92,9 +92,9 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
@@ -111,13 +111,13 @@ const profiles = {
           .eq('id', id)
           .single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
     // Fallback to Mongo
     try {
       const u = await User.findById(id).select('-passwordHash').lean();
       if (u) return toCamel(u);
-    } catch (e) {}
+    } catch (e) { }
     return null;
   },
 
@@ -134,13 +134,13 @@ const profiles = {
           .eq('email', cleanEmail)
           .single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       const u = await User.findOne({ email: cleanEmail }).select('-passwordHash').lean();
       if (u) return toCamel(u);
-    } catch (e) {}
+    } catch (e) { }
     return null;
   },
 
@@ -153,7 +153,7 @@ const profiles = {
         if (filter.isAvailable !== undefined) q = q.eq('is_available', filter.isAvailable);
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -182,7 +182,7 @@ const profiles = {
           .select()
           .single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -220,8 +220,19 @@ const animals = {
         if (filter.district) q = q.ilike('district', `%${filter.district}%`);
 
         const { data, error } = await q;
-        if (data && !error) return toCamel(data);
-      } catch (e) {}
+
+        if (error) {
+          console.error('[SupabaseDb] animals.find Supabase error:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+        } else if (data) {
+          console.log('[SupabaseDb] animals.find Supabase success:', data.length);
+          return toCamel(data);
+        }
+      } catch (e) { }
     }
 
     // Fallback to Mongoose
@@ -270,7 +281,7 @@ const animals = {
           res.pastReports = toCamel(pastReports || []);
           return res;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Fallback to Mongoose
@@ -318,7 +329,7 @@ const animals = {
         if (inserted && !error) {
           createdAnimal = toCamel(inserted);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Dual-write to MongoDB during transition
@@ -365,7 +376,7 @@ const animals = {
           .single();
 
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -382,7 +393,7 @@ const animals = {
     if (supabase) {
       try {
         await supabase.from('animals').delete().eq('id', id);
-      } catch (e) {}
+      } catch (e) { }
     }
     try {
       await Animal.findByIdAndDelete(id);
@@ -430,7 +441,7 @@ const reports = {
         if (inserted && !error) {
           created = toCamel(inserted);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -480,7 +491,7 @@ const reports = {
 
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -510,7 +521,7 @@ const reports = {
           .single();
 
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -534,7 +545,7 @@ const reports = {
           .select()
           .single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -582,7 +593,7 @@ const triageResults = {
           .single();
 
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -651,7 +662,7 @@ const triageResults = {
           .eq('report_id', reportId)
           .single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -697,7 +708,7 @@ const veterinarians = {
           }
           return vets;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Fallback to Mongoose
@@ -778,7 +789,7 @@ const diseaseCases = {
           .single();
 
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -788,7 +799,7 @@ const diseaseCases = {
         .populate('assignedVetId', 'name phone clinicName')
         .lean();
       if (!created) created = toCamel(populated);
-    } catch (e) {}
+    } catch (e) { }
 
     return created;
   },
@@ -813,7 +824,7 @@ const diseaseCases = {
 
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -849,7 +860,7 @@ const diseaseCases = {
           .single();
 
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -892,7 +903,7 @@ const diseaseCases = {
           });
           result = toCamel(data);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -917,7 +928,7 @@ const diseaseCases = {
         { new: true }
       ).lean();
       if (!result) result = toCamel(updated);
-    } catch (e) {}
+    } catch (e) { }
 
     return result;
   },
@@ -947,7 +958,7 @@ const diseaseCases = {
           });
           result = toCamel(data);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -968,7 +979,7 @@ const diseaseCases = {
         { new: true }
       ).lean();
       if (!result) result = toCamel(updated);
-    } catch (e) {}
+    } catch (e) { }
 
     return result;
   }
@@ -998,13 +1009,13 @@ const labReferrals = {
           .select()
           .single();
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       const doc = await LabReferral.create(data);
       if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) {}
+    } catch (e) { }
 
     return created;
   },
@@ -1016,7 +1027,7 @@ const labReferrals = {
         if (filter.status) q = q.eq('status', filter.status);
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1056,13 +1067,13 @@ const advisories = {
           .select()
           .single();
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       const doc = await Advisory.create(data);
       if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) {}
+    } catch (e) { }
 
     return created;
   },
@@ -1074,7 +1085,7 @@ const advisories = {
         if (filter.targetDistrict) q = q.eq('target_district', filter.targetDistrict);
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1117,13 +1128,13 @@ const vaccinationDrives = {
           .select()
           .single();
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       const doc = await VaccinationDrive.create(data);
       if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) {}
+    } catch (e) { }
 
     return created;
   },
@@ -1136,7 +1147,7 @@ const vaccinationDrives = {
         if (filter.status) q = q.eq('status', filter.status);
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1155,7 +1166,7 @@ const vaccinationDrives = {
       try {
         const { data, error } = await supabase.from('vaccination_drives').select('*').eq('id', id).single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1197,13 +1208,13 @@ const containmentZones = {
           .select()
           .single();
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       const doc = await ContainmentZone.create(data);
       if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) {}
+    } catch (e) { }
 
     return created;
   },
@@ -1216,7 +1227,7 @@ const containmentZones = {
         if (filter.status) q = q.eq('status', filter.status);
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1241,7 +1252,7 @@ const outbreaks = {
           p_min_cases: parseInt(minCases, 10)
         });
         if (data && !error && data.length > 0) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Fallback in-memory clustering on active cases
@@ -1317,13 +1328,13 @@ const notifications = {
           .select()
           .single();
         if (inserted && !error) created = toCamel(inserted);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
       const doc = await Notification.create(data);
       if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) {}
+    } catch (e) { }
 
     return created;
   },
@@ -1337,7 +1348,7 @@ const notifications = {
           .eq('recipient_id', userId)
           .order('created_at', { ascending: false });
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1362,7 +1373,7 @@ const dashboard = {
       try {
         const { data, error } = await supabase.from('view_dashboard_kpis').select('*').single();
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Fallback calculations across collections
@@ -1408,7 +1419,7 @@ const auditLogs = {
           actor_id: actorId || null,
           details
         });
-      } catch (e) {}
+      } catch (e) { }
     }
   },
 
@@ -1421,7 +1432,7 @@ const auditLogs = {
           .eq('entity_type', entityType)
           .eq('entity_id', entityId);
         if (!error && data) return data;
-      } catch (e) {}
+      } catch (e) { }
     }
     return [];
   }
@@ -1462,7 +1473,7 @@ const scanImages = {
         if (inserted && !error) {
           created = toCamel(inserted);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Dual-write to MongoDB during transition
@@ -1508,7 +1519,7 @@ const scanImages = {
 
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1532,7 +1543,7 @@ const scanImages = {
           .single();
 
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
@@ -1553,7 +1564,7 @@ const scanImages = {
           .single();
 
         if (data && !error) return toCamel(data);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     try {
