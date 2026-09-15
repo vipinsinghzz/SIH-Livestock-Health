@@ -42,6 +42,15 @@ function createCompatibleUserObject(profile, mongoUser = null) {
 const protect = async (req, res, next) => {
   let token;
 
+  console.log('[AUTH DEBUG]', {
+    method: req.method,
+    path: req.originalUrl,
+    hasAuthorization: Boolean(req.headers.authorization),
+    authorizationPrefix: req.headers.authorization
+      ? req.headers.authorization.substring(0, 20)
+      : null
+  });
+
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   } else if (req.query && req.query.token) {
@@ -125,13 +134,13 @@ const optionalProtect = async (req, res, next) => {
         if (profile && profile.email) {
           mongoUser = await User.findOne({ email: profile.email.toLowerCase() }).select('-passwordHash');
         }
-      } catch (e) {}
+      } catch (e) { }
 
       req.user = createCompatibleUserObject(profile || supabaseUser, mongoUser);
       req.supabaseUser = supabaseUser;
       return next();
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Fallback to legacy JWT
   try {
