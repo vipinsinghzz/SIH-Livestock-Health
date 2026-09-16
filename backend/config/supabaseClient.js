@@ -263,26 +263,26 @@ async function getProfileByAuthUser(supabaseUser) {
         }
       }
 
-      // 4. Fall back to matching by phone
+      // 4. Fall back to matching by phone (supports formats: 7878738970, +917878738970, 917878738970)
       if (!data && phone) {
+        const digits = phone.replace(/\D/g, '');
+        const phoneVariants = [phone];
+        if (digits.length === 10) {
+          phoneVariants.push(`+91${digits}`, `91${digits}`, digits);
+        } else if (digits.length === 12 && digits.startsWith('91')) {
+          phoneVariants.push(digits.substring(2), `+${digits}`, digits);
+        }
+        const uniquePhones = [...new Set(phoneVariants)];
+
         const { data: byPhone, error: phoneErr } = await supabase
           .from('profiles')
           .select('*')
-          .eq('phone', phone)
+          .in('phone', uniquePhones)
+          .limit(1)
           .maybeSingle();
+
         if (byPhone && !phoneErr) {
           data = byPhone;
-          if (authUserId && (!data.auth_user_id || data.auth_user_id !== authUserId)) {
-            try {
-              await supabase
-                .from('profiles')
-                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
-                .eq('id', data.id);
-              data.auth_user_id = authUserId;
-            } catch (linkErr) {
-              console.warn('[Supabase] Notice linking auth_user_id on profile by phone:', linkErr.message);
-            }
-          }
         }
       }
 
@@ -307,18 +307,22 @@ async function getProfileByAuthUser(supabaseUser) {
       }
 
       // 5. Auto-provision profile in public.profiles if missing for authenticated Supabase user
-      if (!data && authUserId) {
+      if (!data && (authUserId || email || phone)) {
         const meta = supabaseUser.user_metadata || {};
         const safePhone = phone || meta.phone || '0000000000';
         const safeDistrict = meta.district ? String(meta.district).trim() : 'Pune';
         const safeState = meta.state ? String(meta.state).trim() : 'Maharashtra';
+        const safeEmail = email || `user_${safePhone.replace(/\D/g, '') || Date.now()}@livestocksathi.in`;
+
+        // Check if authUserId is synthetic (00000000-0000-0000-0000-...)
+        const isSyntheticAuthId = authUserId && authUserId.startsWith('00000000-0000-0000-0000-');
+
         const profileToInsert = {
-          auth_user_id: authUserId,
           name: meta.name || email?.split('@')[0] || 'Farmer',
           role: meta.role || 'farmer',
           phone: safePhone,
-          email: email || `user_${authUserId.substring(0, 8)}@livestocksathi.in`,
-          password_hash: '',
+          email: safeEmail,
+          password_hash: '$2b$10$e7a68FwE3P9K.fakePasswordHashForOAuthOrSupaAuthUser',
           district: safeDistrict,
           state: safeState,
           village: meta.village || '',
@@ -328,16 +332,33 @@ async function getProfileByAuthUser(supabaseUser) {
           preferred_language: meta.preferredLanguage || 'hi'
         };
 
-        const { data: newProfile, error: insertErr } = await supabase
+        // Only attach auth_user_id if valid non-synthetic UUID
+        if (authUserId && !isSyntheticAuthId) {
+          profileToInsert.auth_user_id = authUserId;
+        }
+
+        let { data: newProfile, error: insertErr } = await supabase
           .from('profiles')
           .insert(profileToInsert)
           .select('*')
           .single();
 
+        // If error 23503 (fk_profiles_auth_user constraint violated because auth_user_id not in auth.users), retry with auth_user_id = null
+        if (insertErr && insertErr.code === '23503' && profileToInsert.auth_user_id) {
+          console.warn('[Supabase] auth_user_id not in auth.users (code 23503), retrying with auth_user_id = null');
+          delete profileToInsert.auth_user_id;
+          const retryRes = await supabase
+            .from('profiles')
+            .insert(profileToInsert)
+            .select('*')
+            .single();
+          newProfile = retryRes.data;
+          insertErr = retryRes.error;
+        }
+
         if (newProfile && !insertErr) {
           console.log('[Supabase] Auto-provisioned missing profile for user:', {
             profileId: newProfile.id,
-            auth_user_id: authUserId,
             email: newProfile.email,
             district: newProfile.district
           });
@@ -360,22 +381,19 @@ async function getProfileByAuthUser(supabaseUser) {
           };
         } else if (insertErr) {
           console.warn('[Supabase] Auto-provision profile error:', insertErr.message);
-          // If conflict on email (code 23505), fetch existing profile and link auth_user_id
-          if (insertErr.code === '23505' && profileToInsert.email) {
+          // If conflict on email or phone (code 23505), fetch existing profile
+          if (insertErr.code === '23505') {
             const { data: dupP } = await supabase
               .from('profiles')
               .select('*')
-              .eq('email', profileToInsert.email)
+              .or(`email.eq.${safeEmail},phone.eq.${safePhone}`)
+              .limit(1)
               .maybeSingle();
             if (dupP) {
-              await supabase
-                .from('profiles')
-                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
-                .eq('id', dupP.id);
               return {
                 _id: dupP.id,
                 id: dupP.id,
-                auth_user_id: authUserId,
+                auth_user_id: dupP.auth_user_id || authUserId,
                 name: dupP.name,
                 email: dupP.email,
                 role: dupP.role,

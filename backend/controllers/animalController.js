@@ -70,28 +70,26 @@ async function resolveFarmerProfile(user) {
         }
       }
 
-      // 4. Try matching by phone
+      // 4. Try matching by phone (support formats: 7878738970, +917878738970, 917878738970)
       if (!matchedProfile && phone) {
+        const digits = phone.replace(/\D/g, '');
+        const phoneVariants = [phone];
+        if (digits.length === 10) {
+          phoneVariants.push(`+91${digits}`, `91${digits}`, digits);
+        } else if (digits.length === 12 && digits.startsWith('91')) {
+          phoneVariants.push(digits.substring(2), `+${digits}`, digits);
+        }
+        const uniquePhones = [...new Set(phoneVariants)];
+
         const { data: profileByPhone, error: phoneError } = await supabaseDb.supabase
           .from('profiles')
           .select('id, auth_user_id, name, email, phone, village, block, district, role')
-          .eq('phone', phone)
+          .in('phone', uniquePhones)
+          .limit(1)
           .maybeSingle();
 
         if (profileByPhone && !phoneError) {
           matchedProfile = profileByPhone;
-          // Link auth_user_id if not yet linked
-          if (authUserId && (!matchedProfile.auth_user_id || matchedProfile.auth_user_id !== authUserId)) {
-            try {
-              await supabaseDb.supabase
-                .from('profiles')
-                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
-                .eq('id', matchedProfile.id);
-              matchedProfile.auth_user_id = authUserId;
-            } catch (linkErr) {
-              console.warn('[Animal] Notice linking auth_user_id by phone:', linkErr.message);
-            }
-          }
         }
       }
 
@@ -100,14 +98,16 @@ async function resolveFarmerProfile(user) {
       }
 
       // 5. If user is authenticated but profile is missing from public.profiles, auto-provision
-      if (authUserId) {
+      if (authUserId || email || phone) {
         const safeDistrict = user.district ? String(user.district).trim() : 'Pune';
         const safeState = user.state ? String(user.state).trim() : 'Maharashtra';
         const safePhone = phone || '0000000000';
-        const safeEmail = email || `farmer_${authUserId.substring(0, 8)}@livestocksathi.in`;
+        const safeEmail = email || `farmer_${safePhone.replace(/\D/g, '') || Date.now()}@livestocksathi.in`;
+
+        // Check if authUserId is synthetic (e.g. 00000000-0000-0000-0000-...)
+        const isSyntheticAuthId = authUserId && authUserId.startsWith('00000000-0000-0000-0000-');
 
         const profileToInsert = {
-          auth_user_id: authUserId,
           name: user.name || 'Farmer',
           role: user.role || 'farmer',
           phone: safePhone,
@@ -120,35 +120,48 @@ async function resolveFarmerProfile(user) {
           preferred_language: user.preferredLanguage || 'hi'
         };
 
-        const { data: newProfile, error: provError } = await supabaseDb.supabase
+        // Only attach auth_user_id if it is not a synthetic fallback ID
+        if (authUserId && !isSyntheticAuthId) {
+          profileToInsert.auth_user_id = authUserId;
+        }
+
+        let { data: newProfile, error: provError } = await supabaseDb.supabase
           .from('profiles')
           .insert(profileToInsert)
           .select('id, auth_user_id, name, email, phone, village, block, district, role')
           .single();
 
+        // If error 23503 (fk_profiles_auth_user violated because auth_user_id not in auth.users), retry without auth_user_id
+        if (provError && provError.code === '23503' && profileToInsert.auth_user_id) {
+          console.warn('[Animal] auth_user_id not in auth.users (code 23503), retrying with auth_user_id = null');
+          delete profileToInsert.auth_user_id;
+          const retryRes = await supabaseDb.supabase
+            .from('profiles')
+            .insert(profileToInsert)
+            .select('id, auth_user_id, name, email, phone, village, block, district, role')
+            .single();
+          newProfile = retryRes.data;
+          provError = retryRes.error;
+        }
+
         if (newProfile && !provError) {
           console.log('[Animal] Auto-provisioned missing profile:', {
             id: newProfile.id,
-            auth_user_id: authUserId,
             email: newProfile.email,
             district: newProfile.district
           });
           return newProfile;
         } else if (provError) {
           console.error('[Animal] Profile auto-provisioning error:', provError.message);
-          // If conflict on email (code 23505), fetch that profile and link auth_user_id
+          // If conflict on email or phone (code 23505), fetch that profile
           if (provError.code === '23505') {
             const { data: dupP } = await supabaseDb.supabase
               .from('profiles')
               .select('id, auth_user_id, name, email, phone, village, block, district, role')
-              .eq('email', safeEmail)
+              .or(`email.eq.${safeEmail},phone.eq.${safePhone}`)
+              .limit(1)
               .maybeSingle();
             if (dupP) {
-              await supabaseDb.supabase
-                .from('profiles')
-                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
-                .eq('id', dupP.id);
-              dupP.auth_user_id = authUserId;
               return dupP;
             }
           }

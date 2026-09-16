@@ -177,17 +177,29 @@ exports.register = async (req, res, next) => {
               profileToInsert.auth_user_id = authUserId;
             }
 
-            const { data: insertedProfile, error: profileInsertError } = await supabase
+            let { data: insertedProfile, error: profileInsertError } = await supabase
               .from('profiles')
               .insert(profileToInsert)
               .select('id, auth_user_id')
               .single();
 
+            // If error 23503 (fk_profiles_auth_user violated because auth_user_id not in auth.users), retry with auth_user_id = null
+            if (profileInsertError && profileInsertError.code === '23503' && profileToInsert.auth_user_id) {
+              console.warn('[Supabase] auth_user_id not in auth.users (code 23503), retrying profile insertion without auth_user_id');
+              delete profileToInsert.auth_user_id;
+              const retryInsert = await supabase
+                .from('profiles')
+                .insert(profileToInsert)
+                .select('id, auth_user_id')
+                .single();
+              insertedProfile = retryInsert.data;
+              profileInsertError = retryInsert.error;
+            }
+
             if (insertedProfile && !profileInsertError) {
               profileId = insertedProfile.id;
               console.log('[Supabase] Created new profile for registered farmer:', {
                 profileId: insertedProfile.id,
-                auth_user_id: authUserId,
                 email: cleanEmail
               });
             } else if (profileInsertError) {
@@ -197,16 +209,11 @@ exports.register = async (req, res, next) => {
                 const { data: dupProfile } = await supabase
                   .from('profiles')
                   .select('id, auth_user_id')
-                  .eq('email', cleanEmail)
+                  .or(`email.eq.${cleanEmail},phone.eq.${cleanPhone}`)
+                  .limit(1)
                   .maybeSingle();
                 if (dupProfile) {
                   profileId = dupProfile.id;
-                  if (authUserId && dupProfile.auth_user_id !== authUserId) {
-                    await supabase
-                      .from('profiles')
-                      .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
-                      .eq('id', dupProfile.id);
-                  }
                 }
               }
             }
@@ -296,32 +303,92 @@ exports.login = async (req, res, next) => {
     }
 
     const cleanEmail = loginKey.toLowerCase();
+    const digitsOnly = loginKey.replace(/\D/g, '');
+    const phoneTargetEmail = digitsOnly.length >= 10 ? `farmer_${digitsOnly.slice(-10)}@livestocksathi.in` : null;
 
     // 1. First priority: Authenticate via Live Supabase Auth if connected
-    if (supabase && cleanEmail.includes('@')) {
-      try {
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password
-        });
-
-        if (authData && authData.session && !authError) {
-          const profile = await getProfileByAuthUser(authData.user);
-          return res.status(200).json({
-            success: true,
-            token: authData.session.access_token,
-            refreshToken: authData.session.refresh_token,
-            user: profile || {
-              id: authData.user.id,
-              _id: authData.user.id,
-              email: authData.user.email,
-              role: authData.user.user_metadata?.role || 'farmer',
-              name: authData.user.user_metadata?.name || 'User'
-            }
+    if (supabase) {
+      const authEmail = cleanEmail.includes('@') ? cleanEmail : phoneTargetEmail;
+      if (authEmail) {
+        try {
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password
           });
+
+          if (authData && authData.session && !authError) {
+            const profile = await getProfileByAuthUser(authData.user);
+            return res.status(200).json({
+              success: true,
+              token: authData.session.access_token,
+              refreshToken: authData.session.refresh_token,
+              user: profile || {
+                id: authData.user.id,
+                _id: authData.user.id,
+                email: authData.user.email,
+                role: authData.user.user_metadata?.role || 'farmer',
+                name: authData.user.user_metadata?.name || 'User'
+              }
+            });
+          }
+        } catch (supabaseErr) {
+          // Fall through to database/demo verification
         }
-      } catch (supabaseErr) {
-        // Fall through to database/demo verification
+      }
+
+      // Check live public.profiles for credentials match (supports farmers registered with phone)
+      try {
+        const phoneVariants = [loginKey];
+        if (digitsOnly.length === 10) phoneVariants.push(`+91${digitsOnly}`, `91${digitsOnly}`, digitsOnly);
+        else if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) phoneVariants.push(digitsOnly.substring(2), `+${digitsOnly}`, digitsOnly);
+        const uniquePhones = [...new Set(phoneVariants)];
+
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`email.eq.${cleanEmail},${phoneTargetEmail ? `email.eq.${phoneTargetEmail},` : ''}phone.in.(${uniquePhones.join(',')})`)
+          .limit(1)
+          .maybeSingle();
+
+        if (dbProfile && dbProfile.password_hash) {
+          const isMatch = await bcrypt.compare(password, dbProfile.password_hash);
+          if (isMatch) {
+            const token = createSupabaseToken({
+              id: dbProfile.id,
+              _id: dbProfile.id,
+              auth_user_id: dbProfile.auth_user_id || dbProfile.id,
+              name: dbProfile.name,
+              email: dbProfile.email,
+              role: dbProfile.role,
+              phone: dbProfile.phone,
+              district: dbProfile.district,
+              state: dbProfile.state
+            });
+
+            return res.status(200).json({
+              success: true,
+              token,
+              user: {
+                id: dbProfile.id,
+                _id: dbProfile.id,
+                auth_user_id: dbProfile.auth_user_id || dbProfile.id,
+                name: dbProfile.name,
+                email: dbProfile.email,
+                role: dbProfile.role,
+                phone: dbProfile.phone,
+                district: dbProfile.district,
+                state: dbProfile.state,
+                village: dbProfile.village || '',
+                block: dbProfile.block || '',
+                registrationNo: dbProfile.registration_no || '',
+                department: dbProfile.department || '',
+                preferredLanguage: dbProfile.preferred_language || 'hi'
+              }
+            });
+          }
+        }
+      } catch (profAuthErr) {
+        console.warn('[Supabase Auth] Direct profile verification notice:', profAuthErr.message);
       }
     }
 

@@ -208,6 +208,53 @@ async function runAnimalFlowTests() {
     })
   });
   assert(unauthRes.status === 401, `Unauthenticated request rejected with HTTP 401 (got ${unauthRes.status})`);
+  // -------------------------------------------------------------------------
+  // 8. Production Edge Case: Synthetic Token ID Profile Auto-Resolution & Add Animal
+  // -------------------------------------------------------------------------
+  console.log('🔹 TEST 8: Production Scenario (Synthetic ID Token & Auto-Provision)');
+  const { createSupabaseToken } = require('../backend/config/supabaseClient');
+  const syntheticToken = createSupabaseToken({
+    id: '00000000-0000-0000-0000-01a0a548f9c7',
+    _id: '00000000-0000-0000-0000-01a0a548f9c7',
+    auth_user_id: '00000000-0000-0000-0000-01a0a548f9c7',
+    name: 'Vipin Singh',
+    email: 'farmer_7878738970@livestocksathi.in',
+    phone: '7878738970',
+    role: 'farmer',
+    district: 'Nagpur'
+  });
+
+  const synthMeRes = await fetch(`${BASE_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${syntheticToken}` }
+  });
+  const synthMeData = await synthMeRes.json();
+  assert(synthMeRes.status === 200, `GET /api/auth/me for synthetic token HTTP 200 (got ${synthMeRes.status})`);
+  assert(!!synthMeData.user, 'Synthetic user profile resolved');
+
+  const synthTag = `PROD-${Math.floor(100000 + Math.random() * 900000)}`;
+  const synthAnimalRes = await fetch(`${BASE_URL}/api/animals`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${syntheticToken}`
+    },
+    body: JSON.stringify({
+      tagId: synthTag,
+      name: 'Gauri (गौरी)',
+      species: 'Cattle',
+      breed: 'Gir',
+      age: 4,
+      gender: 'Female',
+      healthStatus: 'Healthy',
+      district: 'Nagpur',
+      village: 'Kamptee'
+    })
+  });
+  const synthAnimalData = await synthAnimalRes.json();
+  assert(synthAnimalRes.status === 201, `Synthetic token animal registered HTTP 201 (got ${synthAnimalRes.status})`);
+  assert(synthAnimalData.success === true, 'Synthetic token response indicates success: true');
+  assert(!!synthAnimalData.animal, 'Synthetic token response contains animal record');
+  console.log(`     Registered Animal with synthetic user token: ${synthAnimalData.animal?.tagId || synthTag}`);
   console.log('');
 
   console.log('================================================================');
