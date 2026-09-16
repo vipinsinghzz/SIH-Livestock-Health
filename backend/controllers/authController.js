@@ -171,6 +171,16 @@ exports.register = async (req, res, next) => {
 
       if (authError) {
         console.error('[Supabase Auth] Registration error:', authError.message);
+        if (
+          authError.message.toLowerCase().includes('already') ||
+          authError.message.toLowerCase().includes('exists') ||
+          authError.status === 422
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: 'इस मोबाइल नंबर या ईमेल से पहले से खाता मौजूद है। कृपया लॉगिन करें (An account with this phone/email already exists. Please log in).'
+          });
+        }
         return res.status(500).json({
           success: false,
           message: `Supabase Auth registration failed: ${authError.message}`
@@ -179,9 +189,10 @@ exports.register = async (req, res, next) => {
 
       authUserId = authData.user.id;
 
-      // Step B: Insert linked profile row into public.profiles using ADMIN client
-      // (service-role key bypasses RLS — this is intentional for server-side profile creation)
-      const profileToInsert = {
+      // Step B: Upsert profile row into public.profiles using ADMIN client
+      // Uses onConflict: 'email' so if database trigger on_auth_user_created
+      // already created the row, PostgREST updates it rather than throwing 23505 unique constraint error.
+      const profileToUpsert = {
         name: name.trim(),
         role: role || 'farmer',
         phone: cleanPhone,
@@ -196,24 +207,49 @@ exports.register = async (req, res, next) => {
         preferred_language: preferredLanguage || 'hi',
         latitude: parseFloat(location?.lat || 0),
         longitude: parseFloat(location?.lng || 0),
-        auth_user_id: authUserId
+        auth_user_id: authUserId,
+        updated_at: new Date().toISOString()
       };
 
-      const { data: insertedProfile, error: profileInsertError } = await supabaseAdmin
+      let profileRow = null;
+      const { data: upsertedProfile, error: profileUpsertError } = await supabaseAdmin
         .from('profiles')
-        .insert(profileToInsert)
+        .upsert(profileToUpsert, { onConflict: 'email' })
         .select('*')
         .single();
 
-      if (profileInsertError) {
-        console.error('[Supabase] Failed to insert profile during registration:', profileInsertError.message);
-        return res.status(500).json({
-          success: false,
-          message: `Database profile creation failed: ${profileInsertError.message}`
-        });
+      if (profileUpsertError) {
+        console.warn('[Supabase] Upsert notice during registration:', profileUpsertError.message);
+
+        // Fallback: fetch existing row if present
+        const { data: existingP } = await supabaseAdmin
+          .from('profiles')
+          .select('*')
+          .or(`auth_user_id.eq.${authUserId},email.eq.${cleanEmail}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingP) {
+          profileRow = existingP;
+        } else {
+          // Compensation rollback: delete orphaned auth user if profile cannot be saved
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authUserId);
+            console.log(`[Supabase] Compensation rollback: deleted orphan auth user ${authUserId}`);
+          } catch (delErr) {
+            console.error(`[Supabase] Compensation rollback failed for ${authUserId}:`, delErr.message);
+          }
+
+          return res.status(500).json({
+            success: false,
+            message: `Database profile creation failed: ${profileUpsertError.message}`
+          });
+        }
+      } else {
+        profileRow = upsertedProfile;
       }
 
-      profileId = insertedProfile.id;
+      profileId = profileRow.id;
 
       // Step C: Sign in via the AUTH client (anon key) to obtain real Supabase session.
       // CRITICAL: supabaseAuth is used here — NOT supabaseAdmin — to prevent
@@ -342,6 +378,20 @@ exports.login = async (req, res, next) => {
         } catch (dbErr) {
           console.warn('[Supabase] Phone lookup notice:', dbErr.message);
         }
+      }
+
+      // If not found in public.profiles, check auth.users via admin API to find matching phone in user_metadata
+      if (!matchedProfile && supabaseAdmin && isLiveSupabase) {
+        try {
+          const { data: userList } = await supabaseAdmin.auth.admin.listUsers({ perPage: 100 });
+          const matchingAuthUser = userList?.users?.find(u => {
+            const uPhone = normalizeIndianPhone(u.phone || u.user_metadata?.phone || '');
+            return uPhone === normPhone;
+          });
+          if (matchingAuthUser && matchingAuthUser.email) {
+            authEmail = matchingAuthUser.email;
+          }
+        } catch (authListErr) {}
       }
 
       // If not in DB or offline, check in-memory offline store

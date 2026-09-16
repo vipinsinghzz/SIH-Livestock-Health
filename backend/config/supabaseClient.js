@@ -26,17 +26,61 @@ const { normalizeIndianPhone, getDeterministicInternalEmail, getPhoneVariants } 
 // ─── Environment Variables ──────────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mock-supabase.pashurakshak.internal';
 
-// Service-role / admin key (bypasses RLS) — accept any of the known variable names
-const SUPABASE_SERVICE_ROLE_KEY =
+// Helper to determine key nature without exposing credentials
+function inspectKeyType(rawKey) {
+  if (!rawKey) return { type: 'missing', isSecret: false, isAnon: false };
+  const key = String(rawKey).trim();
+  if (key.startsWith('sb_secret_')) {
+    return { type: 'sb_secret', isSecret: true, isAnon: false };
+  }
+  if (key.startsWith('sb_publishable_')) {
+    return { type: 'sb_publishable', isSecret: false, isAnon: true };
+  }
+  if (key.startsWith('eyJ')) {
+    try {
+      const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64').toString());
+      if (payload.role === 'service_role') {
+        return { type: 'service_role_jwt', isSecret: true, isAnon: false };
+      }
+      if (payload.role === 'anon') {
+        return { type: 'anon_jwt', isSecret: false, isAnon: true };
+      }
+      return { type: `jwt_${payload.role || 'unknown'}`, isSecret: false, isAnon: false };
+    } catch (e) {
+      return { type: 'opaque_jwt', isSecret: false, isAnon: false };
+    }
+  }
+  if (key.includes('placeholder') || key.includes('mock')) {
+    return { type: 'placeholder', isSecret: false, isAnon: false };
+  }
+  return { type: 'opaque_string', isSecret: key.length > 40, isAnon: false };
+}
+
+// Resolve candidate secret keys from environment
+const rawSecretCandidate =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_SERVICE_KEY ||
   process.env.SUPABASE_SECRET_KEY ||
-  'pashurakshak_supabase_service_role_secret_key_2026';
+  process.env.SUPABASE_SECRET ||
+  process.env.SB_SECRET_KEY ||
+  (process.env.SUPABASE_KEY && inspectKeyType(process.env.SUPABASE_KEY).isSecret ? process.env.SUPABASE_KEY : null) ||
+  '';
 
-// Public / anon key (subject to RLS) — used ONLY for auth operations
-const SUPABASE_ANON_KEY =
+// Resolve candidate public/anon keys from environment
+const rawAnonCandidate =
   process.env.SUPABASE_ANON_KEY ||
-  'pashurakshak_supabase_anon_public_key_2026';
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_ANON ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  (process.env.SUPABASE_KEY && inspectKeyType(process.env.SUPABASE_KEY).isAnon ? process.env.SUPABASE_KEY : null) ||
+  '';
+
+const secretKeyInfo = inspectKeyType(rawSecretCandidate);
+const anonKeyInfo = inspectKeyType(rawAnonCandidate);
+
+// Fallback to harmless developer placeholders only when not configured
+const SUPABASE_SERVICE_ROLE_KEY = rawSecretCandidate || 'pashurakshak_supabase_service_role_secret_key_2026';
+const SUPABASE_ANON_KEY = rawAnonCandidate || 'pashurakshak_supabase_anon_public_key_2026';
 
 const isLiveSupabase =
   SUPABASE_URL.startsWith('http') &&
@@ -49,7 +93,7 @@ const isLiveSupabase =
 let supabaseAuth = null;
 
 // ─── Client 2: ADMIN / DB client (service-role key, bypasses RLS) ───────────
-// ONLY used for: .from('profiles'), .from('animals'), admin.createUser(), etc.
+// ONLY used for: .from('profiles'), .from('animals'), admin.createUser(), admin.deleteUser()
 // NEVER receives the signed-in user's access_token.
 let supabaseAdmin = null;
 
@@ -59,37 +103,19 @@ let supabase = null;
 
 if (isLiveSupabase) {
   try {
-    // Audit key type at startup (supports both JWT-style eyJ... and opaque sb_secret_... keys)
-    let keyRole = 'unknown';
-    if (SUPABASE_SERVICE_ROLE_KEY.startsWith('eyJ')) {
-      // Classic JWT — decode payload
-      try {
-        const payload = JSON.parse(
-          Buffer.from(SUPABASE_SERVICE_ROLE_KEY.split('.')[1], 'base64').toString()
-        );
-        keyRole = payload.role || 'unknown';
-      } catch (e) {}
-    } else if (
-      SUPABASE_SERVICE_ROLE_KEY.startsWith('sb_secret_') ||
-      SUPABASE_SERVICE_ROLE_KEY.length > 40
-    ) {
-      // Opaque secret key format (Supabase newer format) — cannot decode as JWT
-      keyRole = 'opaque-secret (service-role assumed)';
-    }
-
-    if (keyRole === 'anon') {
+    if (secretKeyInfo.isAnon) {
       console.error(
-        '[Supabase CRITICAL MISCONFIGURATION] SUPABASE_SERVICE_ROLE_KEY is an ANON key! ' +
-        'All server-side profile and admin operations will fail with PostgreSQL RLS permission denied. ' +
-        'Set SUPABASE_SERVICE_ROLE_KEY to the service_role secret from Supabase Dashboard → Project Settings → API.'
+        '[Supabase CRITICAL MISCONFIGURATION] A publishable/anon key was provided where a secret key was expected! ' +
+        'Server-side profile creation and admin operations will fail with PostgreSQL RLS error 42501 (permission denied). ' +
+        'Configure SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY in Railway to the service_role or sb_secret_... key.'
       );
     } else {
       console.log(
-        `[Supabase] Admin DB client initialized with service-role credentials (key type: ${keyRole}) → ${SUPABASE_URL}`
+        `[Supabase] Admin DB client initialized (key type: ${secretKeyInfo.type}) → ${new URL(SUPABASE_URL).hostname}`
       );
     }
 
-    // CLIENT 2: Admin/DB — service-role key, never persists session, never auto-refreshes
+    // CLIENT 2: Admin/DB — privileged service credential, never persists session, never auto-refreshes
     supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
@@ -98,7 +124,7 @@ if (isLiveSupabase) {
       }
     });
 
-    // CLIENT 1: Auth — anon key, never persists session
+    // CLIENT 1: Auth — anon/publishable key, never persists session
     supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         autoRefreshToken: false,
@@ -110,8 +136,8 @@ if (isLiveSupabase) {
     // Backward-compat alias: all .from() calls use the admin client
     supabase = supabaseAdmin;
 
-    console.log('[Supabase] Auth client initialized with anon key (for signInWithPassword / getUser only).');
-    console.log('[Supabase] Admin DB client is ISOLATED from auth sessions — RLS bypassed via service-role key.');
+    console.log('[Supabase] Auth client initialized with anon/publishable key (for signInWithPassword / getUser only).');
+    console.log('[Supabase] Admin DB client is ISOLATED from auth sessions — privileged server-side access.');
   } catch (err) {
     console.warn(`[Supabase] Client initialization warning: ${err.message}. Falling back to resilient mode.`);
   }
