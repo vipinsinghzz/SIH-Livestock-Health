@@ -2,6 +2,220 @@ const supabaseDb = require('../services/supabaseDb');
 const Animal = require('../models/Animal');
 const Report = require('../models/Report');
 
+/**
+ * Resolves the authenticated user's public.profiles record in Supabase.
+ * Prefers auth_user_id, then id, then email.
+ * Auto-provisions the profile if missing and user is authenticated.
+ */
+async function resolveFarmerProfile(user) {
+  if (!user) return null;
+
+  const authUserId = String(user.auth_user_id || user.id || '').trim();
+  const userId = String(user.id || '').trim();
+  const email = (user.email || '').toLowerCase().trim();
+  const phone = String(user.phone || '').trim();
+
+  if (supabaseDb.supabase) {
+    try {
+      let matchedProfile = null;
+
+      // 1. Try matching by profile id = userId (if valid UUID)
+      if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+        const { data: profileById, error: idError } = await supabaseDb.supabase
+          .from('profiles')
+          .select('id, auth_user_id, name, email, phone, village, block, district, role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (profileById && !idError) {
+          matchedProfile = profileById;
+        }
+      }
+
+      // 2. Try matching by auth_user_id (prefer matching by Supabase Auth UUID)
+      if (!matchedProfile && authUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authUserId)) {
+        const { data: profileByAuthId, error: authError } = await supabaseDb.supabase
+          .from('profiles')
+          .select('id, auth_user_id, name, email, phone, village, block, district, role')
+          .eq('auth_user_id', authUserId)
+          .maybeSingle();
+
+        if (profileByAuthId && !authError) {
+          matchedProfile = profileByAuthId;
+        }
+      }
+
+      // 3. Try matching by email
+      if (!matchedProfile && email) {
+        const { data: profileByEmail, error: emailError } = await supabaseDb.supabase
+          .from('profiles')
+          .select('id, auth_user_id, name, email, phone, village, block, district, role')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (profileByEmail && !emailError) {
+          matchedProfile = profileByEmail;
+          // Link auth_user_id if not yet linked
+          if (authUserId && (!matchedProfile.auth_user_id || matchedProfile.auth_user_id !== authUserId)) {
+            try {
+              await supabaseDb.supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', matchedProfile.id);
+              matchedProfile.auth_user_id = authUserId;
+            } catch (linkErr) {
+              console.warn('[Animal] Notice linking auth_user_id by email:', linkErr.message);
+            }
+          }
+        }
+      }
+
+      // 4. Try matching by phone
+      if (!matchedProfile && phone) {
+        const { data: profileByPhone, error: phoneError } = await supabaseDb.supabase
+          .from('profiles')
+          .select('id, auth_user_id, name, email, phone, village, block, district, role')
+          .eq('phone', phone)
+          .maybeSingle();
+
+        if (profileByPhone && !phoneError) {
+          matchedProfile = profileByPhone;
+          // Link auth_user_id if not yet linked
+          if (authUserId && (!matchedProfile.auth_user_id || matchedProfile.auth_user_id !== authUserId)) {
+            try {
+              await supabaseDb.supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', matchedProfile.id);
+              matchedProfile.auth_user_id = authUserId;
+            } catch (linkErr) {
+              console.warn('[Animal] Notice linking auth_user_id by phone:', linkErr.message);
+            }
+          }
+        }
+      }
+
+      if (matchedProfile) {
+        return matchedProfile;
+      }
+
+      // 5. If user is authenticated but profile is missing from public.profiles, auto-provision
+      if (authUserId) {
+        const safeDistrict = user.district ? String(user.district).trim() : 'Pune';
+        const safeState = user.state ? String(user.state).trim() : 'Maharashtra';
+        const safePhone = phone || '0000000000';
+        const safeEmail = email || `farmer_${authUserId.substring(0, 8)}@livestocksathi.in`;
+
+        const profileToInsert = {
+          auth_user_id: authUserId,
+          name: user.name || 'Farmer',
+          role: user.role || 'farmer',
+          phone: safePhone,
+          email: safeEmail,
+          password_hash: '$2b$10$e7a68FwE3P9K.fakePasswordHashForOAuthOrSupaAuthUser',
+          district: safeDistrict,
+          state: safeState,
+          village: user.village || '',
+          block: user.block || '',
+          preferred_language: user.preferredLanguage || 'hi'
+        };
+
+        const { data: newProfile, error: provError } = await supabaseDb.supabase
+          .from('profiles')
+          .insert(profileToInsert)
+          .select('id, auth_user_id, name, email, phone, village, block, district, role')
+          .single();
+
+        if (newProfile && !provError) {
+          console.log('[Animal] Auto-provisioned missing profile:', {
+            id: newProfile.id,
+            auth_user_id: authUserId,
+            email: newProfile.email,
+            district: newProfile.district
+          });
+          return newProfile;
+        } else if (provError) {
+          console.error('[Animal] Profile auto-provisioning error:', provError.message);
+          // If conflict on email (code 23505), fetch that profile and link auth_user_id
+          if (provError.code === '23505') {
+            const { data: dupP } = await supabaseDb.supabase
+              .from('profiles')
+              .select('id, auth_user_id, name, email, phone, village, block, district, role')
+              .eq('email', safeEmail)
+              .maybeSingle();
+            if (dupP) {
+              await supabaseDb.supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', dupP.id);
+              dupP.auth_user_id = authUserId;
+              return dupP;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Animal] Profile resolution exception:', err.message);
+    }
+  }
+
+  // 6. Offline / Mock fallback (when live Supabase client is not connected)
+  const { MOCK_PROFILES } = require('../config/supabaseClient');
+  if (email && MOCK_PROFILES && MOCK_PROFILES[email]) {
+    const mp = MOCK_PROFILES[email];
+    return {
+      id: mp.id,
+      auth_user_id: authUserId || mp.id,
+      name: mp.name,
+      email: mp.email,
+      village: mp.village || user.village || '',
+      block: mp.block || user.block || '',
+      district: mp.district || user.district || 'Pune',
+      role: mp.role || 'farmer'
+    };
+  }
+
+  // 7. Check Mongo User model if available
+  try {
+    const User = require('../models/User');
+    const u = await User.findOne({
+      $or: [
+        ...(email ? [{ email }] : []),
+        ...(phone ? [{ phone }] : []),
+        ...(authUserId.length === 24 ? [{ _id: authUserId }] : [])
+      ]
+    }).lean();
+    if (u) {
+      return {
+        id: String(u._id),
+        auth_user_id: authUserId || String(u._id),
+        name: u.name,
+        email: u.email,
+        village: u.village || '',
+        block: u.block || '',
+        district: u.district || 'Pune',
+        role: u.role || 'farmer'
+      };
+    }
+  } catch (e) { }
+
+  // 8. If user already has valid id and name (e.g. from token/session), use it ONLY when Supabase is offline
+  if (user.id && user.name && !supabaseDb.supabase) {
+    return {
+      id: String(user.id),
+      auth_user_id: authUserId || String(user.id),
+      name: user.name,
+      email: user.email || '',
+      village: user.village || '',
+      block: user.block || '',
+      district: user.district || 'Pune',
+      role: user.role || 'farmer'
+    };
+  }
+
+  return null;
+}
+
 // @desc    Get all animals (filtered by owner, village, species)
 // @route   GET /api/animals
 // @access  Private
@@ -12,7 +226,16 @@ exports.getAnimals = async (req, res, next) => {
 
     // Farmers only see their own animals by default
     if (req.user.role === 'farmer') {
-      query.ownerId = String(req.user._id || req.user.id);
+      const profile = await resolveFarmerProfile(req.user);
+      if (profile && profile.id) {
+        query.ownerId = String(profile.id);
+      } else {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          animals: []
+        });
+      }
     } else if (ownerId) {
       query.ownerId = String(ownerId);
     }
@@ -30,6 +253,7 @@ exports.getAnimals = async (req, res, next) => {
       animals
     });
   } catch (error) {
+    console.error('[Animal] GET ANIMALS ERROR:', error.message);
     next(error);
   }
 };
@@ -53,6 +277,7 @@ exports.getAnimalById = async (req, res, next) => {
       animal
     });
   } catch (error) {
+    console.error('[Animal] GET ANIMAL BY ID ERROR:', error.message);
     next(error);
   }
 };
@@ -72,7 +297,6 @@ exports.createAnimal = async (req, res, next) => {
       healthStatus,
       milkYieldDaily,
       timeline,
-      ownerId,
       village,
       block,
       district,
@@ -87,53 +311,169 @@ exports.createAnimal = async (req, res, next) => {
       });
     }
 
-    const finalTagId = (tagId || `MH-12-P-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase();
-
-    // Verify tag uniqueness if tagId provided
-    if (tagId) {
-      const existing = await supabaseDb.animals.find({ tagId: finalTagId });
-      if (existing && existing.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: `An animal with Tag ID '${finalTagId}' is already registered.`
-        });
-      }
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.'
+      });
     }
 
-    const effectiveOwnerId = ownerId || String(req.user._id || req.user.id);
+    console.log('[Animal] Authenticated user:', {
+      id: req.user.id,
+      auth_user_id: req.user.auth_user_id,
+      email: req.user.email,
+      role: req.user.role
+    });
 
+    /*
+     * Resolve the actual profiles.id.
+     * animals.owner_id -> profiles.id (NOT directly -> auth.users.id)
+     */
+    const profile = await resolveFarmerProfile(req.user);
+
+    if (!profile?.id) {
+      console.warn('[Animal] Farmer profile not found for user:', req.user.id);
+      return res.status(404).json({
+        success: false,
+        message: 'Farmer profile not found. Please complete your profile before adding an animal.'
+      });
+    }
+
+    console.log('[Animal] Resolved farmer profile:', {
+      profileId: profile.id,
+      auth_user_id: profile.auth_user_id,
+      district: profile.district
+    });
+
+    /*
+     * SECURITY: A farmer can NEVER register an animal under another farmer's profile.
+     * Only an admin can explicitly assign animals to another profile.
+     */
+    const effectiveOwnerId = (req.user.role === 'admin' && req.body.ownerId)
+      ? String(req.body.ownerId)
+      : String(profile.id);
+
+    /*
+     * Generate / normalize tag ID.
+     */
+    const finalTagId = (
+      tagId ||
+      `MH-12-P-${Math.floor(1000 + Math.random() * 9000)}`
+    ).trim().toUpperCase();
+
+    /*
+     * Check duplicate tag using lightweight direct query.
+     */
+    const existingTag = await supabaseDb.animals.findByTagId(finalTagId);
+    if (existingTag) {
+      return res.status(400).json({
+        success: false,
+        message: `An animal with Tag ID '${finalTagId}' is already registered.`
+      });
+    }
+
+    /*
+     * Use authenticated user's/profile's actual location without hardcoded bad defaults.
+     */
+    const finalVillage = (village || profile.village || req.user.village || '').trim();
+    const finalBlock = (block || profile.block || req.user.block || '').trim();
+    const finalDistrict = (district || profile.district || req.user.district || 'Pune').trim();
+
+    console.log('[Animal] Inserting animal record:', {
+      tagId: finalTagId,
+      species,
+      ownerId: effectiveOwnerId,
+      district: finalDistrict,
+      village: finalVillage,
+      block: finalBlock
+    });
+
+    /*
+     * Create animal in authoritative Supabase PostgreSQL database.
+     */
     const animal = await supabaseDb.animals.create({
       tagId: finalTagId,
-      name: name || finalTagId,
+      name: name ? name.trim() : finalTagId,
       species,
       breed: breed || 'Indigenous / Mixed',
       age: age ? parseInt(age, 10) : 3,
       gender: gender || 'Female',
       healthStatus: healthStatus || 'Healthy',
-      milkYieldDaily: milkYieldDaily || (species === 'Goat' ? '2.0 L' : species === 'Cattle' || species === 'Buffalo' ? '12.0 L' : 'N/A'),
-      timeline: timeline || [
-        {
-          type: 'Health Check',
-          title: 'Animal Registered',
-          date: new Date().toLocaleDateString('en-GB'),
-          notes: 'Profile added to Livestock Saathi'
-        }
-      ],
+      milkYieldDaily:
+        milkYieldDaily ||
+        (
+          species === 'Goat'
+            ? '2.0 L'
+            : species === 'Cattle' || species === 'Buffalo'
+              ? '12.0 L'
+              : 'N/A'
+        ),
+      lastCheckup: new Date().toLocaleDateString('en-GB'),
       ownerId: effectiveOwnerId,
-      village: village || req.user.village || 'Baramati Rural',
-      block: block || req.user.block || 'Baramati',
-      district: district || req.user.district || 'Pune',
+      village: finalVillage,
+      block: finalBlock,
+      district: finalDistrict,
       vaccinationHistory: vaccinationHistory || [],
       treatmentHistory: treatmentHistory || []
     });
 
-    res.status(201).json({
+    if (!animal) {
+      return res.status(500).json({
+        success: false,
+        message: 'Animal could not be created.'
+      });
+    }
+
+    // Insert initial timeline event into Supabase animal_timeline table
+    if (supabaseDb.supabase && animal.id) {
+      const initialTimeline = (Array.isArray(timeline) && timeline.length > 0)
+        ? timeline
+        : [
+            {
+              type: 'Health Check',
+              title: 'Animal Registered',
+              date: new Date().toLocaleDateString('en-GB'),
+              notes: 'Profile added to Livestock Saathi'
+            }
+          ];
+
+      try {
+        const timelineRows = initialTimeline.map(t => ({
+          animal_id: animal.id,
+          event_type: t.type || 'Health Check',
+          title: t.title || 'Animal Registered',
+          date: t.date || new Date().toLocaleDateString('en-GB'),
+          notes: t.notes || 'Profile added to Livestock Saathi',
+          doctor: t.doctor || '',
+          status: t.status || '',
+          disease: t.disease || ''
+        }));
+        await supabaseDb.supabase.from('animal_timeline').insert(timelineRows);
+        animal.timeline = initialTimeline;
+      } catch (te) {
+        console.warn('[Animal] Initial timeline creation notice:', te.message);
+      }
+    }
+
+    return res.status(201).json({
       success: true,
       message: 'Animal profile registered successfully.',
       animal
     });
+
   } catch (error) {
-    next(error);
+    console.error('[Animal] CREATE ERROR:', {
+      message: error.message,
+      code: error.code,
+      details: error.details
+    });
+
+    const statusCode = error.statusCode || (error.code === '23505' ? 400 : 500);
+
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to register animal.'
+    });
   }
 };
 
@@ -152,9 +492,82 @@ exports.updateAnimal = async (req, res, next) => {
       });
     }
 
-    const updates = { ...req.body };
+    // Authorization check: Farmer can only update their own animal
+    if (req.user.role === 'farmer') {
+      const profile = await resolveFarmerProfile(req.user);
+      const existingOwnerId = existing.ownerId?.id || existing.ownerId?._id || existing.ownerId;
+      if (profile && existingOwnerId && String(existingOwnerId) !== String(profile.id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to update this animal record.'
+        });
+      }
+    }
 
-    // Format new vaccination event if present
+    const updates = { ...req.body };
+    const targetAnimalId = existing.id || animalId;
+
+    // Handle new child events in Supabase
+    if (supabaseDb.supabase) {
+      if (req.body.newTimelineEvent && req.body.newTimelineEvent.title) {
+        const ne = req.body.newTimelineEvent;
+        try {
+          await supabaseDb.supabase.from('animal_timeline').insert({
+            animal_id: targetAnimalId,
+            event_type: ne.type || 'Health Check',
+            title: ne.title,
+            date: ne.date || new Date().toLocaleDateString('en-GB'),
+            doctor: ne.doctor || '',
+            notes: ne.notes || '',
+            image_url: ne.image || '',
+            status: ne.status || '',
+            disease: ne.disease || ''
+          });
+        } catch (e) {
+          console.warn('[Animal] Supabase timeline insert notice:', e.message);
+        }
+      }
+
+      if (req.body.newVaccination) {
+        const nv = req.body.newVaccination;
+        const vName = nv.vaccine || nv.name;
+        if (vName) {
+          try {
+            await supabaseDb.supabase.from('animal_vaccinations').insert({
+              animal_id: targetAnimalId,
+              vaccine_name: vName,
+              date: nv.date ? new Date(nv.date) : new Date(),
+              next_due: nv.nextDue ? new Date(nv.nextDue) : null,
+              dose: nv.dose || 'Primary Dose',
+              batch_number: nv.batchNumber || '',
+              administered_by: nv.administeredBy || '',
+              camp: nv.camp || '',
+              notes: nv.notes || ''
+            });
+          } catch (e) {
+            console.warn('[Animal] Supabase vaccination insert notice:', e.message);
+          }
+        }
+      }
+
+      if (req.body.newTreatment && req.body.newTreatment.condition) {
+        const nt = req.body.newTreatment;
+        try {
+          const profile = await resolveFarmerProfile(req.user);
+          await supabaseDb.supabase.from('animal_treatments').insert({
+            animal_id: targetAnimalId,
+            condition: nt.condition,
+            treatment: nt.treatment || 'Prescribed medication',
+            date: nt.date ? new Date(nt.date) : new Date(),
+            vet_id: profile ? profile.id : null
+          });
+        } catch (e) {
+          console.warn('[Animal] Supabase treatment insert notice:', e.message);
+        }
+      }
+    }
+
+    // Format new vaccination event for local object / Mongo
     if (req.body.newVaccination) {
       const nv = req.body.newVaccination;
       const vName = nv.vaccine || nv.name;
@@ -174,7 +587,7 @@ exports.updateAnimal = async (req, res, next) => {
       }
     }
 
-    // Format new treatment if present
+    // Format new treatment for local object / Mongo
     if (req.body.newTreatment && req.body.newTreatment.condition) {
       const nt = req.body.newTreatment;
       const tHistory = existing.treatmentHistory || [];
@@ -187,7 +600,7 @@ exports.updateAnimal = async (req, res, next) => {
       updates.treatmentHistory = tHistory;
     }
 
-    // Format new timeline event if present
+    // Format new timeline event for local object / Mongo
     if (req.body.newTimelineEvent && req.body.newTimelineEvent.title) {
       const ne = req.body.newTimelineEvent;
       const timeline = existing.timeline || [];
@@ -212,6 +625,7 @@ exports.updateAnimal = async (req, res, next) => {
       animal: updated || existing
     });
   } catch (error) {
+    console.error('[Animal] UPDATE ERROR:', error.message);
     next(error);
   }
 };
@@ -221,6 +635,26 @@ exports.updateAnimal = async (req, res, next) => {
 // @access  Private
 exports.deleteAnimal = async (req, res, next) => {
   try {
+    const existing = await supabaseDb.animals.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: 'Animal not found or could not be deleted.'
+      });
+    }
+
+    // Authorization check: Farmer can only delete their own animal
+    if (req.user.role === 'farmer') {
+      const profile = await resolveFarmerProfile(req.user);
+      const existingOwnerId = existing.ownerId?.id || existing.ownerId?._id || existing.ownerId;
+      if (profile && existingOwnerId && String(existingOwnerId) !== String(profile.id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to delete this animal record.'
+        });
+      }
+    }
+
     const success = await supabaseDb.animals.deleteById(req.params.id);
     if (!success) {
       return res.status(404).json({
@@ -228,11 +662,13 @@ exports.deleteAnimal = async (req, res, next) => {
         message: 'Animal not found or could not be deleted.'
       });
     }
+
     res.status(200).json({
       success: true,
       message: 'Animal record deleted successfully.'
     });
   } catch (error) {
+    console.error('[Animal] DELETE ERROR:', error.message);
     next(error);
   }
 };

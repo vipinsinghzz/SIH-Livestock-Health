@@ -35,6 +35,7 @@ export default function AnimalsList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCustomBreed, setIsCustomBreed] = useState(false);
+  const [formError, setFormError] = useState(null);
 
   // New Animal Form
   const [formData, setFormData] = useState({
@@ -108,6 +109,7 @@ export default function AnimalsList() {
   const openAddModal = () => {
     const initialBreeds = getBreedsForSpecies('Cattle', currentLang);
     const defaultBreed = initialBreeds.length > 0 ? initialBreeds[0].id : 'Gir';
+    setFormError(null);
     setFormData({
       name: '',
       species: 'Cattle',
@@ -127,6 +129,7 @@ export default function AnimalsList() {
     if (!formData.name.trim()) return;
 
     setIsSubmitting(true);
+    setFormError(null);
     try {
       const finalBreed = isCustomBreed && formData.customBreed.trim()
         ? formData.customBreed.trim()
@@ -153,6 +156,7 @@ export default function AnimalsList() {
       await loadAnimals();
     } catch (err) {
       console.error('Error creating animal:', err);
+      setFormError(err.message || 'Failed to register animal. Please check details and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -360,6 +364,12 @@ export default function AnimalsList() {
             </div>
 
             <form onSubmit={handleCreateAnimal} className="space-y-3.5 text-xs">
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{formError}</span>
+                </div>
+              )}
               {/* Animal Name */}
               <div>
                 <label className="block font-bold text-slate-700 mb-1">

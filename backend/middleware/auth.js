@@ -7,7 +7,10 @@ const { verifySupabaseToken, getProfileByAuthUser } = require('../config/supabas
  * and PostgreSQL / Supabase operations.
  */
 function createCompatibleUserObject(profile, mongoUser = null) {
-  const userIdStr = String(mongoUser ? mongoUser._id : (profile._id || profile.id));
+  // Authoritative user ID is the PostgreSQL profiles.id UUID when available
+  const profileIdStr = profile ? String(profile.id || profile._id || '') : '';
+  const mongoIdStr = mongoUser ? String(mongoUser._id) : '';
+  const userIdStr = profileIdStr || mongoIdStr;
 
   // Safe wrapper for ObjectId.equals compatibility
   const idWrapper = mongoUser ? mongoUser._id : {
@@ -16,26 +19,26 @@ function createCompatibleUserObject(profile, mongoUser = null) {
     equals: (other) => {
       if (!other) return false;
       const otherStr = typeof other === 'object' && other.toString ? other.toString() : String(other);
-      return otherStr === userIdStr;
+      return otherStr === userIdStr || (mongoIdStr && otherStr === mongoIdStr);
     }
   };
 
   return {
     _id: idWrapper,
     id: userIdStr,
-    auth_user_id: profile.auth_user_id || userIdStr,
-    name: profile.name || (mongoUser ? mongoUser.name : 'User'),
-    email: (profile.email || (mongoUser ? mongoUser.email : '')).toLowerCase(),
-    phone: profile.phone || (mongoUser ? mongoUser.phone : ''),
-    role: profile.role || (mongoUser ? mongoUser.role : 'farmer'),
-    district: profile.district || (mongoUser ? mongoUser.district : 'Pune'),
-    state: profile.state || (mongoUser ? mongoUser.state : 'Maharashtra'),
-    village: profile.village || (mongoUser ? mongoUser.village : ''),
-    block: profile.block || (mongoUser ? mongoUser.block : ''),
-    location: profile.location || (mongoUser ? mongoUser.location : { lat: 0, lng: 0 }),
-    preferredLanguage: profile.preferredLanguage || (mongoUser ? mongoUser.preferredLanguage : 'hi'),
-    registrationNo: profile.registrationNo || (mongoUser ? mongoUser.registrationNo : ''),
-    department: profile.department || (mongoUser ? mongoUser.department : '')
+    auth_user_id: profile?.auth_user_id || userIdStr,
+    name: profile?.name || (mongoUser ? mongoUser.name : 'User'),
+    email: (profile?.email || (mongoUser ? mongoUser.email : '')).toLowerCase(),
+    phone: profile?.phone || (mongoUser ? mongoUser.phone : ''),
+    role: profile?.role || (mongoUser ? mongoUser.role : 'farmer'),
+    district: (profile?.district && String(profile.district).trim()) || (mongoUser ? mongoUser.district : 'Pune'),
+    state: profile?.state || (mongoUser ? mongoUser.state : 'Maharashtra'),
+    village: profile?.village || (mongoUser ? mongoUser.village : ''),
+    block: profile?.block || (mongoUser ? mongoUser.block : ''),
+    location: profile?.location || (mongoUser ? mongoUser.location : { lat: 0, lng: 0 }),
+    preferredLanguage: profile?.preferredLanguage || (mongoUser ? mongoUser.preferredLanguage : 'hi'),
+    registrationNo: profile?.registrationNo || (mongoUser ? mongoUser.registrationNo : ''),
+    department: profile?.department || (mongoUser ? mongoUser.department : '')
   };
 }
 

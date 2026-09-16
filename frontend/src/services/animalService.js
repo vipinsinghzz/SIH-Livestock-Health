@@ -160,6 +160,9 @@ export const animalService = {
       gender: data.gender || 'Female',
       healthStatus: data.healthStatus || 'Healthy',
       milkYieldDaily: data.milkYieldDaily || (data.species === 'Goat' ? '2.0 L' : '10.0 L'),
+      village: data.village,
+      block: data.block,
+      district: data.district,
       timeline: [
         {
           type: 'Health Check',
@@ -175,12 +178,18 @@ export const animalService = {
       if (res.data?.animal) {
         const cacheKey = this.getCacheKey();
         const current = await this.getAnimals();
-        const updated = [res.data.animal, ...current.filter(a => a._id !== res.data.animal._id)];
+        const updated = [res.data.animal, ...current.filter(a => (a._id || a.id) !== (res.data.animal._id || res.data.animal.id))];
         localStorage.setItem(cacheKey, JSON.stringify(updated));
         return res.data.animal;
       }
     } catch (e) {
-      console.warn('Backend animal creation error:', e.message);
+      console.error('Backend animal creation error:', e);
+      const token = localStorage.getItem('pashurakshak_token');
+      // If user is authenticated, do not generate a fake animal - propagate error so user is notified
+      if (token) {
+        const errorMsg = e.response?.data?.message || e.message || 'Failed to register animal on server.';
+        throw new Error(errorMsg);
+      }
     }
 
     const localAnimal = { ...payload, _id: 'anim-' + Date.now() };

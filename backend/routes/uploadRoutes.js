@@ -173,7 +173,7 @@ router.get('/scans', optionalProtect, async (req, res, next) => {
     if (animalId) filter.animalId = animalId;
 
     if (req.user && req.user.role === 'farmer') {
-      filter.ownerId = String(req.user._id || req.user.id);
+      filter.ownerId = String(req.user.id || req.user._id);
     } else if (ownerId) {
       filter.ownerId = String(ownerId);
     }

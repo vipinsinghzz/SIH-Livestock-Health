@@ -71,6 +71,16 @@ exports.register = async (req, res, next) => {
     }
 
     let authUserId = null;
+    let profileId = null;
+
+    // Compute password hash for profiles and Mongo dual-write
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const safeDistrict = district ? district.trim() : 'Pune';
+    const safeState = state ? state.trim() : 'Maharashtra';
+    const safeVillage = village ? village.trim() : '';
+    const safeBlock = block ? block.trim() : '';
 
     // 2. Register with Supabase Auth if live client connected
     if (supabase) {
@@ -83,10 +93,10 @@ exports.register = async (req, res, next) => {
             name: name.trim(),
             role: role || 'farmer',
             phone: cleanPhone,
-            district: district ? district.trim() : 'Pune',
-            state: state || 'Maharashtra',
-            village: village ? village.trim() : '',
-            block: block ? block.trim() : '',
+            district: safeDistrict,
+            state: safeState,
+            village: safeVillage,
+            block: safeBlock,
             registrationNo: registrationNo ? registrationNo.trim() : '',
             department: department ? department.trim() : '',
             preferredLanguage: preferredLanguage || 'hi'
@@ -95,6 +105,114 @@ exports.register = async (req, res, next) => {
 
         if (authData && authData.user) {
           authUserId = authData.user.id;
+        } else if (authError) {
+          console.warn('[Supabase Auth] User creation notice:', authError.message);
+        }
+
+        // Explicitly ensure a corresponding profiles row exists in Supabase
+        try {
+          let existingProfile = null;
+
+          // Sequential check: 1. by auth_user_id
+          if (authUserId) {
+            const { data: pAuth } = await supabase
+              .from('profiles')
+              .select('id, auth_user_id, email, phone')
+              .eq('auth_user_id', authUserId)
+              .maybeSingle();
+            if (pAuth) existingProfile = pAuth;
+          }
+
+          // Sequential check: 2. by email
+          if (!existingProfile && cleanEmail) {
+            const { data: pEmail } = await supabase
+              .from('profiles')
+              .select('id, auth_user_id, email, phone')
+              .eq('email', cleanEmail)
+              .maybeSingle();
+            if (pEmail) existingProfile = pEmail;
+          }
+
+          // Sequential check: 3. by phone
+          if (!existingProfile && cleanPhone) {
+            const { data: pPhone } = await supabase
+              .from('profiles')
+              .select('id, auth_user_id, email, phone')
+              .eq('phone', cleanPhone)
+              .maybeSingle();
+            if (pPhone) existingProfile = pPhone;
+          }
+
+          if (existingProfile) {
+            profileId = existingProfile.id;
+            if (authUserId && (!existingProfile.auth_user_id || existingProfile.auth_user_id !== authUserId)) {
+              await supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', existingProfile.id);
+            }
+            console.log('[Supabase] Linked existing profile to registered user:', {
+              profileId: existingProfile.id,
+              auth_user_id: authUserId,
+              email: cleanEmail
+            });
+          } else {
+            const profileToInsert = {
+              name: name.trim(),
+              role: role || 'farmer',
+              phone: cleanPhone,
+              email: cleanEmail,
+              password_hash: passwordHash,
+              village: safeVillage,
+              block: safeBlock,
+              district: safeDistrict,
+              state: safeState,
+              registration_no: registrationNo ? registrationNo.trim() : '',
+              department: department ? department.trim() : '',
+              preferred_language: preferredLanguage || 'hi',
+              latitude: parseFloat(location?.lat || 0),
+              longitude: parseFloat(location?.lng || 0)
+            };
+            if (authUserId) {
+              profileToInsert.auth_user_id = authUserId;
+            }
+
+            const { data: insertedProfile, error: profileInsertError } = await supabase
+              .from('profiles')
+              .insert(profileToInsert)
+              .select('id, auth_user_id')
+              .single();
+
+            if (insertedProfile && !profileInsertError) {
+              profileId = insertedProfile.id;
+              console.log('[Supabase] Created new profile for registered farmer:', {
+                profileId: insertedProfile.id,
+                auth_user_id: authUserId,
+                email: cleanEmail
+              });
+            } else if (profileInsertError) {
+              console.error('[Supabase] Failed to insert profile during registration:', profileInsertError.message);
+              // If duplicate email/phone conflict (code 23505), link to the existing profile
+              if (profileInsertError.code === '23505') {
+                const { data: dupProfile } = await supabase
+                  .from('profiles')
+                  .select('id, auth_user_id')
+                  .eq('email', cleanEmail)
+                  .maybeSingle();
+                if (dupProfile) {
+                  profileId = dupProfile.id;
+                  if (authUserId && dupProfile.auth_user_id !== authUserId) {
+                    await supabase
+                      .from('profiles')
+                      .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                      .eq('id', dupProfile.id);
+                  }
+                }
+              }
+            }
+          }
+        } catch (profileErr) {
+          console.error('[Supabase] Error verifying/creating profile during registration:', profileErr.message);
         }
       } catch (err) {
         console.warn('[Supabase Auth] User creation notice:', err.message);
@@ -104,19 +222,16 @@ exports.register = async (req, res, next) => {
     // 3. Register in MongoDB to maintain dual-compatibility during migration
     let mongoUser = null;
     try {
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(password, salt);
-
       mongoUser = await User.create({
         name: name.trim(),
         role: role || 'farmer',
         phone: cleanPhone,
         email: cleanEmail,
         passwordHash,
-        state: state || 'Maharashtra',
-        village: village ? village.trim() : '',
-        block: block ? block.trim() : '',
-        district: district ? district.trim() : 'Pune',
+        state: safeState,
+        village: safeVillage,
+        block: safeBlock,
+        district: safeDistrict,
         location: {
           lat: parseFloat(location?.lat || 0),
           lng: parseFloat(location?.lng || 0)
@@ -129,19 +244,20 @@ exports.register = async (req, res, next) => {
       console.warn('[MongoDB] Dual-write notice:', mongoErr.message);
     }
 
-    const effectiveId = authUserId || (mongoUser ? mongoUser._id : '00000000-0000-0000-0000-' + Date.now().toString(16).padStart(12, '0'));
+    const effectiveId = profileId || authUserId || (mongoUser ? mongoUser._id : '00000000-0000-0000-0000-' + Date.now().toString(16).padStart(12, '0'));
 
     const userPayload = {
       id: effectiveId,
       _id: effectiveId,
+      auth_user_id: authUserId || effectiveId,
       name: name.trim(),
       email: cleanEmail,
       role: role || 'farmer',
       phone: cleanPhone,
-      state: state || 'Maharashtra',
-      village: village ? village.trim() : '',
-      block: block ? block.trim() : '',
-      district: district ? district.trim() : 'Pune',
+      state: safeState,
+      village: safeVillage,
+      block: safeBlock,
+      district: safeDistrict,
       location: {
         lat: parseFloat(location?.lat || 0),
         lng: parseFloat(location?.lng || 0)

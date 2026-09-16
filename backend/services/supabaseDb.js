@@ -198,18 +198,43 @@ const profiles = {
 // 2. ANIMALS REPOSITORY
 // ============================================================================
 const animals = {
+  async findByTagId(tagId) {
+    if (!tagId) return null;
+    const cleanTag = String(tagId).trim().toUpperCase();
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('animals')
+          .select('id, tag_id, name, owner_id')
+          .eq('tag_id', cleanTag)
+          .maybeSingle();
+
+        if (error) {
+          console.error('[SupabaseDb] animals.findByTagId error:', error.message);
+        } else if (data) {
+          return toCamel(data);
+        }
+      } catch (e) {
+        console.error('[SupabaseDb] animals.findByTagId exception:', e.message);
+      }
+    }
+
+    // Fallback to Mongoose if offline
+    try {
+      const doc = await Animal.findOne({ tagId: cleanTag }).select('tagId name ownerId').lean();
+      if (doc) return toCamel(doc);
+    } catch (e) { }
+
+    return null;
+  },
+
   async find(filter = {}) {
     if (supabase) {
       try {
         let q = supabase
           .from('animals')
-          .select(`
-            *,
-            ownerId:profiles(id, name, phone, email, village, block, district),
-            timeline:animal_timeline(*),
-            vaccinations:animal_vaccinations(*),
-            treatments:animal_treatments(*)
-          `)
+          .select('*')
           .order('created_at', { ascending: false });
 
         if (filter.tagId) q = q.eq('tag_id', filter.tagId);
@@ -228,18 +253,29 @@ const animals = {
             hint: error.hint,
             code: error.code
           });
+          throw error;
         } else if (data) {
-          console.log('[SupabaseDb] animals.find Supabase success:', data.length);
+          console.log('[SupabaseDb] animals.find Supabase success count:', data.length);
           return toCamel(data);
         }
-      } catch (e) { }
+      } catch (e) {
+        console.error('[SupabaseDb] animals.find exception:', e.message);
+        throw e;
+      }
     }
 
-    // Fallback to Mongoose
+    // Fallback to Mongoose if Supabase is offline
     try {
       const query = {};
       if (filter.tagId) query.tagId = filter.tagId;
-      if (filter.ownerId) query.ownerId = filter.ownerId;
+      if (filter.ownerId) {
+        if (mongoose.Types.ObjectId.isValid(filter.ownerId)) {
+          query.ownerId = filter.ownerId;
+        } else {
+          const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
+          if (u) query.ownerId = u._id;
+        }
+      }
       if (filter.species) query.species = filter.species;
       if (filter.village) query.village = new RegExp(filter.village, 'i');
       if (filter.block) query.block = new RegExp(filter.block, 'i');
@@ -258,30 +294,78 @@ const animals = {
   async findById(id) {
     if (supabase) {
       try {
-        const { data, error } = await supabase
+        const { data: animalData, error: animalError } = await supabase
           .from('animals')
-          .select(`
-            *,
-            ownerId:profiles(id, name, phone, email, village, block, district),
-            timeline:animal_timeline(*),
-            vaccinations:animal_vaccinations(*),
-            treatments:animal_treatments(*)
-          `)
+          .select('*')
           .eq('id', id)
           .single();
 
-        if (data && !error) {
-          const res = toCamel(data);
-          // Query linked past reports in PostgreSQL
-          const { data: pastReports } = await supabase
-            .from('reports')
-            .select('*')
-            .eq('animal_id', id)
-            .order('created_at', { ascending: false });
-          res.pastReports = toCamel(pastReports || []);
+        if (animalError) {
+          console.error('[SupabaseDb] animals.findById error:', animalError.message);
+        }
+
+        if (animalData && !animalError) {
+          const res = toCamel(animalData);
+
+          // Safely resolve owner profile
+          if (animalData.owner_id) {
+            try {
+              const { data: ownerData } = await supabase
+                .from('profiles')
+                .select('id, name, phone, email, village, block, district')
+                .eq('id', animalData.owner_id)
+                .maybeSingle();
+              if (ownerData) res.ownerId = toCamel(ownerData);
+            } catch (oe) { }
+          }
+
+          // Safely load timeline
+          try {
+            const { data: timelineData } = await supabase
+              .from('animal_timeline')
+              .select('*')
+              .eq('animal_id', id)
+              .order('created_at', { ascending: false });
+            res.timeline = toCamel(timelineData || []);
+          } catch (te) { res.timeline = []; }
+
+          // Safely load vaccinations
+          try {
+            const { data: vaccData } = await supabase
+              .from('animal_vaccinations')
+              .select('*')
+              .eq('animal_id', id)
+              .order('date', { ascending: false });
+            res.vaccinations = toCamel(vaccData || []);
+            res.vaccinationHistory = toCamel(vaccData || []);
+          } catch (ve) { res.vaccinations = []; res.vaccinationHistory = []; }
+
+          // Safely load treatments
+          try {
+            const { data: treatData } = await supabase
+              .from('animal_treatments')
+              .select('*')
+              .eq('animal_id', id)
+              .order('date', { ascending: false });
+            res.treatments = toCamel(treatData || []);
+            res.treatmentHistory = toCamel(treatData || []);
+          } catch (tre) { res.treatments = []; res.treatmentHistory = []; }
+
+          // Safely query linked past reports in PostgreSQL
+          try {
+            const { data: pastReports } = await supabase
+              .from('reports')
+              .select('*')
+              .eq('animal_id', id)
+              .order('created_at', { ascending: false });
+            res.pastReports = toCamel(pastReports || []);
+          } catch (re) { res.pastReports = []; }
+
           return res;
         }
-      } catch (e) { }
+      } catch (e) {
+        console.error('[SupabaseDb] animals.findById exception:', e.message);
+      }
     }
 
     // Fallback to Mongoose
@@ -303,56 +387,132 @@ const animals = {
     if (supabase) {
       try {
         const snakeData = toSnake(data);
+
+        // Normalize enums for PostgreSQL
+        const VALID_SPECIES = ['Cattle', 'Buffalo', 'Goat', 'Sheep', 'Pig', 'Poultry', 'Other'];
+        let normSpecies = 'Cattle';
+        if (snakeData.species) {
+          const match = VALID_SPECIES.find(s => s.toLowerCase() === String(snakeData.species).trim().toLowerCase());
+          normSpecies = match || 'Cattle';
+        }
+
+        const VALID_GENDER = ['Female', 'Male'];
+        let normGender = 'Female';
+        if (snakeData.gender) {
+          const match = VALID_GENDER.find(g => g.toLowerCase() === String(snakeData.gender).trim().toLowerCase());
+          normGender = match || 'Female';
+        }
+
+        const VALID_HEALTH = ['Healthy', 'Needs Attention', 'Critical', 'Recovered'];
+        let normHealth = 'Healthy';
+        if (snakeData.health_status) {
+          const match = VALID_HEALTH.find(h => h.toLowerCase() === String(snakeData.health_status).trim().toLowerCase());
+          normHealth = match || 'Healthy';
+        }
+
+        const insertPayload = {
+          tag_id: snakeData.tag_id,
+          name: snakeData.name || '',
+          species: normSpecies,
+          breed: snakeData.breed || 'Indigenous / Mixed',
+          age: snakeData.age !== undefined && snakeData.age !== null ? parseInt(snakeData.age, 10) : 3,
+          gender: normGender,
+          health_status: normHealth,
+          milk_yield_daily: snakeData.milk_yield_daily || '12.0 L',
+          last_checkup: snakeData.last_checkup || new Date().toLocaleDateString('en-GB'),
+          owner_id: snakeData.owner_id,
+          village: (snakeData.village || '').trim(),
+          block: (snakeData.block || '').trim(),
+          district: (snakeData.district && String(snakeData.district).trim()) ? String(snakeData.district).trim() : 'Pune'
+        };
+
         const { data: inserted, error } = await supabase
           .from('animals')
-          .insert({
-            tag_id: snakeData.tag_id,
-            name: snakeData.name || '',
-            species: snakeData.species || 'Cattle',
-            breed: snakeData.breed || 'Indigenous / Mixed',
-            age: snakeData.age || 3,
-            gender: snakeData.gender || 'Female',
-            health_status: snakeData.health_status || 'Healthy',
-            milk_yield_daily: snakeData.milk_yield_daily || '12.0 L',
-            last_checkup: snakeData.last_checkup || new Date().toLocaleDateString('en-GB'),
-            owner_id: snakeData.owner_id,
-            village: snakeData.village || '',
-            block: snakeData.block || '',
-            district: snakeData.district || 'Pune'
-          })
-          .select(`
-            *,
-            ownerId:profiles(id, name, phone, email, village, block, district)
-          `)
+          .insert(insertPayload)
+          .select('*')
           .single();
 
-        if (inserted && !error) {
-          createdAnimal = toCamel(inserted);
+        if (error) {
+          console.error('[SupabaseDb] animals.create Supabase error:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            owner_id: insertPayload.owner_id,
+            tag_id: insertPayload.tag_id
+          });
+          const dbErr = new Error(error.message || 'Failed to insert animal into database');
+          dbErr.code = error.code;
+          dbErr.details = error.details;
+          throw dbErr;
         }
-      } catch (e) { }
+
+        if (inserted) {
+          createdAnimal = toCamel(inserted);
+          console.log('[SupabaseDb] animals.create Supabase success:', {
+            id: inserted.id,
+            tag_id: inserted.tag_id,
+            owner_id: inserted.owner_id
+          });
+        }
+      } catch (err) {
+        console.error('[SupabaseDb] animals.create caught error:', err.message);
+        throw err;
+      }
     }
 
-    // Dual-write to MongoDB during transition
-    try {
-      const mongoData = { ...data };
-      if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
-        const u = await User.findOne({ email: 'farmer@pashurakshak.in' });
-        if (u) mongoData.ownerId = u._id;
+    // Dual-write to MongoDB during transition (non-blocking, only if Mongo available)
+    if (createdAnimal) {
+      try {
+        const mongoData = { ...data };
+        if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
+          const u = await User.findOne({ email: 'farmer@pashurakshak.in' });
+          if (u) mongoData.ownerId = u._id;
+        }
+        await Animal.create(mongoData);
+      } catch (e) {
+        console.warn('[SupabaseDb] Animal dual-write Mongoose notice:', e.message);
       }
-      const doc = await Animal.create(mongoData);
-      const populated = await Animal.findById(doc._id).populate('ownerId', 'name phone email village block district').lean();
-      if (!createdAnimal) createdAnimal = toCamel(populated);
-    } catch (e) {
-      console.warn('[SupabaseDb] Animal create Mongoose notice:', e.message);
+    } else if (!supabase) {
+      // Offline / Mongo-only mode fallback
+      try {
+        const mongoData = { ...data };
+        if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
+          const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
+          mongoData.ownerId = u ? u._id : new mongoose.Types.ObjectId();
+        }
+        const doc = await Animal.create(mongoData);
+        const populated = await Animal.findById(doc._id).populate('ownerId', 'name phone email village block district').lean();
+        if (populated) {
+          createdAnimal = toCamel(populated);
+          if (data.ownerId && typeof data.ownerId === 'string' && data.ownerId.length === 36) {
+            if (typeof createdAnimal.ownerId === 'object') {
+              createdAnimal.ownerId.id = data.ownerId;
+              createdAnimal.ownerId._id = data.ownerId;
+            } else {
+              createdAnimal.ownerId = data.ownerId;
+            }
+            createdAnimal.owner_id = data.ownerId;
+          }
+        }
+      } catch (e) {
+        // If Mongo is also offline or unavailable during offline testing
+        if (!isLiveSupabase) {
+          const fallbackId = (data._id || data.id || `anm-${Date.now()}`).toString();
+          createdAnimal = {
+            ...toCamel(data),
+            id: fallbackId,
+            _id: fallbackId
+          };
+        } else {
+          console.error('[SupabaseDb] Animal create Mongoose error:', e.message);
+          throw e;
+        }
+      }
     }
 
     if (!createdAnimal) {
-      const fallbackId = (data._id || data.id || `anm-${Date.now()}`).toString();
-      createdAnimal = {
-        ...toCamel(data),
-        id: fallbackId,
-        _id: fallbackId
-      };
+      throw new Error('Animal could not be created in the database.');
     }
 
     return createdAnimal;
@@ -369,14 +529,18 @@ const animals = {
           .from('animals')
           .update(snakeUpdates)
           .eq('id', id)
-          .select(`
-            *,
-            ownerId:profiles(id, name, phone, email, village, block, district)
-          `)
+          .select('*')
           .single();
 
-        if (data && !error) return toCamel(data);
-      } catch (e) { }
+        if (error) {
+          console.error('[SupabaseDb] animals.updateById error:', error.message);
+          throw error;
+        }
+        if (data) return toCamel(data);
+      } catch (e) {
+        console.error('[SupabaseDb] animals.updateById exception:', e.message);
+        if (isLiveSupabase) throw e;
+      }
     }
 
     try {
@@ -392,8 +556,16 @@ const animals = {
   async deleteById(id) {
     if (supabase) {
       try {
-        await supabase.from('animals').delete().eq('id', id);
-      } catch (e) { }
+        const { error } = await supabase.from('animals').delete().eq('id', id);
+        if (error) {
+          console.error('[SupabaseDb] animals.deleteById error:', error.message);
+          throw error;
+        }
+        return true;
+      } catch (e) {
+        console.error('[SupabaseDb] animals.deleteById exception:', e.message);
+        if (isLiveSupabase) throw e;
+      }
     }
     try {
       await Animal.findByIdAndDelete(id);
@@ -1483,11 +1655,18 @@ const scanImages = {
         delete mongoData.animalId;
       }
       if (mongoData.ownerId && !mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
-        delete mongoData.ownerId;
+        const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
+        if (u) {
+          mongoData.ownerId = u._id;
+        } else {
+          delete mongoData.ownerId;
+        }
       }
       const doc = await ScanImage.create(mongoData);
       if (!created) {
         created = toCamel(doc.toObject ? doc.toObject() : doc);
+        if (data.ownerId) created.ownerId = data.ownerId;
+        if (data.storagePath) created.storagePath = data.storagePath;
       }
     } catch (e) {
       console.warn('[SupabaseDb] ScanImage Mongoose notice:', e.message);
@@ -1525,7 +1704,14 @@ const scanImages = {
     try {
       const query = {};
       if (filter.animalId) query.animalId = filter.animalId;
-      if (filter.ownerId && mongoose.Types.ObjectId.isValid(filter.ownerId)) query.ownerId = filter.ownerId;
+      if (filter.ownerId) {
+        if (mongoose.Types.ObjectId.isValid(filter.ownerId)) {
+          query.ownerId = filter.ownerId;
+        } else {
+          const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
+          if (u) query.ownerId = u._id;
+        }
+      }
       const docs = await ScanImage.find(query).sort({ createdAt: -1 }).lean();
       return toCamel(docs);
     } catch (e) {

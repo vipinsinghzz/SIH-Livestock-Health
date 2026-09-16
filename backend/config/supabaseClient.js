@@ -211,36 +211,194 @@ async function getProfileByAuthUser(supabaseUser) {
   // Live Supabase public.profiles query
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`auth_user_id.eq.${supabaseUser.id},id.eq.${supabaseUser.id},email.eq.${email}`)
-        .limit(1)
-        .single();
+      const authUserId = String(supabaseUser.id || '').trim();
+      const phone = String(supabaseUser.phone || supabaseUser.user_metadata?.phone || '').trim();
+      let data = null;
 
-      if (data && !error) {
+      // 1. Prefer matching by auth_user_id
+      if (authUserId) {
+        const { data: byAuth, error: authErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('auth_user_id', authUserId)
+          .maybeSingle();
+        if (byAuth && !authErr) {
+          data = byAuth;
+        }
+      }
+
+      // 2. Fall back to matching by profile id = authUserId
+      if (!data && authUserId) {
+        const { data: byId, error: idErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUserId)
+          .maybeSingle();
+        if (byId && !idErr) {
+          data = byId;
+        }
+      }
+
+      // 3. Fall back to matching by email
+      if (!data && email) {
+        const { data: byEmail, error: emailErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+        if (byEmail && !emailErr) {
+          data = byEmail;
+          // Link auth_user_id if missing or outdated
+          if (authUserId && (!data.auth_user_id || data.auth_user_id !== authUserId)) {
+            try {
+              await supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', data.id);
+              data.auth_user_id = authUserId;
+            } catch (linkErr) {
+              console.warn('[Supabase] Notice linking auth_user_id on profile by email:', linkErr.message);
+            }
+          }
+        }
+      }
+
+      // 4. Fall back to matching by phone
+      if (!data && phone) {
+        const { data: byPhone, error: phoneErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('phone', phone)
+          .maybeSingle();
+        if (byPhone && !phoneErr) {
+          data = byPhone;
+          if (authUserId && (!data.auth_user_id || data.auth_user_id !== authUserId)) {
+            try {
+              await supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', data.id);
+              data.auth_user_id = authUserId;
+            } catch (linkErr) {
+              console.warn('[Supabase] Notice linking auth_user_id on profile by phone:', linkErr.message);
+            }
+          }
+        }
+      }
+
+      if (data) {
         return {
           _id: data.id,
           id: data.id,
-          auth_user_id: data.auth_user_id,
+          auth_user_id: data.auth_user_id || authUserId,
           name: data.name,
           email: data.email,
           role: data.role,
           phone: data.phone,
           district: data.district,
           state: data.state,
-          village: data.village,
-          block: data.block,
-          location: { lat: data.latitude, lng: data.longitude },
-          preferredLanguage: data.preferred_language,
-          registrationNo: data.registration_no,
-          department: data.department
+          village: data.village || '',
+          block: data.block || '',
+          location: { lat: data.latitude || 0, lng: data.longitude || 0 },
+          preferredLanguage: data.preferred_language || 'hi',
+          registrationNo: data.registration_no || '',
+          department: data.department || ''
         };
       }
-    } catch (e) {}
+
+      // 5. Auto-provision profile in public.profiles if missing for authenticated Supabase user
+      if (!data && authUserId) {
+        const meta = supabaseUser.user_metadata || {};
+        const safePhone = phone || meta.phone || '0000000000';
+        const safeDistrict = meta.district ? String(meta.district).trim() : 'Pune';
+        const safeState = meta.state ? String(meta.state).trim() : 'Maharashtra';
+        const profileToInsert = {
+          auth_user_id: authUserId,
+          name: meta.name || email?.split('@')[0] || 'Farmer',
+          role: meta.role || 'farmer',
+          phone: safePhone,
+          email: email || `user_${authUserId.substring(0, 8)}@livestocksathi.in`,
+          password_hash: '',
+          district: safeDistrict,
+          state: safeState,
+          village: meta.village || '',
+          block: meta.block || '',
+          registration_no: meta.registrationNo || '',
+          department: meta.department || '',
+          preferred_language: meta.preferredLanguage || 'hi'
+        };
+
+        const { data: newProfile, error: insertErr } = await supabase
+          .from('profiles')
+          .insert(profileToInsert)
+          .select('*')
+          .single();
+
+        if (newProfile && !insertErr) {
+          console.log('[Supabase] Auto-provisioned missing profile for user:', {
+            profileId: newProfile.id,
+            auth_user_id: authUserId,
+            email: newProfile.email,
+            district: newProfile.district
+          });
+          return {
+            _id: newProfile.id,
+            id: newProfile.id,
+            auth_user_id: newProfile.auth_user_id || authUserId,
+            name: newProfile.name,
+            email: newProfile.email,
+            role: newProfile.role,
+            phone: newProfile.phone,
+            district: newProfile.district,
+            state: newProfile.state,
+            village: newProfile.village || '',
+            block: newProfile.block || '',
+            location: { lat: newProfile.latitude || 0, lng: newProfile.longitude || 0 },
+            preferredLanguage: newProfile.preferred_language || 'hi',
+            registrationNo: newProfile.registration_no || '',
+            department: newProfile.department || ''
+          };
+        } else if (insertErr) {
+          console.warn('[Supabase] Auto-provision profile error:', insertErr.message);
+          // If conflict on email (code 23505), fetch existing profile and link auth_user_id
+          if (insertErr.code === '23505' && profileToInsert.email) {
+            const { data: dupP } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('email', profileToInsert.email)
+              .maybeSingle();
+            if (dupP) {
+              await supabase
+                .from('profiles')
+                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
+                .eq('id', dupP.id);
+              return {
+                _id: dupP.id,
+                id: dupP.id,
+                auth_user_id: authUserId,
+                name: dupP.name,
+                email: dupP.email,
+                role: dupP.role,
+                phone: dupP.phone,
+                district: dupP.district,
+                state: dupP.state,
+                village: dupP.village || '',
+                block: dupP.block || '',
+                location: { lat: dupP.latitude || 0, lng: dupP.longitude || 0 },
+                preferredLanguage: dupP.preferred_language || 'hi',
+                registrationNo: dupP.registration_no || '',
+                department: dupP.department || ''
+              };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Supabase] getProfileByAuthUser error:', e.message);
+    }
   }
 
-  // Synthesize from metadata if not found in table
+  // Synthesize from metadata if not found in table or offline
   const meta = supabaseUser.user_metadata || {};
   return {
     _id: supabaseUser.id,
