@@ -13,6 +13,10 @@
  */
 
 const { supabase, isLiveSupabase, MOCK_PROFILES } = require('../config/supabaseClient');
+const crypto = require('crypto');
+
+// In-memory animal store for offline/test mode (when live Supabase is offline)
+const OFFLINE_ANIMALS = [];
 
 // Mongoose Models for fallback during transition
 const User = require('../models/User');
@@ -220,6 +224,12 @@ const animals = {
       }
     }
 
+    // Check OFFLINE_ANIMALS if offline
+    if (!isLiveSupabase) {
+      const offlineMatch = OFFLINE_ANIMALS.find(a => (a.tagId || a.tag_id) === cleanTag);
+      if (offlineMatch) return toCamel(offlineMatch);
+    }
+
     // Fallback to Mongoose if offline
     try {
       const doc = await Animal.findOne({ tagId: cleanTag }).select('tagId name ownerId').lean();
@@ -261,6 +271,23 @@ const animals = {
       } catch (e) {
         console.error('[SupabaseDb] animals.find exception:', e.message);
         throw e;
+      }
+    }
+
+    // Check OFFLINE_ANIMALS in offline/test mode
+    if (!isLiveSupabase && OFFLINE_ANIMALS.length > 0) {
+      let matches = OFFLINE_ANIMALS;
+      if (filter.tagId) matches = matches.filter(a => (a.tagId || a.tag_id) === filter.tagId);
+      if (filter.ownerId) {
+        matches = matches.filter(a => {
+          const oId = typeof a.ownerId === 'object' ? (a.ownerId?.id || a.ownerId?._id) : (a.ownerId || a.owner_id);
+          return String(oId) === String(filter.ownerId);
+        });
+      }
+      if (filter.species) matches = matches.filter(a => a.species === filter.species);
+      if (filter.village) matches = matches.filter(a => (a.village || '').toLowerCase().includes(filter.village.toLowerCase()));
+      if (matches.length > 0) {
+        return toCamel(matches);
       }
     }
 
@@ -368,6 +395,12 @@ const animals = {
       }
     }
 
+    // Fallback to OFFLINE_ANIMALS if offline
+    if (!isLiveSupabase && OFFLINE_ANIMALS.length > 0) {
+      const offlineMatch = OFFLINE_ANIMALS.find(a => a.id === id || a._id === id);
+      if (offlineMatch) return toCamel(offlineMatch);
+    }
+
     // Fallback to Mongoose
     try {
       const animal = await Animal.findById(id)
@@ -465,6 +498,9 @@ const animals = {
     if (createdAnimal) {
       try {
         const mongoData = { ...data };
+        mongoData.village = (mongoData.village || createdAnimal.village || 'Rural Village').trim();
+        mongoData.block = (mongoData.block || createdAnimal.block || mongoData.village || 'Rural Block').trim();
+        mongoData.district = (mongoData.district || createdAnimal.district || 'Pune').trim();
         if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
           const u = await User.findOne({ email: 'farmer@pashurakshak.in' });
           if (u) mongoData.ownerId = u._id;
@@ -475,8 +511,28 @@ const animals = {
       }
     } else if (!supabase) {
       // Offline / Mongo-only mode fallback
+      // 1. First record into OFFLINE_ANIMALS memory cache so offline testing always works cleanly
+      const fallbackId = (data._id || data.id || crypto.randomUUID()).toString();
+      const offlineRecord = {
+        ...toCamel(data),
+        id: fallbackId,
+        _id: fallbackId,
+        ownerId: data.ownerId,
+        owner_id: data.ownerId,
+        village: (data.village || '').trim() || 'Rural Village',
+        block: (data.block || data.village || '').trim() || 'Rural Block',
+        district: (data.district || '').trim() || 'Pune',
+        createdAt: new Date().toISOString()
+      };
+      OFFLINE_ANIMALS.push(offlineRecord);
+      createdAnimal = offlineRecord;
+
+      // 2. Also attempt Mongoose create if Mongo is available
       try {
         const mongoData = { ...data };
+        mongoData.village = (mongoData.village || 'Rural Village').trim();
+        mongoData.block = (mongoData.block || mongoData.village || 'Rural Block').trim();
+        mongoData.district = (mongoData.district || 'Pune').trim();
         if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
           const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
           mongoData.ownerId = u ? u._id : new mongoose.Types.ObjectId();
@@ -484,30 +540,16 @@ const animals = {
         const doc = await Animal.create(mongoData);
         const populated = await Animal.findById(doc._id).populate('ownerId', 'name phone email village block district').lean();
         if (populated) {
-          createdAnimal = toCamel(populated);
-          if (data.ownerId && typeof data.ownerId === 'string' && data.ownerId.length === 36) {
-            if (typeof createdAnimal.ownerId === 'object') {
-              createdAnimal.ownerId.id = data.ownerId;
-              createdAnimal.ownerId._id = data.ownerId;
-            } else {
-              createdAnimal.ownerId = data.ownerId;
-            }
-            createdAnimal.owner_id = data.ownerId;
-          }
+          createdAnimal = {
+            ...toCamel(populated),
+            id: fallbackId,
+            _id: fallbackId,
+            ownerId: data.ownerId,
+            owner_id: data.ownerId
+          };
         }
       } catch (e) {
-        // If Mongo is also offline or unavailable during offline testing
-        if (!isLiveSupabase) {
-          const fallbackId = (data._id || data.id || `anm-${Date.now()}`).toString();
-          createdAnimal = {
-            ...toCamel(data),
-            id: fallbackId,
-            _id: fallbackId
-          };
-        } else {
-          console.error('[SupabaseDb] Animal create Mongoose error:', e.message);
-          throw e;
-        }
+        // Mongoose error in offline mode is non-fatal since offlineRecord is saved
       }
     }
 
@@ -1270,83 +1312,375 @@ const advisories = {
 };
 
 // ============================================================================
-// 9. VACCINATION DRIVES REPOSITORY
+// 9. VACCINATION DRIVES & CAMP REGISTRATIONS REPOSITORIES
 // ============================================================================
+const MOCK_VACCINATION_DRIVES = [
+  {
+    id: '20000000-0000-0000-0000-000000000001',
+    campId: 'RING-CAMP-2026-PUN-1042',
+    state: 'Maharashtra',
+    district: 'Pune',
+    block: 'Baramati',
+    village: 'Malegaon Rural',
+    venue: 'Malegaon Gram Panchayat Animal Health Centre',
+    latitude: 18.1517,
+    longitude: 74.5772,
+    vaccine: 'Lumpy Skin Disease (Neethling strain)',
+    vaccineFullName: 'Lumpy Skin Disease Live Attenuated Homologous Vaccine',
+    targetSpecies: 'Cattle & Buffalo',
+    campDate: new Date(Date.now() + 2 * 86400000).toISOString(),
+    startDate: new Date(Date.now() + 2 * 86400000).toISOString(),
+    startTime: '08:30 AM',
+    endTime: '05:00 PM',
+    cost: 'Free (Emergency Outbreak Ring)',
+    isFree: true,
+    organizingHospital: 'District Veterinary Outbreak Response Unit, Pune',
+    assignedOfficer: 'Dr. Ananya Deshmukh',
+    assignedOfficerId: '00000000-0000-0000-0000-000000000002',
+    contactNumber: '1962',
+    capacity: 300,
+    bookedSlots: 45,
+    remainingSlots: 255,
+    targetCount: 300,
+    coveredCount: 45,
+    status: 'Upcoming',
+    notes: 'Emergency 5km ring vaccination protocol triggered for active LSD containment.'
+  },
+  {
+    id: '20000000-0000-0000-0000-000000000002',
+    campId: 'CAMP-2026-PUN-SHIRUR-01',
+    state: 'Maharashtra',
+    district: 'Pune',
+    block: 'Shirur',
+    village: 'Koregaon Bhima',
+    venue: 'Taluka Veterinary Dispensary, Shirur Main Road',
+    latitude: 18.8276,
+    longitude: 74.3774,
+    vaccine: 'FMD Trivalent Inactivated Vaccine',
+    vaccineFullName: 'Foot and Mouth Disease Inactivated Oil-Adjuvant Vaccine',
+    targetSpecies: 'Cattle, Buffalo, Sheep & Goat',
+    campDate: new Date(Date.now() + 5 * 86400000).toISOString(),
+    startDate: new Date(Date.now() + 5 * 86400000).toISOString(),
+    startTime: '09:00 AM',
+    endTime: '04:30 PM',
+    cost: 'Free (Govt Drive)',
+    isFree: true,
+    organizingHospital: 'Shirur Taluka Veterinary Polyclinic',
+    assignedOfficer: 'Dr. Rajesh Shinde',
+    assignedOfficerId: '00000000-0000-0000-0000-000000000006',
+    contactNumber: '1962',
+    capacity: 250,
+    bookedSlots: 80,
+    remainingSlots: 170,
+    targetCount: 250,
+    coveredCount: 80,
+    status: 'Upcoming',
+    notes: 'Bi-annual FMD mass vaccination drive under National Livestock Mission.'
+  },
+  {
+    id: '20000000-0000-0000-0000-000000000003',
+    campId: 'CAMP-2026-PUN-KHED-02',
+    state: 'Maharashtra',
+    district: 'Pune',
+    block: 'Khed',
+    village: 'Chakan',
+    venue: 'Primary Veterinary Centre, Chakan Market Yard',
+    latitude: 18.7597,
+    longitude: 73.8585,
+    vaccine: 'HS + BQ Combined Vaccine',
+    vaccineFullName: 'Haemorrhagic Septicaemia & Black Quarter Alum-Precipitated Vaccine',
+    targetSpecies: 'Cattle & Buffalo',
+    campDate: new Date(Date.now() - 3 * 86400000).toISOString(),
+    startDate: new Date(Date.now() - 3 * 86400000).toISOString(),
+    startTime: '09:00 AM',
+    endTime: '04:00 PM',
+    cost: 'Free (Govt Drive)',
+    isFree: true,
+    organizingHospital: 'Khed Veterinary Dispensary',
+    assignedOfficer: 'Dr. Suresh Kulkarni',
+    assignedOfficerId: '00000000-0000-0000-0000-000000000003',
+    contactNumber: '1962',
+    capacity: 200,
+    bookedSlots: 192,
+    remainingSlots: 8,
+    targetCount: 200,
+    coveredCount: 192,
+    status: 'Completed',
+    notes: 'Successful pre-monsoon clostridial coverage achieved.'
+  }
+];
+
+const MOCK_CAMP_REGISTRATIONS = [];
+
 const vaccinationDrives = {
   async create(data) {
-    let created = null;
+    const snake = toSnake(data);
+    const drivePayload = {
+      camp_id: snake.camp_id || `CAMP-${Date.now()}`,
+      state: snake.state || 'Maharashtra',
+      district: snake.district || 'Pune',
+      block: snake.block || '',
+      village: snake.village || '',
+      venue: snake.venue || `Primary Veterinary Dispensary, ${snake.village || ''}`,
+      latitude: parseFloat(snake.latitude || snake.lat || 18.1517),
+      longitude: parseFloat(snake.longitude || snake.lng || 74.5772),
+      vaccine: snake.vaccine || snake.vaccine_name || 'Standard Livestock Vaccine',
+      vaccine_full_name: snake.vaccine_full_name || snake.vaccine || '',
+      target_species: snake.target_species || 'Cattle & Buffalo',
+      camp_date: snake.camp_date || snake.start_date || new Date().toISOString(),
+      start_time: snake.start_time || '09:30 AM',
+      end_time: snake.end_time || '04:00 PM',
+      cost: snake.cost || 'Free (Govt Drive)',
+      is_free: snake.is_free !== false,
+      organizing_hospital: snake.organizing_hospital || `Dispensary, ${snake.village || ''}`,
+      assigned_officer: snake.assigned_officer || 'Veterinary Officer',
+      assigned_officer_id: snake.assigned_officer_id || null,
+      contact_number: snake.contact_number || '1962',
+      capacity: parseInt(snake.capacity || snake.target_count || 200, 10),
+      booked_slots: parseInt(snake.booked_slots || 0, 10),
+      remaining_slots: parseInt(snake.remaining_slots || snake.capacity || 200, 10),
+      target_count: parseInt(snake.target_count || snake.capacity || 200, 10),
+      covered_count: parseInt(snake.covered_count || 0, 10),
+      start_date: snake.start_date || snake.camp_date || new Date().toISOString(),
+      end_date: snake.end_date || null,
+      status: snake.status || 'Upcoming',
+      notes: snake.notes || ''
+    };
 
     if (supabase) {
       try {
-        const snake = toSnake(data);
         const { data: inserted, error } = await supabase
           .from('vaccination_drives')
-          .insert({
-            camp_id: snake.camp_id || `CAMP-${Date.now()}`,
-            camp_name: snake.camp_name || 'Vaccination Camp',
-            target_disease: snake.target_disease || 'Foot-and-Mouth Disease',
-            vaccine_name: snake.vaccine_name || 'Standard Livestock Vaccine',
-            start_date: snake.start_date || new Date().toISOString(),
-            end_date: snake.end_date || new Date().toISOString(),
-            status: snake.status || 'Upcoming',
-            village: snake.location?.village || snake.village || '',
-            block: snake.location?.block || snake.block || '',
-            district: snake.location?.district || snake.district || 'Pune',
-            target_animals: snake.target_animals || 500,
-            vaccinated_count: snake.vaccinated_count || 0,
-            slots_available: snake.slots_available || 100,
-            assigned_officer_id: snake.assigned_officer_id || null
-          })
+          .insert(drivePayload)
           .select()
           .single();
-        if (inserted && !error) created = toCamel(inserted);
-      } catch (e) { }
+        if (inserted && !error) return toCamel(inserted);
+      } catch (e) {
+        console.warn('[SupabaseDb] vaccinationDrives.create notice:', e.message);
+      }
     }
 
-    try {
-      const doc = await VaccinationDrive.create(data);
-      if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) { }
-
-    return created;
+    const mockDrive = toCamel({
+      ...drivePayload,
+      id: `20000000-0000-0000-0000-${String(Date.now()).slice(-12)}`
+    });
+    MOCK_VACCINATION_DRIVES.push(mockDrive);
+    return mockDrive;
   },
 
   async find(filter = {}) {
     if (supabase) {
       try {
-        let q = supabase.from('vaccination_drives').select('*').order('start_date', { ascending: false });
-        if (filter.district) q = q.ilike('district', `%${filter.district}%`);
-        if (filter.status) q = q.eq('status', filter.status);
+        let q = supabase.from('vaccination_drives').select('*').order('camp_date', { ascending: true });
+        if (filter.state && filter.state !== 'All') q = q.ilike('state', `%${filter.state}%`);
+        if (filter.district && filter.district !== 'All') q = q.ilike('district', `%${filter.district}%`);
+        if (filter.block && filter.block !== 'All') q = q.ilike('block', `%${filter.block}%`);
+        if (filter.status && filter.status !== 'All') {
+          const sArr = filter.status.split(',').map(s => s.trim()).filter(Boolean);
+          if (sArr.length > 1) q = q.in('status', sArr);
+          else if (sArr.length === 1) q = q.eq('status', sArr[0]);
+        }
+        if (filter.vaccine && filter.vaccine !== 'All') {
+          q = q.or(`vaccine.ilike.%${filter.vaccine}%,vaccine_full_name.ilike.%${filter.vaccine}%`);
+        }
+        if (filter.search && filter.search.trim()) {
+          const s = filter.search.trim();
+          q = q.or(`village.ilike.%${s}%,block.ilike.%${s}%,district.ilike.%${s}%,venue.ilike.%${s}%,vaccine.ilike.%${s}%,vaccine_full_name.ilike.%${s}%,organizing_hospital.ilike.%${s}%,assigned_officer.ilike.%${s}%,camp_id.ilike.%${s}%`);
+        }
+        if (filter.limit) {
+          q = q.limit(Math.min(parseInt(filter.limit, 10) || 250, 500));
+        }
+
         const { data, error } = await q;
-        if (data && !error) return toCamel(data);
-      } catch (e) { }
+        if (!error && data && data.length > 0) {
+          return toCamel(data);
+        }
+      } catch (e) {
+        console.warn('[SupabaseDb] vaccinationDrives.find notice:', e.message);
+      }
     }
 
-    try {
-      const query = {};
-      if (filter.district) query['location.district'] = new RegExp(filter.district, 'i');
-      if (filter.status) query.status = filter.status;
-      const docs = await VaccinationDrive.find(query).sort({ startDate: -1 }).lean();
-      return toCamel(docs);
-    } catch (e) {
-      return [];
+    // In-memory filter over canonical mock/seed drives
+    let results = [...MOCK_VACCINATION_DRIVES];
+    if (filter.state && filter.state !== 'All') {
+      results = results.filter(d => (d.state || '').toLowerCase().includes(filter.state.toLowerCase()));
     }
+    if (filter.district && filter.district !== 'All') {
+      results = results.filter(d => (d.district || '').toLowerCase().includes(filter.district.toLowerCase()));
+    }
+    if (filter.block && filter.block !== 'All') {
+      results = results.filter(d => (d.block || '').toLowerCase().includes(filter.block.toLowerCase()));
+    }
+    if (filter.status && filter.status !== 'All') {
+      const sArr = filter.status.split(',').map(s => s.trim().toLowerCase());
+      results = results.filter(d => sArr.includes((d.status || '').toLowerCase()));
+    }
+    if (filter.vaccine && filter.vaccine !== 'All') {
+      results = results.filter(d =>
+        (d.vaccine || '').toLowerCase().includes(filter.vaccine.toLowerCase()) ||
+        (d.vaccineFullName && d.vaccineFullName.toLowerCase().includes(filter.vaccine.toLowerCase()))
+      );
+    }
+    if (filter.search && filter.search.trim()) {
+      const s = filter.search.trim().toLowerCase();
+      results = results.filter(d =>
+        (d.village || '').toLowerCase().includes(s) ||
+        (d.block || '').toLowerCase().includes(s) ||
+        (d.district || '').toLowerCase().includes(s) ||
+        (d.venue || '').toLowerCase().includes(s) ||
+        (d.vaccine || '').toLowerCase().includes(s) ||
+        (d.organizingHospital || '').toLowerCase().includes(s) ||
+        (d.assignedOfficer || '').toLowerCase().includes(s)
+      );
+    }
+    return toCamel(results);
   },
 
   async findById(id) {
+    if (!id) return null;
+    const cleanId = String(id).trim();
+
     if (supabase) {
       try {
-        const { data, error } = await supabase.from('vaccination_drives').select('*').eq('id', id).single();
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+        let q = supabase.from('vaccination_drives').select('*');
+        if (isUUID) {
+          q = q.eq('id', cleanId);
+        } else {
+          q = q.eq('camp_id', cleanId);
+        }
+        const { data, error } = await q.maybeSingle();
         if (data && !error) return toCamel(data);
-      } catch (e) { }
+      } catch (e) {
+        console.warn('[SupabaseDb] vaccinationDrives.findById notice:', e.message);
+      }
     }
 
-    try {
-      const doc = await VaccinationDrive.findById(id).lean();
-      return doc ? toCamel(doc) : null;
-    } catch (e) {
-      return null;
+    const found = MOCK_VACCINATION_DRIVES.find(d => d.id === cleanId || d.campId === cleanId);
+    return found ? toCamel(found) : null;
+  },
+
+  async update(id, updateData) {
+    if (!id) return null;
+    const cleanId = String(id).trim();
+    const snake = toSnake(updateData);
+
+    if (supabase) {
+      try {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+        let q = supabase.from('vaccination_drives').update({
+          ...snake,
+          updated_at: new Date().toISOString()
+        });
+        if (isUUID) {
+          q = q.eq('id', cleanId);
+        } else {
+          q = q.eq('camp_id', cleanId);
+        }
+        const { data, error } = await q.select().maybeSingle();
+        if (data && !error) return toCamel(data);
+      } catch (e) {
+        console.warn('[SupabaseDb] vaccinationDrives.update notice:', e.message);
+      }
     }
+
+    const idx = MOCK_VACCINATION_DRIVES.findIndex(d => d.id === cleanId || d.campId === cleanId);
+    if (idx !== -1) {
+      MOCK_VACCINATION_DRIVES[idx] = { ...MOCK_VACCINATION_DRIVES[idx], ...toCamel(updateData) };
+      return toCamel(MOCK_VACCINATION_DRIVES[idx]);
+    }
+    return null;
+  }
+};
+
+const campRegistrations = {
+  async create(data) {
+    const snake = toSnake(data);
+    const regPayload = {
+      drive_id: snake.drive_id,
+      farmer_id: snake.farmer_id || null,
+      farmer_name: snake.farmer_name || '',
+      farmer_phone: snake.farmer_phone || '',
+      animal_ids: Array.isArray(snake.animal_ids) ? snake.animal_ids : [],
+      animal_count: parseInt(snake.animal_count, 10) || 1,
+      token: snake.token || `#CAMP-${Math.floor(1000 + Math.random() * 9000)}`,
+      registered_at: snake.registered_at || new Date().toISOString()
+    };
+
+    if (supabase) {
+      try {
+        const { data: inserted, error } = await supabase
+          .from('vaccination_camp_registrations')
+          .insert(regPayload)
+          .select()
+          .single();
+        if (inserted && !error) return toCamel(inserted);
+      } catch (e) {
+        console.warn('[SupabaseDb] campRegistrations.create notice:', e.message);
+      }
+    }
+
+    const mockReg = toCamel({
+      ...regPayload,
+      id: `30000000-0000-0000-0000-${String(Date.now()).slice(-12)}`
+    });
+    MOCK_CAMP_REGISTRATIONS.push(mockReg);
+    return mockReg;
+  },
+
+  async findByFarmer(farmerId, phone) {
+    if (!farmerId && !phone) return [];
+
+    if (supabase) {
+      try {
+        let q = supabase
+          .from('vaccination_camp_registrations')
+          .select('*, drive:vaccination_drives(*)')
+          .order('registered_at', { ascending: false });
+
+        if (farmerId && phone) {
+          q = q.or(`farmer_id.eq.${farmerId},farmer_phone.eq.${phone}`);
+        } else if (farmerId) {
+          q = q.eq('farmer_id', farmerId);
+        } else if (phone) {
+          q = q.eq('farmer_phone', phone);
+        }
+
+        const { data, error } = await q;
+        if (!error && data) return toCamel(data);
+      } catch (e) {
+        console.warn('[SupabaseDb] campRegistrations.findByFarmer notice:', e.message);
+      }
+    }
+
+    const matched = MOCK_CAMP_REGISTRATIONS.filter(r =>
+      (farmerId && r.farmerId === farmerId) || (phone && r.farmerPhone === phone)
+    );
+    return matched.map(r => {
+      const d = MOCK_VACCINATION_DRIVES.find(drive => drive.id === r.driveId || drive.campId === r.driveId) || {};
+      return { ...r, drive: d };
+    });
+  },
+
+  async findByDriveAndFarmer(driveId, farmerId) {
+    if (!driveId || !farmerId) return null;
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('vaccination_camp_registrations')
+          .select('*')
+          .eq('drive_id', driveId)
+          .eq('farmer_id', farmerId)
+          .maybeSingle();
+        if (!error && data) return toCamel(data);
+      } catch (e) {
+        console.warn('[SupabaseDb] campRegistrations.findByDriveAndFarmer notice:', e.message);
+      }
+    }
+
+    const found = MOCK_CAMP_REGISTRATIONS.find(r => r.driveId === driveId && r.farmerId === farmerId);
+    return found ? toCamel(found) : null;
   }
 };
 
@@ -1773,6 +2107,7 @@ module.exports = {
   labReferrals,
   advisories,
   vaccinationDrives,
+  campRegistrations,
   containmentZones,
   outbreaks,
   notifications,

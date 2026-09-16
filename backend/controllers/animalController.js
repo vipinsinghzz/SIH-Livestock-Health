@@ -1,6 +1,11 @@
 const supabaseDb = require('../services/supabaseDb');
 const Animal = require('../models/Animal');
 const Report = require('../models/Report');
+const {
+  normalizeIndianPhone,
+  getDeterministicInternalEmail,
+  getPhoneVariants
+} = require('../utils/phoneNormalizer');
 
 /**
  * Resolves the authenticated user's public.profiles record in Supabase.
@@ -70,16 +75,9 @@ async function resolveFarmerProfile(user) {
         }
       }
 
-      // 4. Try matching by phone (support formats: 7878738970, +917878738970, 917878738970)
+      // 4. Try matching by phone (supports formats: +91, 91, 0, 10-digit)
       if (!matchedProfile && phone) {
-        const digits = phone.replace(/\D/g, '');
-        const phoneVariants = [phone];
-        if (digits.length === 10) {
-          phoneVariants.push(`+91${digits}`, `91${digits}`, digits);
-        } else if (digits.length === 12 && digits.startsWith('91')) {
-          phoneVariants.push(digits.substring(2), `+${digits}`, digits);
-        }
-        const uniquePhones = [...new Set(phoneVariants)];
+        const uniquePhones = getPhoneVariants(phone);
 
         const { data: profileByPhone, error: phoneError } = await supabaseDb.supabase
           .from('profiles')
@@ -101,8 +99,8 @@ async function resolveFarmerProfile(user) {
       if (authUserId || email || phone) {
         const safeDistrict = user.district ? String(user.district).trim() : 'Pune';
         const safeState = user.state ? String(user.state).trim() : 'Maharashtra';
-        const safePhone = phone || '0000000000';
-        const safeEmail = email || `farmer_${safePhone.replace(/\D/g, '') || Date.now()}@livestocksathi.in`;
+        const safePhone = normalizeIndianPhone(phone || '9822000000');
+        const safeEmail = email || getDeterministicInternalEmail(safePhone);
 
         // Check if authUserId is synthetic (e.g. 00000000-0000-0000-0000-...)
         const isSyntheticAuthId = authUserId && authUserId.startsWith('00000000-0000-0000-0000-');
@@ -172,7 +170,22 @@ async function resolveFarmerProfile(user) {
     }
   }
 
-  // 6. Offline / Mock fallback (when live Supabase client is not connected)
+  // 6. If user already has valid UUID id and name (from authenticated session), preserve it
+  const isUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+  if (isUUID && user.name) {
+    return {
+      id: userId,
+      auth_user_id: authUserId || userId,
+      name: user.name,
+      email: user.email || '',
+      village: user.village || '',
+      block: user.block || '',
+      district: user.district || 'Pune',
+      role: user.role || 'farmer'
+    };
+  }
+
+  // 7. Offline / Mock fallback (when live Supabase client is not connected)
   const { MOCK_PROFILES } = require('../config/supabaseClient');
   if (email && MOCK_PROFILES && MOCK_PROFILES[email]) {
     const mp = MOCK_PROFILES[email];
@@ -188,7 +201,7 @@ async function resolveFarmerProfile(user) {
     };
   }
 
-  // 7. Check Mongo User model if available
+  // 8. Check Mongo User model only for legacy non-UUID MongoDB users
   try {
     const User = require('../models/User');
     const u = await User.findOne({
@@ -200,7 +213,7 @@ async function resolveFarmerProfile(user) {
     }).lean();
     if (u) {
       return {
-        id: String(u._id),
+        id: isUUID ? userId : String(u._id),
         auth_user_id: authUserId || String(u._id),
         name: u.name,
         email: u.email,
@@ -211,20 +224,6 @@ async function resolveFarmerProfile(user) {
       };
     }
   } catch (e) { }
-
-  // 8. If user already has valid id and name (e.g. from token/session), use it ONLY when Supabase is offline
-  if (user.id && user.name && !supabaseDb.supabase) {
-    return {
-      id: String(user.id),
-      auth_user_id: authUserId || String(user.id),
-      name: user.name,
-      email: user.email || '',
-      village: user.village || '',
-      block: user.block || '',
-      district: user.district || 'Pune',
-      role: user.role || 'farmer'
-    };
-  }
 
   return null;
 }
@@ -283,6 +282,27 @@ exports.getAnimalById = async (req, res, next) => {
         success: false,
         message: 'Animal not found.'
       });
+    }
+
+    // Role-based Ownership Enforcement: Farmers can only view their own animals
+    if (req.user && req.user.role === 'farmer') {
+      const profile = await resolveFarmerProfile(req.user);
+      const farmerId = String(profile?.id || req.user.id || req.user._id || '').trim();
+      const farmerEmail = (profile?.email || req.user.email || '').toLowerCase().trim();
+
+      const ownerObj = typeof animal.ownerId === 'object' && animal.ownerId !== null ? animal.ownerId : null;
+      const animalOwnerId = String(ownerObj?.id || ownerObj?._id || animal.ownerId || animal.owner_id || '').trim();
+      const animalOwnerEmail = (ownerObj?.email || '').toLowerCase().trim();
+
+      const isOwner = (farmerId && animalOwnerId && farmerId === animalOwnerId) ||
+                      (farmerEmail && animalOwnerEmail && farmerEmail === animalOwnerEmail);
+
+      if (!isOwner) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not authorized to view this animal profile.'
+        });
+      }
     }
 
     res.status(200).json({
@@ -388,8 +408,8 @@ exports.createAnimal = async (req, res, next) => {
     /*
      * Use authenticated user's/profile's actual location without hardcoded bad defaults.
      */
-    const finalVillage = (village || profile.village || req.user.village || '').trim();
-    const finalBlock = (block || profile.block || req.user.block || '').trim();
+    const finalVillage = (village || profile.village || req.user.village || 'Rural Village').trim();
+    const finalBlock = (block || profile.block || req.user.block || finalVillage || 'Rural Block').trim();
     const finalDistrict = (district || profile.district || req.user.district || 'Pune').trim();
 
     console.log('[Animal] Inserting animal record:', {
@@ -685,3 +705,5 @@ exports.deleteAnimal = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.resolveFarmerProfile = resolveFarmerProfile;

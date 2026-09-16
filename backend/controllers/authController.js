@@ -1,11 +1,43 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const {
-  supabase,
+  supabase,          // alias for supabaseAdmin — DB operations only
+  supabaseAdmin,     // service-role client — DB + admin.createUser
+  supabaseAuth,      // anon-key client — signInWithPassword / getUser ONLY
+  isLiveSupabase,
   MOCK_PROFILES,
   createSupabaseToken,
   getProfileByAuthUser
 } = require('../config/supabaseClient');
+const {
+  normalizeIndianPhone,
+  getDeterministicInternalEmail,
+  parseLoginIdentifier,
+  getPhoneVariants
+} = require('../utils/phoneNormalizer');
+
+// In-memory offline profile store for local dev / offline tests
+const OFFLINE_PROFILES = new Map();
+
+function saveOfflineProfile(profile) {
+  if (!profile) return;
+  if (profile.email) OFFLINE_PROFILES.set(profile.email.toLowerCase(), profile);
+  if (profile.phone) OFFLINE_PROFILES.set(normalizeIndianPhone(profile.phone), profile);
+  if (profile.id) OFFLINE_PROFILES.set(String(profile.id), profile);
+}
+
+function getOfflineProfile(key) {
+  if (!key) return null;
+  const k = String(key).toLowerCase().trim();
+  const byEmail = OFFLINE_PROFILES.get(k);
+  if (byEmail) return byEmail;
+  const norm = normalizeIndianPhone(k);
+  if (norm && OFFLINE_PROFILES.has(norm)) {
+    return OFFLINE_PROFILES.get(norm);
+  }
+  return OFFLINE_PROFILES.get(key) || null;
+}
 
 // Static demo credentials for instant evaluation
 const DEMO_CREDENTIALS = {
@@ -46,190 +78,195 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    const cleanPhone = phone.trim();
-    // Use provided email, or generate safe default if farmer does not have an email
-    const cleanEmail = (email && email.trim())
-      ? email.toLowerCase().trim()
-      : `farmer_${cleanPhone.replace(/\D/g, '')}@livestocksathi.in`;
-
-    // 1. Check existing in MongoDB if connected
-    let existingMongoUser = null;
-    try {
-      existingMongoUser = await User.findOne({
-        $or: [
-          { email: cleanEmail },
-          { phone: cleanPhone }
-        ]
-      });
-    } catch (e) {}
-
-    if (existingMongoUser) {
+    const cleanPhone = normalizeIndianPhone(phone);
+    if (!cleanPhone || cleanPhone.length < 10) {
       return res.status(400).json({
         success: false,
-        message: 'इस मोबाइल नंबर या ईमेल से पहले से खाता मौजूद है (A user with this phone or email already exists).'
+        message: 'कृपया एक मान्य 10-अंकीय मोबाइल नंबर दर्ज करें (Please provide a valid 10-digit mobile number).'
       });
     }
 
-    let authUserId = null;
-    let profileId = null;
-
-    // Compute password hash for profiles and Mongo dual-write
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    // Deterministic email: user-provided email, or standardized internal farmer email
+    const cleanEmail = (email && String(email).trim())
+      ? String(email).toLowerCase().trim()
+      : getDeterministicInternalEmail(cleanPhone);
 
     const safeDistrict = district ? district.trim() : 'Pune';
     const safeState = state ? state.trim() : 'Maharashtra';
     const safeVillage = village ? village.trim() : '';
     const safeBlock = block ? block.trim() : '';
 
-    // 2. Register with Supabase Auth if live client connected
-    if (supabase) {
+    // 1. Check duplicate registration in live Supabase public.profiles
+    // Uses supabaseAdmin (service-role) so RLS does not block the check
+    if (supabaseAdmin) {
       try {
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: cleanEmail,
-          password: password,
-          email_confirm: true,
-          user_metadata: {
-            name: name.trim(),
-            role: role || 'farmer',
-            phone: cleanPhone,
-            district: safeDistrict,
-            state: safeState,
-            village: safeVillage,
-            block: safeBlock,
-            registrationNo: registrationNo ? registrationNo.trim() : '',
-            department: department ? department.trim() : '',
-            preferredLanguage: preferredLanguage || 'hi'
-          }
-        });
+        const phoneVars = getPhoneVariants(cleanPhone);
+        const { data: dupP } = await supabaseAdmin
+          .from('profiles')
+          .select('id, email, phone')
+          .or(`email.eq.${cleanEmail},phone.in.(${phoneVars.join(',')})`)
+          .limit(1)
+          .maybeSingle();
 
-        if (authData && authData.user) {
-          authUserId = authData.user.id;
-        } else if (authError) {
-          console.warn('[Supabase Auth] User creation notice:', authError.message);
+        if (dupP) {
+          return res.status(400).json({
+            success: false,
+            message: 'इस मोबाइल नंबर या ईमेल से पहले से खाता मौजूद है (A user with this phone or email already exists).'
+          });
         }
-
-        // Explicitly ensure a corresponding profiles row exists in Supabase
-        try {
-          let existingProfile = null;
-
-          // Sequential check: 1. by auth_user_id
-          if (authUserId) {
-            const { data: pAuth } = await supabase
-              .from('profiles')
-              .select('id, auth_user_id, email, phone')
-              .eq('auth_user_id', authUserId)
-              .maybeSingle();
-            if (pAuth) existingProfile = pAuth;
-          }
-
-          // Sequential check: 2. by email
-          if (!existingProfile && cleanEmail) {
-            const { data: pEmail } = await supabase
-              .from('profiles')
-              .select('id, auth_user_id, email, phone')
-              .eq('email', cleanEmail)
-              .maybeSingle();
-            if (pEmail) existingProfile = pEmail;
-          }
-
-          // Sequential check: 3. by phone
-          if (!existingProfile && cleanPhone) {
-            const { data: pPhone } = await supabase
-              .from('profiles')
-              .select('id, auth_user_id, email, phone')
-              .eq('phone', cleanPhone)
-              .maybeSingle();
-            if (pPhone) existingProfile = pPhone;
-          }
-
-          if (existingProfile) {
-            profileId = existingProfile.id;
-            if (authUserId && (!existingProfile.auth_user_id || existingProfile.auth_user_id !== authUserId)) {
-              await supabase
-                .from('profiles')
-                .update({ auth_user_id: authUserId, updated_at: new Date().toISOString() })
-                .eq('id', existingProfile.id);
-            }
-            console.log('[Supabase] Linked existing profile to registered user:', {
-              profileId: existingProfile.id,
-              auth_user_id: authUserId,
-              email: cleanEmail
-            });
-          } else {
-            const profileToInsert = {
-              name: name.trim(),
-              role: role || 'farmer',
-              phone: cleanPhone,
-              email: cleanEmail,
-              password_hash: passwordHash,
-              village: safeVillage,
-              block: safeBlock,
-              district: safeDistrict,
-              state: safeState,
-              registration_no: registrationNo ? registrationNo.trim() : '',
-              department: department ? department.trim() : '',
-              preferred_language: preferredLanguage || 'hi',
-              latitude: parseFloat(location?.lat || 0),
-              longitude: parseFloat(location?.lng || 0)
-            };
-            if (authUserId) {
-              profileToInsert.auth_user_id = authUserId;
-            }
-
-            let { data: insertedProfile, error: profileInsertError } = await supabase
-              .from('profiles')
-              .insert(profileToInsert)
-              .select('id, auth_user_id')
-              .single();
-
-            // If error 23503 (fk_profiles_auth_user violated because auth_user_id not in auth.users), retry with auth_user_id = null
-            if (profileInsertError && profileInsertError.code === '23503' && profileToInsert.auth_user_id) {
-              console.warn('[Supabase] auth_user_id not in auth.users (code 23503), retrying profile insertion without auth_user_id');
-              delete profileToInsert.auth_user_id;
-              const retryInsert = await supabase
-                .from('profiles')
-                .insert(profileToInsert)
-                .select('id, auth_user_id')
-                .single();
-              insertedProfile = retryInsert.data;
-              profileInsertError = retryInsert.error;
-            }
-
-            if (insertedProfile && !profileInsertError) {
-              profileId = insertedProfile.id;
-              console.log('[Supabase] Created new profile for registered farmer:', {
-                profileId: insertedProfile.id,
-                email: cleanEmail
-              });
-            } else if (profileInsertError) {
-              console.error('[Supabase] Failed to insert profile during registration:', profileInsertError.message);
-              // If duplicate email/phone conflict (code 23505), link to the existing profile
-              if (profileInsertError.code === '23505') {
-                const { data: dupProfile } = await supabase
-                  .from('profiles')
-                  .select('id, auth_user_id')
-                  .or(`email.eq.${cleanEmail},phone.eq.${cleanPhone}`)
-                  .limit(1)
-                  .maybeSingle();
-                if (dupProfile) {
-                  profileId = dupProfile.id;
-                }
-              }
-            }
-          }
-        } catch (profileErr) {
-          console.error('[Supabase] Error verifying/creating profile during registration:', profileErr.message);
-        }
-      } catch (err) {
-        console.warn('[Supabase Auth] User creation notice:', err.message);
+      } catch (checkErr) {
+        // Continue to offline/resilient check
       }
     }
 
-    // 3. Register in MongoDB to maintain dual-compatibility during migration
-    let mongoUser = null;
+    // Check duplicate in offline store
+    if (getOfflineProfile(cleanEmail) || getOfflineProfile(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'इस मोबाइल नंबर या ईमेल से पहले से खाता मौजूद है (A user with this phone or email already exists).'
+      });
+    }
+
+    // Check duplicate in MongoDB if active
     try {
-      mongoUser = await User.create({
+      const existingMongo = await User.findOne({
+        $or: [{ email: cleanEmail }, { phone: cleanPhone }]
+      });
+      if (existingMongo) {
+        return res.status(400).json({
+          success: false,
+          message: 'इस मोबाइल नंबर या ईमेल से पहले से खाता मौजूद है (A user with this phone or email already exists).'
+        });
+      }
+    } catch (e) {}
+
+    // Compute secure password hash for profiles and dual-write
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    let authUserId = null;
+    let profileId = null;
+    let session = null;
+
+    // 2. Canonical Registration via Supabase Auth & public.profiles
+    if (isLiveSupabase && supabaseAdmin) {
+      // Step A: Create user in Supabase Auth via admin API (requires service-role client)
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: cleanEmail,
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          name: name.trim(),
+          role: role || 'farmer',
+          phone: cleanPhone,
+          district: safeDistrict,
+          state: safeState,
+          village: safeVillage,
+          block: safeBlock,
+          registrationNo: registrationNo ? registrationNo.trim() : '',
+          department: department ? department.trim() : '',
+          preferredLanguage: preferredLanguage || 'hi'
+        }
+      });
+
+      if (authError) {
+        console.error('[Supabase Auth] Registration error:', authError.message);
+        return res.status(500).json({
+          success: false,
+          message: `Supabase Auth registration failed: ${authError.message}`
+        });
+      }
+
+      authUserId = authData.user.id;
+
+      // Step B: Insert linked profile row into public.profiles using ADMIN client
+      // (service-role key bypasses RLS — this is intentional for server-side profile creation)
+      const profileToInsert = {
+        name: name.trim(),
+        role: role || 'farmer',
+        phone: cleanPhone,
+        email: cleanEmail,
+        password_hash: passwordHash,
+        village: safeVillage,
+        block: safeBlock,
+        district: safeDistrict,
+        state: safeState,
+        registration_no: registrationNo ? registrationNo.trim() : '',
+        department: department ? department.trim() : '',
+        preferred_language: preferredLanguage || 'hi',
+        latitude: parseFloat(location?.lat || 0),
+        longitude: parseFloat(location?.lng || 0),
+        auth_user_id: authUserId
+      };
+
+      const { data: insertedProfile, error: profileInsertError } = await supabaseAdmin
+        .from('profiles')
+        .insert(profileToInsert)
+        .select('*')
+        .single();
+
+      if (profileInsertError) {
+        console.error('[Supabase] Failed to insert profile during registration:', profileInsertError.message);
+        return res.status(500).json({
+          success: false,
+          message: `Database profile creation failed: ${profileInsertError.message}`
+        });
+      }
+
+      profileId = insertedProfile.id;
+
+      // Step C: Sign in via the AUTH client (anon key) to obtain real Supabase session.
+      // CRITICAL: supabaseAuth is used here — NOT supabaseAdmin — to prevent
+      // the user session from contaminating the admin DB client's Authorization header.
+      try {
+        const authClientToUse = supabaseAuth || supabaseAdmin;
+        const { data: signInData, error: signInErr } = await authClientToUse.auth.signInWithPassword({
+          email: cleanEmail,
+          password: password
+        });
+        if (signInData && signInData.session && !signInErr) {
+          session = signInData.session;
+        }
+      } catch (signInEx) {
+        console.warn('[Supabase Auth] Post-registration sign-in notice:', signInEx.message);
+      }
+    } else {
+      // Offline / Developer Test Mode: Deterministic UUID generation
+      const generatedId = crypto.randomUUID();
+      profileId = generatedId;
+      authUserId = generatedId;
+    }
+
+    const userPayload = {
+      id: profileId,
+      _id: profileId,
+      auth_user_id: authUserId,
+      name: name.trim(),
+      email: cleanEmail,
+      role: role || 'farmer',
+      phone: cleanPhone,
+      state: safeState,
+      village: safeVillage,
+      block: safeBlock,
+      district: safeDistrict,
+      location: {
+        lat: parseFloat(location?.lat || 0),
+        lng: parseFloat(location?.lng || 0)
+      },
+      registrationNo: registrationNo ? registrationNo.trim() : '',
+      department: department ? department.trim() : '',
+      preferredLanguage: preferredLanguage || 'hi'
+    };
+
+    // Store in offline profile map for consistent logout/login during offline tests
+    saveOfflineProfile({
+      ...userPayload,
+      passwordHash
+    });
+
+    // 3. Non-blocking MongoDB dual-write for legacy data compatibility
+    try {
+      await User.create({
         name: name.trim(),
         role: role || 'farmer',
         phone: cleanPhone,
@@ -248,38 +285,17 @@ exports.register = async (req, res, next) => {
         preferredLanguage: preferredLanguage || 'hi'
       });
     } catch (mongoErr) {
-      console.warn('[MongoDB] Dual-write notice:', mongoErr.message);
+      // Non-blocking
     }
 
-    const effectiveId = profileId || authUserId || (mongoUser ? mongoUser._id : '00000000-0000-0000-0000-' + Date.now().toString(16).padStart(12, '0'));
+    // Return genuine Supabase session token or fallback compliant JWT
+    const token = session ? session.access_token : createSupabaseToken(userPayload);
+    const refreshToken = session ? session.refresh_token : undefined;
 
-    const userPayload = {
-      id: effectiveId,
-      _id: effectiveId,
-      auth_user_id: authUserId || effectiveId,
-      name: name.trim(),
-      email: cleanEmail,
-      role: role || 'farmer',
-      phone: cleanPhone,
-      state: safeState,
-      village: safeVillage,
-      block: safeBlock,
-      district: safeDistrict,
-      location: {
-        lat: parseFloat(location?.lat || 0),
-        lng: parseFloat(location?.lng || 0)
-      },
-      registrationNo: registrationNo ? registrationNo.trim() : '',
-      department: department ? department.trim() : '',
-      preferredLanguage: preferredLanguage || 'hi'
-    };
-
-    // Issue Supabase-standard JWT
-    const token = createSupabaseToken(userPayload);
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       token,
+      refreshToken,
       user: userPayload
     });
   } catch (error) {
@@ -293,106 +309,185 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, phone, identifier, password } = req.body;
-    const loginKey = (email || phone || identifier || '').trim();
+    const rawLoginKey = (email || phone || identifier || '').trim();
 
-    if (!loginKey || !password) {
+    if (!rawLoginKey || !password) {
       return res.status(400).json({
         success: false,
         message: 'कृपया ईमेल या मोबाइल नंबर और पासवर्ड दर्ज करें (Please provide email/phone and password).'
       });
     }
 
-    const cleanEmail = loginKey.toLowerCase();
-    const digitsOnly = loginKey.replace(/\D/g, '');
-    const phoneTargetEmail = digitsOnly.length >= 10 ? `farmer_${digitsOnly.slice(-10)}@livestocksathi.in` : null;
+    const { isEmail, email: parsedEmail, phone: normPhone, deterministicEmail } = parseLoginIdentifier(rawLoginKey);
 
-    // 1. First priority: Authenticate via Live Supabase Auth if connected
-    if (supabase) {
-      const authEmail = cleanEmail.includes('@') ? cleanEmail : phoneTargetEmail;
-      if (authEmail) {
+    let authEmail = parsedEmail;
+    let matchedProfile = null;
+
+    // If identifier is a phone number, resolve the registered email from public.profiles
+    // Uses supabaseAdmin (service-role) so RLS does not block the lookup
+    if (!isEmail && normPhone) {
+      if (supabaseAdmin) {
         try {
-          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: authEmail,
-            password
-          });
-
-          if (authData && authData.session && !authError) {
-            const profile = await getProfileByAuthUser(authData.user);
-            return res.status(200).json({
-              success: true,
-              token: authData.session.access_token,
-              refreshToken: authData.session.refresh_token,
-              user: profile || {
-                id: authData.user.id,
-                _id: authData.user.id,
-                email: authData.user.email,
-                role: authData.user.user_metadata?.role || 'farmer',
-                name: authData.user.user_metadata?.name || 'User'
-              }
-            });
+          const uniquePhones = getPhoneVariants(normPhone);
+          const { data: dbP } = await supabaseAdmin
+            .from('profiles')
+            .select('*')
+            .in('phone', uniquePhones)
+            .limit(1)
+            .maybeSingle();
+          if (dbP) {
+            matchedProfile = dbP;
+            authEmail = dbP.email;
           }
-        } catch (supabaseErr) {
-          // Fall through to database/demo verification
+        } catch (dbErr) {
+          console.warn('[Supabase] Phone lookup notice:', dbErr.message);
         }
       }
 
-      // Check live public.profiles for credentials match (supports farmers registered with phone)
-      try {
-        const phoneVariants = [loginKey];
-        if (digitsOnly.length === 10) phoneVariants.push(`+91${digitsOnly}`, `91${digitsOnly}`, digitsOnly);
-        else if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) phoneVariants.push(digitsOnly.substring(2), `+${digitsOnly}`, digitsOnly);
-        const uniquePhones = [...new Set(phoneVariants)];
-
-        const { data: dbProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .or(`email.eq.${cleanEmail},${phoneTargetEmail ? `email.eq.${phoneTargetEmail},` : ''}phone.in.(${uniquePhones.join(',')})`)
-          .limit(1)
-          .maybeSingle();
-
-        if (dbProfile && dbProfile.password_hash) {
-          const isMatch = await bcrypt.compare(password, dbProfile.password_hash);
-          if (isMatch) {
-            const token = createSupabaseToken({
-              id: dbProfile.id,
-              _id: dbProfile.id,
-              auth_user_id: dbProfile.auth_user_id || dbProfile.id,
-              name: dbProfile.name,
-              email: dbProfile.email,
-              role: dbProfile.role,
-              phone: dbProfile.phone,
-              district: dbProfile.district,
-              state: dbProfile.state
-            });
-
-            return res.status(200).json({
-              success: true,
-              token,
-              user: {
-                id: dbProfile.id,
-                _id: dbProfile.id,
-                auth_user_id: dbProfile.auth_user_id || dbProfile.id,
-                name: dbProfile.name,
-                email: dbProfile.email,
-                role: dbProfile.role,
-                phone: dbProfile.phone,
-                district: dbProfile.district,
-                state: dbProfile.state,
-                village: dbProfile.village || '',
-                block: dbProfile.block || '',
-                registrationNo: dbProfile.registration_no || '',
-                department: dbProfile.department || '',
-                preferredLanguage: dbProfile.preferred_language || 'hi'
-              }
-            });
-          }
+      // If not in DB or offline, check in-memory offline store
+      if (!authEmail) {
+        const offP = getOfflineProfile(normPhone);
+        if (offP) {
+          authEmail = offP.email;
+          matchedProfile = offP;
         }
-      } catch (profAuthErr) {
-        console.warn('[Supabase Auth] Direct profile verification notice:', profAuthErr.message);
+      }
+
+      // Default to deterministic internal email if unmapped
+      if (!authEmail) {
+        authEmail = deterministicEmail;
       }
     }
 
-    // 2. Check Static / Seed Persona Accounts (Farmer, Vet, Officer, Admin)
+    // 1. Primary: Authenticate via Live Supabase Auth if connected.
+    // CRITICAL: Use supabaseAuth (anon-key client) for signInWithPassword,
+    // NOT supabaseAdmin, to prevent the user's session from contaminating
+    // the admin DB client's Authorization header.
+    if (isLiveSupabase && (supabaseAuth || supabaseAdmin) && authEmail) {
+      try {
+        const authClientToUse = supabaseAuth || supabaseAdmin;
+        const { data: authData, error: authError } = await authClientToUse.auth.signInWithPassword({
+          email: authEmail,
+          password
+        });
+
+        if (authData && authData.session && !authError) {
+          const profile = await getProfileByAuthUser(authData.user);
+          const authoritativeId = profile?.id || authData.user.id;
+
+          const userPayload = {
+            id: authoritativeId,
+            _id: authoritativeId,
+            auth_user_id: authData.user.id,
+            name: profile?.name || authData.user.user_metadata?.name || 'User',
+            email: profile?.email || authData.user.email,
+            role: profile?.role || authData.user.user_metadata?.role || 'farmer',
+            phone: profile?.phone || normPhone || '',
+            district: profile?.district || authData.user.user_metadata?.district || 'Pune',
+            state: profile?.state || authData.user.user_metadata?.state || 'Maharashtra',
+            village: profile?.village || '',
+            block: profile?.block || '',
+            registrationNo: profile?.registrationNo || '',
+            department: profile?.department || '',
+            preferredLanguage: profile?.preferredLanguage || 'hi'
+          };
+
+          return res.status(200).json({
+            success: true,
+            token: authData.session.access_token,
+            refreshToken: authData.session.refresh_token,
+            user: userPayload
+          });
+        }
+      } catch (supabaseErr) {
+        console.warn('[Supabase Auth] Live sign-in notice:', supabaseErr.message);
+      }
+    }
+
+    // 2. Direct public.profiles password verification fallback (for offline or direct-provisioned profiles)
+    // Uses supabaseAdmin (service-role) so RLS does not block the lookup
+    if (supabaseAdmin && (authEmail || normPhone)) {
+      try {
+        if (!matchedProfile) {
+          const phoneVars = normPhone ? getPhoneVariants(normPhone) : [];
+          const orFilter = authEmail
+            ? (phoneVars.length ? `email.eq.${authEmail},phone.in.(${phoneVars.join(',')})` : `email.eq.${authEmail}`)
+            : `phone.in.(${phoneVars.join(',')})`;
+
+          const { data: p } = await supabaseAdmin
+            .from('profiles')
+            .select('*')
+            .or(orFilter)
+            .limit(1)
+            .maybeSingle();
+          if (p) matchedProfile = p;
+        }
+
+        if (matchedProfile && matchedProfile.password_hash) {
+          const isMatch = await bcrypt.compare(password, matchedProfile.password_hash);
+          if (isMatch) {
+            const userPayload = {
+              id: matchedProfile.id,
+              _id: matchedProfile.id,
+              auth_user_id: matchedProfile.auth_user_id || matchedProfile.id,
+              name: matchedProfile.name,
+              email: matchedProfile.email,
+              role: matchedProfile.role,
+              phone: matchedProfile.phone,
+              district: matchedProfile.district,
+              state: matchedProfile.state,
+              village: matchedProfile.village || '',
+              block: matchedProfile.block || '',
+              registrationNo: matchedProfile.registration_no || '',
+              department: matchedProfile.department || '',
+              preferredLanguage: matchedProfile.preferred_language || 'hi'
+            };
+
+            const token = createSupabaseToken(userPayload);
+            return res.status(200).json({
+              success: true,
+              token,
+              user: userPayload
+            });
+          }
+        }
+      } catch (profErr) {
+        console.warn('[Supabase Profiles] Direct verification notice:', profErr.message);
+      }
+    }
+
+    // 3. Offline In-Memory Profile Fallback (for unit tests / offline developer mode)
+    const offlineProfile = getOfflineProfile(authEmail || normPhone || rawLoginKey);
+    if (offlineProfile && offlineProfile.passwordHash) {
+      const isMatch = await bcrypt.compare(password, offlineProfile.passwordHash);
+      if (isMatch) {
+        const userPayload = {
+          id: offlineProfile.id,
+          _id: offlineProfile.id,
+          auth_user_id: offlineProfile.auth_user_id || offlineProfile.id,
+          name: offlineProfile.name,
+          email: offlineProfile.email,
+          role: offlineProfile.role,
+          phone: offlineProfile.phone,
+          district: offlineProfile.district,
+          state: offlineProfile.state,
+          village: offlineProfile.village || '',
+          block: offlineProfile.block || '',
+          registrationNo: offlineProfile.registrationNo || '',
+          department: offlineProfile.department || '',
+          preferredLanguage: offlineProfile.preferredLanguage || 'hi'
+        };
+        const token = createSupabaseToken(userPayload);
+        return res.status(200).json({
+          success: true,
+          token,
+          user: userPayload
+        });
+      }
+    }
+
+    // 4. Static / Seed Persona Accounts (Farmer, Vet, Officer, Admin)
+    const cleanEmail = (authEmail || rawLoginKey).toLowerCase();
     const demoAccount = DEMO_CREDENTIALS[cleanEmail];
     if (demoAccount && password === demoAccount.password) {
       const mockUser = MOCK_PROFILES[cleanEmail] || {
@@ -406,13 +501,13 @@ exports.login = async (req, res, next) => {
       };
 
       const token = createSupabaseToken(mockUser);
-
       return res.status(200).json({
         success: true,
         token,
         user: {
           id: mockUser.id,
           _id: mockUser.id,
+          auth_user_id: mockUser.id,
           name: mockUser.name,
           email: mockUser.email,
           role: mockUser.role,
@@ -428,19 +523,19 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // 3. Fallback: Authenticate against MongoDB User collection
-    let user = null;
+    // 5. MongoDB Fallback
+    let mongoUser = null;
     try {
-      user = await User.findOne({
+      mongoUser = await User.findOne({
         $or: [
           { email: cleanEmail },
-          { phone: loginKey }
+          { phone: normPhone || rawLoginKey }
         ]
       });
     } catch (e) {}
 
-    if (user) {
-      const isMatch = await user.matchPassword(password);
+    if (mongoUser) {
+      const isMatch = await mongoUser.matchPassword(password);
       if (!isMatch) {
         return res.status(401).json({
           success: false,
@@ -448,40 +543,32 @@ exports.login = async (req, res, next) => {
         });
       }
 
-      // Generate Supabase token for authenticated user
-      const token = createSupabaseToken({
-        id: user._id,
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        district: user.district,
-        state: user.state
-      });
+      const userPayload = {
+        id: String(mongoUser._id),
+        _id: String(mongoUser._id),
+        auth_user_id: String(mongoUser._id),
+        name: mongoUser.name,
+        email: mongoUser.email,
+        phone: mongoUser.phone,
+        role: mongoUser.role,
+        district: mongoUser.district,
+        state: mongoUser.state,
+        village: mongoUser.village || '',
+        block: mongoUser.block || '',
+        registrationNo: mongoUser.registrationNo || '',
+        department: mongoUser.department || '',
+        preferredLanguage: mongoUser.preferredLanguage || 'hi'
+      };
 
+      const token = createSupabaseToken(userPayload);
       return res.status(200).json({
         success: true,
         token,
-        user: {
-          id: user._id,
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          phone: user.phone,
-          state: user.state,
-          village: user.village,
-          block: user.block,
-          district: user.district,
-          registrationNo: user.registrationNo,
-          department: user.department,
-          preferredLanguage: user.preferredLanguage
-        }
+        user: userPayload
       });
     }
 
-    // User not found
+    // If none matched
     return res.status(401).json({
       success: false,
       message: 'उपयोगकर्ता नहीं मिला या पासवर्ड गलत है (User not found or invalid credentials).'
