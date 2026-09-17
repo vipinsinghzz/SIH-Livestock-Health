@@ -266,6 +266,40 @@ const animals = {
           throw error;
         } else if (data) {
           console.log('[SupabaseDb] animals.find Supabase success count:', data.length);
+          if (data.length > 0) {
+            try {
+              const animalIds = data.map((a) => a.id).filter(Boolean);
+              if (animalIds.length > 0) {
+                const { data: timelines } = await supabase
+                  .from('animal_timeline')
+                  .select('*')
+                  .in('animal_id', animalIds)
+                  .order('created_at', { ascending: false });
+
+                const timelineMap = new Map();
+                if (timelines) {
+                  timelines.forEach((t) => {
+                    if (!timelineMap.has(t.animal_id)) timelineMap.set(t.animal_id, []);
+                    timelineMap.get(t.animal_id).push(toCamel(t));
+                  });
+                }
+
+                return data.map((a) => {
+                  const camelA = toCamel(a);
+                  const tList = timelineMap.get(a.id) || [];
+                  camelA.timeline = tList;
+                  const diag = tList.find((e) => e.disease);
+                  if (diag) {
+                    camelA.disease = diag.disease;
+                    camelA.lastDiagnosis = diag.disease;
+                  }
+                  return camelA;
+                });
+              }
+            } catch (te) {
+              console.warn('[SupabaseDb] Batch timeline fetch notice:', te.message);
+            }
+          }
           return toCamel(data);
         }
       } catch (e) {
@@ -319,13 +353,20 @@ const animals = {
   },
 
   async findById(id) {
+    if (!id) return null;
+    const cleanId = String(id).trim();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+
     if (supabase) {
       try {
-        const { data: animalData, error: animalError } = await supabase
-          .from('animals')
-          .select('*')
-          .eq('id', id)
-          .single();
+        let q = supabase.from('animals').select('*');
+        if (isUUID) {
+          q = q.eq('id', cleanId);
+        } else {
+          q = q.eq('tag_id', cleanId.toUpperCase());
+        }
+
+        const { data: animalData, error: animalError } = await q.maybeSingle();
 
         if (animalError) {
           console.error('[SupabaseDb] animals.findById error:', animalError.message);
@@ -561,18 +602,39 @@ const animals = {
   },
 
   async updateById(id, updates) {
+    if (!id) return null;
+    const cleanId = String(id).trim();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+
     if (supabase) {
       try {
-        const snakeUpdates = toSnake(updates);
-        delete snakeUpdates.id;
-        delete snakeUpdates._id;
+        const rawSnake = toSnake(updates);
+        delete rawSnake.id;
+        delete rawSnake._id;
 
-        const { data, error } = await supabase
-          .from('animals')
-          .update(snakeUpdates)
-          .eq('id', id)
-          .select('*')
-          .single();
+        // Whitelist valid animal table columns to avoid PostgreSQL non-existent column errors
+        const VALID_COLUMNS = new Set([
+          'tag_id', 'name', 'species', 'breed', 'age', 'gender',
+          'health_status', 'milk_yield_daily', 'last_checkup',
+          'owner_id', 'village', 'block', 'district', 'updated_at'
+        ]);
+
+        const snakeUpdates = {};
+        for (const [k, v] of Object.entries(rawSnake)) {
+          if (VALID_COLUMNS.has(k) && v !== undefined) {
+            snakeUpdates[k] = v;
+          }
+        }
+        snakeUpdates.updated_at = new Date().toISOString();
+
+        let q = supabase.from('animals').update(snakeUpdates);
+        if (isUUID) {
+          q = q.eq('id', cleanId);
+        } else {
+          q = q.eq('tag_id', cleanId.toUpperCase());
+        }
+
+        const { data, error } = await q.select('*').maybeSingle();
 
         if (error) {
           console.error('[SupabaseDb] animals.updateById error:', error.message);

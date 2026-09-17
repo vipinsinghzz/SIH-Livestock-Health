@@ -554,7 +554,17 @@ exports.updateAnimal = async (req, res, next) => {
             notes: ne.notes || '',
             image_url: ne.image || '',
             status: ne.status || '',
-            disease: ne.disease || ''
+            disease: ne.disease || '',
+            confidence: ne.confidence ? parseFloat(ne.confidence) : null,
+            symptoms: Array.isArray(ne.symptoms) ? ne.symptoms : [],
+            advisory: ne.advisory || '',
+            temperature: ne.temperature ? parseFloat(ne.temperature) : null,
+            duration: ne.duration ? parseFloat(ne.duration) : null
+          });
+          console.log('[Animal] Logged timeline event for animal:', {
+            animalId: targetAnimalId,
+            disease: ne.disease,
+            status: ne.status
           });
         } catch (e) {
           console.warn('[Animal] Supabase timeline insert notice:', e.message);
@@ -645,17 +655,39 @@ exports.updateAnimal = async (req, res, next) => {
         notes: ne.notes || '',
         image: ne.image || '',
         status: ne.status || '',
-        disease: ne.disease || ''
+        disease: ne.disease || '',
+        confidence: ne.confidence || null,
+        symptoms: ne.symptoms || [],
+        advisory: ne.advisory || '',
+        temperature: ne.temperature || null,
+        duration: ne.duration || null
       });
       updates.timeline = timeline;
     }
 
-    const updated = await supabaseDb.animals.updateById(existing.id || existing._id, updates);
+    // Strip child relations and non-column fields from direct animals table update
+    const dbUpdates = { ...updates };
+    delete dbUpdates.newTimelineEvent;
+    delete dbUpdates.newVaccination;
+    delete dbUpdates.newTreatment;
+    delete dbUpdates.timeline;
+    delete dbUpdates.vaccinationHistory;
+    delete dbUpdates.treatmentHistory;
+    delete dbUpdates.vaccinations;
+    delete dbUpdates.treatments;
+    delete dbUpdates.pastReports;
+
+    const updated = await supabaseDb.animals.updateById(existing.id || existing._id, dbUpdates);
+
+    const returnAnimal = updated ? { ...updated } : { ...existing, ...dbUpdates };
+    if (updates.timeline) {
+      returnAnimal.timeline = updates.timeline;
+    }
 
     res.status(200).json({
       success: true,
       message: 'Animal record updated successfully.',
-      animal: updated || existing
+      animal: returnAnimal
     });
   } catch (error) {
     console.error('[Animal] UPDATE ERROR:', error.message);

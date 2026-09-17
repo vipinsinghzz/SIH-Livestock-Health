@@ -1,7 +1,14 @@
+/**
+ * Livestock Saathi - Vaccination & Camp Controller (Supabase PostgreSQL Backed)
+ * File: backend/controllers/vaccinationController.js
+ *
+ * Replaces legacy Mongoose direct database dependencies with the production
+ * Supabase PostgreSQL repository architecture (public.vaccination_drives,
+ * public.vaccination_camp_registrations, public.animal_vaccinations, public.animal_timeline).
+ */
+
 const supabaseDb = require('../services/supabaseDb');
-const VaccinationDrive = require('../models/VaccinationDrive');
-const Animal = require('../models/Animal');
-const mongoose = require('mongoose');
+const { resolveFarmerProfile } = require('./animalController');
 
 // Haversine formula for distance calculation in kilometers
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -37,60 +44,23 @@ exports.getVaccinationDrives = async (req, res, next) => {
       limit = 250
     } = req.query;
 
-    const query = {};
-
-    if (state && state !== 'All') query.state = new RegExp(state, 'i');
-    if (district && district !== 'All') query.district = new RegExp(district, 'i');
-    if (block && block !== 'All') query.block = new RegExp(block, 'i');
-
-    if (status && status !== 'All') {
-      const statusArr = status.split(',').map(s => s.trim());
-      query.status = statusArr.length > 1 ? { $in: statusArr } : statusArr[0];
-    }
-
-    if (vaccine && vaccine !== 'All') {
-      query.$or = [
-        { vaccine: new RegExp(`^${vaccine}`, 'i') },
-        { vaccineFullName: new RegExp(vaccine, 'i') }
-      ];
-    }
-
-    if (search && search.trim()) {
-      const s = search.trim();
-      const sRegex = new RegExp(s, 'i');
-      const searchConditions = [
-        { village: sRegex },
-        { block: sRegex },
-        { district: sRegex },
-        { venue: sRegex },
-        { vaccine: sRegex },
-        { vaccineFullName: sRegex },
-        { organizingHospital: sRegex },
-        { assignedOfficer: sRegex },
-        { campId: sRegex }
-      ];
-
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
-        delete query.$or;
-      } else {
-        query.$or = searchConditions;
-      }
-    }
-
-    const maxLimit = Math.min(parseInt(limit, 10) || 250, 500);
-    const drives = await VaccinationDrive.find(query)
-      .sort({ campDate: 1, startDate: -1 })
-      .limit(maxLimit)
-      .lean();
+    const drives = await supabaseDb.vaccinationDrives.find({
+      district,
+      block,
+      state,
+      status,
+      vaccine,
+      search,
+      limit
+    });
 
     const userLat = lat ? parseFloat(lat) : null;
     const userLng = lng ? parseFloat(lng) : null;
     const radiusKm = radius && radius !== 'all' ? parseFloat(radius) : null;
 
-    let enrichedDrives = drives.map(d => {
-      const cLat = d.coordinates?.lat;
-      const cLng = d.coordinates?.lng;
+    let enrichedDrives = (drives || []).map(d => {
+      const cLat = d.latitude !== undefined ? d.latitude : d.coordinates?.lat;
+      const cLng = d.longitude !== undefined ? d.longitude : d.coordinates?.lng;
       const dist = (userLat && userLng && cLat && cLng)
         ? calculateDistance(userLat, userLng, cLat, cLng)
         : null;
@@ -101,6 +71,9 @@ exports.getVaccinationDrives = async (req, res, next) => {
 
       return {
         ...d,
+        id: d.id || d._id,
+        _id: d._id || d.id,
+        coordinates: { lat: cLat || 18.1517, lng: cLng || 74.5772 },
         distanceKm: dist,
         coveragePercentage
       };
@@ -124,6 +97,39 @@ exports.getVaccinationDrives = async (req, res, next) => {
       drives: enrichedDrives
     });
   } catch (error) {
+    console.error('[VaccinationController] GET DRIVES ERROR:', error.message);
+    next(error);
+  }
+};
+
+// @desc    Get single vaccination drive by ID or campId
+// @route   GET /api/vaccination-drives/:id
+// @access  Public / Optional Auth
+exports.getVaccinationDriveById = async (req, res, next) => {
+  try {
+    const drive = await supabaseDb.vaccinationDrives.findById(req.params.id);
+
+    if (!drive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vaccination drive not found.'
+      });
+    }
+
+    const cLat = drive.latitude !== undefined ? drive.latitude : drive.coordinates?.lat;
+    const cLng = drive.longitude !== undefined ? drive.longitude : drive.coordinates?.lng;
+
+    res.status(200).json({
+      success: true,
+      drive: {
+        ...drive,
+        id: drive.id || drive._id,
+        _id: drive._id || drive.id,
+        coordinates: { lat: cLat || 18.1517, lng: cLng || 74.5772 }
+      }
+    });
+  } catch (error) {
+    console.error('[VaccinationController] GET DRIVE BY ID ERROR:', error.message);
     next(error);
   }
 };
@@ -133,49 +139,42 @@ exports.getVaccinationDrives = async (req, res, next) => {
 // @access  Private (Farmers)
 exports.getMyRegistrations = async (req, res, next) => {
   try {
-    const userId = req.user ? req.user._id : null;
-    const userPhone = req.user ? req.user.phone : null;
-
-    const query = {
-      $or: [
-        { 'registrations.farmerId': userId },
-        ...(userPhone ? [{ 'registrations.farmerPhone': userPhone }] : [])
-      ]
-    };
-
-    const drives = await VaccinationDrive.find(query)
-      .sort({ campDate: 1 })
-      .lean();
-
-    const myAppointments = [];
-    drives.forEach((d) => {
-      const userRegs = (d.registrations || []).filter(
-        (r) =>
-          (userId && r.farmerId && r.farmerId.toString() === userId.toString()) ||
-          (userPhone && r.farmerPhone === userPhone)
-      );
-
-      userRegs.forEach((reg) => {
-        myAppointments.push({
-          campId: d.campId,
-          driveId: d._id,
-          vaccine: d.vaccine,
-          vaccineFullName: d.vaccineFullName || d.vaccine,
-          venue: d.venue,
-          village: d.village,
-          block: d.block,
-          district: d.district,
-          campDate: d.campDate,
-          startTime: d.startTime,
-          endTime: d.endTime,
-          assignedOfficer: d.assignedOfficer,
-          token: reg.token,
-          animalCount: reg.animalCount,
-          animalIds: reg.animalIds || [],
-          registeredAt: reg.registeredAt,
-          status: d.status
-        });
+    const profile = await resolveFarmerProfile(req.user);
+    if (!profile || !profile.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to view camp registrations.'
       });
+    }
+
+    const farmerId = String(profile.id).trim();
+    const farmerPhone = String(profile.phone || req.user.phone || '').trim();
+
+    const registrations = await supabaseDb.campRegistrations.findByFarmer(farmerId, farmerPhone);
+
+    const myAppointments = (registrations || []).map((reg) => {
+      const d = reg.drive || {};
+      const campDate = d.campDate || d.camp_date || d.startDate || d.start_date || reg.registeredAt;
+      return {
+        id: reg.id || reg._id,
+        campId: d.campId || d.camp_id || 'CAMP-REG',
+        driveId: reg.driveId || reg.drive_id || d.id || d._id,
+        vaccine: d.vaccine || 'Livestock Vaccine',
+        vaccineFullName: d.vaccineFullName || d.vaccine_full_name || d.vaccine || 'Livestock Vaccine',
+        venue: d.venue || 'Veterinary Centre',
+        village: d.village || '',
+        block: d.block || '',
+        district: d.district || '',
+        campDate,
+        startTime: d.startTime || d.start_time || '09:30 AM',
+        endTime: d.endTime || d.end_time || '04:00 PM',
+        assignedOfficer: d.assignedOfficer || d.assigned_officer || 'Veterinary Officer',
+        token: reg.token,
+        animalCount: reg.animalCount || reg.animal_count || (Array.isArray(reg.animalIds) ? reg.animalIds.length : 1),
+        animalIds: reg.animalIds || reg.animal_ids || [],
+        registeredAt: reg.registeredAt || reg.registered_at,
+        status: d.status || 'Upcoming'
+      };
     });
 
     res.status(200).json({
@@ -184,32 +183,30 @@ exports.getMyRegistrations = async (req, res, next) => {
       registrations: myAppointments
     });
   } catch (error) {
+    console.error('[VaccinationController] GET MY REGISTRATIONS ERROR:', error.message);
     next(error);
   }
 };
 
 // @desc    Register livestock for a vaccination camp
 // @route   POST /api/vaccination-drives/:id/register
-// @access  Public / Private (Farmers)
+// @access  Private (Farmers)
 exports.registerForCamp = async (req, res, next) => {
   try {
-    const { animalIds = [], animalCount = 1, farmerName, farmerPhone } = req.body;
-    const countToBook = Math.max(
-      1,
-      Array.isArray(animalIds) && animalIds.length > 0
-        ? animalIds.length
-        : parseInt(animalCount, 10) || 1
-    );
+    const profile = await resolveFarmerProfile(req.user);
+    if (!profile || !profile.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to register for vaccination camp.'
+      });
+    }
+
+    const farmerId = String(profile.id).trim();
+    const farmerName = profile.name || req.user.name || req.body.farmerName || 'Farmer';
+    const farmerPhone = profile.phone || req.user.phone || req.body.farmerPhone || '';
 
     const paramId = req.params.id;
-    let drive = null;
-
-    if (mongoose.Types.ObjectId.isValid(paramId)) {
-      drive = await VaccinationDrive.findById(paramId);
-    }
-    if (!drive) {
-      drive = await VaccinationDrive.findOne({ campId: paramId });
-    }
+    const drive = await supabaseDb.vaccinationDrives.findById(paramId);
 
     if (!drive) {
       return res.status(404).json({
@@ -218,98 +215,178 @@ exports.registerForCamp = async (req, res, next) => {
       });
     }
 
-    if (drive.remainingSlots < countToBook) {
+    const { animalIds = [], animalCount = 1 } = req.body;
+    const requestedCount = Array.isArray(animalIds) && animalIds.length > 0
+      ? animalIds.length
+      : Math.max(1, parseInt(animalCount, 10) || 1);
+
+    // Capacity & Slot Verification
+    const remainingSlots = drive.remainingSlots !== undefined
+      ? drive.remainingSlots
+      : Math.max(0, (drive.capacity || 200) - (drive.bookedSlots || 0));
+
+    if (remainingSlots <= 0) {
       return res.status(400).json({
         success: false,
-        message: `Only ${drive.remainingSlots} slots remaining for this camp.`
+        message: 'This vaccination camp is already at full capacity.'
       });
     }
 
-    drive.bookedSlots = (drive.bookedSlots || 0) + countToBook;
-    drive.remainingSlots = Math.max(0, (drive.capacity || 200) - drive.bookedSlots);
-
-    const token = `#CAMP-${Math.floor(1000 + Math.random() * 9000)}`;
-    const fName = farmerName || (req.user ? req.user.name : 'Farmer');
-    const fPhone = farmerPhone || (req.user ? req.user.phone : '');
-    const fId = req.user ? req.user._id : null;
-
-    // Record registration entry in drive
-    drive.registrations.push({
-      farmerId: fId,
-      farmerName: fName,
-      farmerPhone: fPhone,
-      animalIds: Array.isArray(animalIds) ? animalIds : [],
-      animalCount: countToBook,
-      token,
-      registeredAt: new Date()
-    });
-
-    await drive.save();
-
-    // Link vaccination appointment to animal records in DB
-    const targetAnimals = [];
-    if (Array.isArray(animalIds) && animalIds.length > 0) {
-      for (const aId of animalIds) {
-        let animal = null;
-        if (mongoose.Types.ObjectId.isValid(aId)) {
-          animal = await Animal.findById(aId);
-        }
-        if (!animal) {
-          animal = await Animal.findOne({ tagId: aId });
-        }
-        if (animal) targetAnimals.push(animal);
-      }
-    } else if (fId) {
-      // If no specific animal specified, link to farmer's registered animals up to countToBook
-      const farmerAnimals = await Animal.find({ ownerId: fId }).limit(countToBook);
-      targetAnimals.push(...farmerAnimals);
+    if (remainingSlots < requestedCount) {
+      return res.status(400).json({
+        success: false,
+        message: `Only ${remainingSlots} slots remaining for this camp.`
+      });
     }
 
+    const verifiedAnimals = [];
+
+    // IDOR Enforcement: Verify that every requested animal actually belongs to the authenticated farmer
+    if (Array.isArray(animalIds) && animalIds.length > 0) {
+      for (const aId of animalIds) {
+        let animal = await supabaseDb.animals.findById(aId);
+        if (!animal) {
+          animal = await supabaseDb.animals.findByTagId(aId);
+        }
+
+        if (!animal) {
+          return res.status(404).json({
+            success: false,
+            message: `Animal not found: ${aId}`
+          });
+        }
+
+        const ownerObj = typeof animal.ownerId === 'object' && animal.ownerId !== null ? animal.ownerId : null;
+        const animalOwnerId = String(ownerObj?.id || ownerObj?._id || animal.ownerId || animal.owner_id || '').trim();
+        const animalOwnerEmail = (ownerObj?.email || '').toLowerCase().trim();
+        const farmerEmail = (profile?.email || req.user.email || '').toLowerCase().trim();
+
+        const isOwner = (farmerId && animalOwnerId && farmerId === animalOwnerId) ||
+                        (farmerEmail && animalOwnerEmail && farmerEmail === animalOwnerEmail);
+
+        if (!isOwner) {
+          return res.status(403).json({
+            success: false,
+            message: `Unauthorized: Animal ${animal.name || animal.tagId || aId} does not belong to your registered herd.`
+          });
+        }
+
+        verifiedAnimals.push(animal);
+      }
+    } else {
+      // If no specific animal IDs were passed, select requested count from the farmer's verified herd
+      const farmerHerd = await supabaseDb.animals.find({ ownerId: farmerId });
+      if (!farmerHerd || farmerHerd.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have no registered animals in your herd to book for this camp.'
+        });
+      }
+      if (farmerHerd.length < requestedCount) {
+        return res.status(400).json({
+          success: false,
+          message: `Requested ${requestedCount} animals, but your herd only has ${farmerHerd.length} registered animal(s).`
+        });
+      }
+      verifiedAnimals.push(...farmerHerd.slice(0, requestedCount));
+    }
+
+    const countToBook = Math.max(1, verifiedAnimals.length);
+
+    // Duplicate Registration Check
+    const drivePrimaryId = drive.id || drive._id;
+    const existingReg = await supabaseDb.campRegistrations.findByDriveAndFarmer(drivePrimaryId, farmerId);
+    if (existingReg) {
+      return res.status(409).json({
+        success: false,
+        message: 'You have already registered for this vaccination camp.',
+        existingToken: existingReg.token
+      });
+    }
+
+    // Concurrency / Slot Update
+    const newBooked = (drive.bookedSlots || 0) + countToBook;
+    const newRemaining = Math.max(0, (drive.capacity || 200) - newBooked);
+
+    await supabaseDb.vaccinationDrives.update(drivePrimaryId, {
+      bookedSlots: newBooked,
+      remainingSlots: newRemaining
+    });
+
+    // Record Registration in PostgreSQL
+    const token = `#CAMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const targetAnimalIds = verifiedAnimals.map(a => String(a.id || a._id || a.tagId));
+
+    await supabaseDb.campRegistrations.create({
+      driveId: drivePrimaryId,
+      farmerId,
+      farmerName,
+      farmerPhone,
+      animalIds: targetAnimalIds,
+      animalCount: countToBook,
+      token,
+      registeredAt: new Date().toISOString()
+    });
+
+    // Create scheduled vaccination record and timeline milestone in Supabase
     const campDateObj = new Date(drive.campDate || drive.startDate || Date.now());
     const campDateFormatted = campDateObj.toLocaleDateString('en-GB');
 
-    for (const animal of targetAnimals) {
-      // Add scheduled vaccination in animal's vaccinations
-      animal.vaccinations.push({
-        name: drive.vaccineFullName || drive.vaccine,
-        date: campDateObj,
-        nextDue: campDateObj,
-        status: 'Scheduled',
-        camp: `${drive.venue || 'Veterinary Camp'}, ${drive.village}`
-      });
+    for (const animal of verifiedAnimals) {
+      const animId = animal.id || animal._id;
+      if (supabaseDb.supabase) {
+        try {
+          await supabaseDb.supabase.from('animal_vaccinations').insert({
+            animal_id: animId,
+            vaccine_name: drive.vaccineFullName || drive.vaccine,
+            date: campDateObj.toISOString(),
+            next_due: campDateObj.toISOString(),
+            status: 'Scheduled',
+            dose: 'Primary Dose',
+            camp: `${drive.venue || 'Veterinary Camp'}, ${drive.village || ''}`,
+            notes: `Appointment Token: ${token} • Scheduled via Community Camp`
+          });
+        } catch (ve) {
+          console.warn('[VaccinationController] Notice inserting scheduled vaccination:', ve.message);
+        }
 
-      // Add timeline event
-      animal.timeline.unshift({
-        type: 'Vaccination',
-        title: `Camp Appointment: ${drive.vaccineFullName || drive.vaccine}`,
-        date: campDateFormatted,
-        doctor: drive.assignedOfficer || 'Veterinarian',
-        notes: `Venue: ${drive.venue} • Appointment Token: ${token} • Slots: ${countToBook}`
-      });
-
-      await animal.save();
+        try {
+          await supabaseDb.supabase.from('animal_timeline').insert({
+            animal_id: animId,
+            event_type: 'Vaccination',
+            title: `Camp Appointment: ${drive.vaccineFullName || drive.vaccine}`,
+            date: campDateFormatted,
+            doctor: drive.assignedOfficer || 'Veterinarian',
+            notes: `Venue: ${drive.venue} • Token: ${token} • Slots: ${countToBook}`,
+            status: 'Scheduled'
+          });
+        } catch (te) {
+          console.warn('[VaccinationController] Notice inserting timeline milestone:', te.message);
+        }
+      }
     }
 
     res.status(200).json({
       success: true,
       message: 'Livestock registered for vaccination camp successfully.',
       token,
-      bookedSlots: drive.bookedSlots,
-      remainingSlots: drive.remainingSlots,
+      bookedSlots: newBooked,
+      remainingSlots: newRemaining,
       camp: {
-        id: drive._id,
-        campId: drive.campId,
+        id: drivePrimaryId,
+        campId: drive.campId || drive.camp_id,
         vaccine: drive.vaccine,
-        vaccineFullName: drive.vaccineFullName,
+        vaccineFullName: drive.vaccineFullName || drive.vaccine,
         venue: drive.venue,
         village: drive.village,
         block: drive.block,
-        campDate: drive.campDate,
-        startTime: drive.startTime
+        campDate: drive.campDate || drive.startDate,
+        startTime: drive.startTime || '09:30 AM'
       },
-      linkedAnimalsCount: targetAnimals.length
+      linkedAnimalsCount: verifiedAnimals.length
     });
   } catch (error) {
+    console.error('[VaccinationController] REGISTER FOR CAMP ERROR:', error.message);
     next(error);
   }
 };
@@ -321,6 +398,7 @@ exports.createVaccinationDrive = async (req, res, next) => {
   try {
     const {
       vaccine,
+      vaccineFullName,
       targetSpecies,
       village,
       block,
@@ -330,7 +408,11 @@ exports.createVaccinationDrive = async (req, res, next) => {
       capacity,
       targetCount,
       startDate,
-      endDate
+      endDate,
+      startTime,
+      endTime,
+      cost,
+      notes
     } = req.body;
 
     if (!vaccine || !village || !block) {
@@ -341,18 +423,20 @@ exports.createVaccinationDrive = async (req, res, next) => {
     }
 
     const totalCap = parseInt(capacity || targetCount || 200, 10);
-    const drive = await VaccinationDrive.create({
+    const drive = await supabaseDb.vaccinationDrives.create({
       vaccine,
+      vaccineFullName: vaccineFullName || vaccine,
       targetSpecies: targetSpecies || 'Cattle & Buffalo',
       village,
       block,
       district: district || 'Pune',
       state: state || 'Maharashtra',
       venue: venue || `Primary Veterinary Dispensary, ${village}`,
-      coordinates: { lat: 18.1517, lng: 74.5772 },
+      latitude: 18.1517,
+      longitude: 74.5772,
       organizingHospital: `Block Veterinary Dispensary, ${village}`,
       assignedOfficer: req.user ? req.user.name : 'Veterinary Officer',
-      assignedOfficerId: req.user ? req.user._id : null,
+      assignedOfficerId: req.user ? (req.user.id || req.user._id) : null,
       capacity: totalCap,
       targetCount: totalCap,
       bookedSlots: 0,
@@ -361,27 +445,12 @@ exports.createVaccinationDrive = async (req, res, next) => {
       startDate: startDate || new Date(),
       campDate: startDate || new Date(),
       endDate: endDate || null,
-      status: 'Upcoming'
+      startTime: startTime || '09:30 AM',
+      endTime: endTime || '04:00 PM',
+      cost: cost || 'Free (Govt Drive)',
+      status: 'Upcoming',
+      notes: notes || ''
     });
-
-    // Module 9: Dual-write to Supabase PostgreSQL
-    try {
-      await supabaseDb.vaccinationDrives.create({
-        campId: drive._id ? drive._id.toString() : `CAMP-${Date.now()}`,
-        campName: drive.vaccine + ' Vaccination Camp',
-        targetDisease: drive.vaccine,
-        vaccineName: drive.vaccine,
-        startDate: drive.startDate,
-        endDate: drive.endDate,
-        status: drive.status,
-        village: drive.village,
-        block: drive.block,
-        district: drive.district,
-        targetAnimals: drive.capacity || 200,
-        slotsAvailable: drive.remainingSlots || 200,
-        assignedOfficerId: req.user ? String(req.user._id || req.user.id) : null
-      });
-    } catch (sbErr) {}
 
     res.status(201).json({
       success: true,
@@ -389,6 +458,7 @@ exports.createVaccinationDrive = async (req, res, next) => {
       drive
     });
   } catch (error) {
+    console.error('[VaccinationController] CREATE DRIVE ERROR:', error.message);
     next(error);
   }
 };
@@ -400,7 +470,7 @@ exports.updateVaccinationDrive = async (req, res, next) => {
   try {
     const { coveredCount, incrementCoveredBy, status } = req.body;
 
-    const drive = await VaccinationDrive.findById(req.params.id);
+    const drive = await supabaseDb.vaccinationDrives.findById(req.params.id);
     if (!drive) {
       return res.status(404).json({
         success: false,
@@ -408,27 +478,32 @@ exports.updateVaccinationDrive = async (req, res, next) => {
       });
     }
 
+    let newCovered = drive.coveredCount || 0;
     if (coveredCount !== undefined) {
-      drive.coveredCount = parseInt(coveredCount, 10);
+      newCovered = parseInt(coveredCount, 10);
     } else if (incrementCoveredBy) {
-      drive.coveredCount += parseInt(incrementCoveredBy, 10);
+      newCovered += parseInt(incrementCoveredBy, 10);
     }
 
+    let newStatus = drive.status;
     if (status) {
-      drive.status = status;
-    } else if (drive.coveredCount >= (drive.capacity || drive.targetCount || 200)) {
-      drive.status = 'Completed';
+      newStatus = status;
+    } else if (newCovered >= (drive.capacity || drive.targetCount || 200)) {
+      newStatus = 'Completed';
     }
 
-    await drive.save();
+    const updated = await supabaseDb.vaccinationDrives.update(drive.id || drive._id, {
+      coveredCount: newCovered,
+      status: newStatus
+    });
 
     res.status(200).json({
       success: true,
       message: 'Vaccination drive updated successfully.',
-      drive
+      drive: updated || drive
     });
   } catch (error) {
+    console.error('[VaccinationController] UPDATE DRIVE ERROR:', error.message);
     next(error);
   }
 };
-

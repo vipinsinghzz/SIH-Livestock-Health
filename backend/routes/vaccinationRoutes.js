@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getVaccinationDrives,
+  getVaccinationDriveById,
   createVaccinationDrive,
   updateVaccinationDrive,
   registerForCamp,
@@ -12,6 +13,7 @@ const { protect, optionalProtect, authorize } = require('../middleware/auth');
 // Public / Farmer & Officer Camp Discovery
 router.get('/', optionalProtect, getVaccinationDrives);
 router.get('/my-registrations', protect, getMyRegistrations);
+router.get('/:id', optionalProtect, getVaccinationDriveById);
 router.post('/', protect, authorize('field_worker', 'veterinarian', 'officer', 'admin'), createVaccinationDrive);
 
 // Livestock Camp Registration (Farmers & Field Workers)
