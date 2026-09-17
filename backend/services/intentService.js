@@ -39,11 +39,12 @@ function detectIntent(query = '', context = {}) {
     };
   }
 
-  // 2. Check for Emergency SOS
+  // 2. Check for Emergency SOS & Helplines (e.g. 1962 ambulance)
   const emergencyTerms = [
     'तड़प रहा', 'अचानक गिर गया', 'सांस फूल', 'जहर', 'मर रहा',
     'बहुत खून', 'तुरंत डॉक्टर', 'इमरजेंसी', 'emergency', 'dying',
-    'poison', 'unconscious', 'बेहोश', 'बेहोशी'
+    'poison', 'unconscious', 'बेहोश', 'बेहोशी', '1962', 'एम्बुलेंस',
+    'ambulance', 'हेल्पलाइन', 'helpline', 'गाड़ी बुलाएं'
   ];
   if (emergencyTerms.some((t) => q.includes(t))) {
     return {
@@ -52,7 +53,7 @@ function detectIntent(query = '', context = {}) {
       shouldIncludeAnimal: true,
       shouldIncludeAlerts: false,
       shouldIncludeHelpline: true,
-      description: 'Critical life-threatening animal condition.'
+      description: 'Critical life-threatening animal condition or 1962 ambulance request.'
     };
   }
 
@@ -64,7 +65,7 @@ function detectIntent(query = '', context = {}) {
   ];
   const isGreetingOnly =
     greetingTerms.some((t) => q.includes(t)) &&
-    !/(बुखार|बीमार|दवा|इलाज|दूध|टीका|गांठ|दाने)/i.test(q) &&
+    !/(बुखार|बीमार|दवा|इलाज|दूध|टीका|गांठ|दाने|चारा|खाना|1962)/i.test(q) &&
     q.length < 35;
   if (isGreetingOnly) {
     return {
@@ -77,17 +78,18 @@ function detectIntent(query = '', context = {}) {
     };
   }
 
-  // 4. Check for Disease Follow-Up (referring to previous diagnosis or treatment)
+  // 4. Check for Disease Follow-Up & Biosecurity/Isolation Management
   const hasMedicalHistory = Boolean(diagnosis && (diagnosis.possibleCondition || diagnosis.predictedDisease));
   const followupTerms = [
     'इलाज क्या है', 'दवा बताओ', 'दवा कौन सी', 'दवाई', 'घाव कैसे',
     'गांठें कब', 'ठीक कब', 'यह ठीक कैसे', 'इसका क्या करें',
     'क्या यह फैलेगा', 'क्या दूसरी गायों', 'घरेलू उपचार', 'treatment',
-    'cure', 'medicine', 'contagious'
+    'cure', 'medicine', 'contagious', 'अलग कैसे', 'अलग रखें', 'आइसोलेशन', 'isolation', 'क्वारंटाइन'
   ];
   const isDirectFollowup = hasMedicalHistory && followupTerms.some((t) => q.includes(t));
   const mentionsAnimalInTreatment =
-    animalName && q.includes(animalName) && /(इलाज|दवा|बीमार|हालत|तबीयत|संभाल)/i.test(q);
+    (animalName && q.includes(animalName) && /(इलाज|दवा|बीमार|हालत|तबीयत|संभाल|अलग)/i.test(q)) ||
+    (/(बीमार गाय|बीमार भैंस|बीमार पशु).*(अलग|संभाल|इलाज)/i.test(q));
 
   if (isDirectFollowup || mentionsAnimalInTreatment) {
     return {
@@ -96,7 +98,7 @@ function detectIntent(query = '', context = {}) {
       shouldIncludeAnimal: true,
       shouldIncludeAlerts: true,
       shouldIncludeHelpline: true,
-      description: 'Follow-up regarding previously diagnosed medical condition.'
+      description: 'Follow-up regarding previously diagnosed medical condition or isolation/biosecurity.'
     };
   }
 
@@ -134,7 +136,29 @@ function detectIntent(query = '', context = {}) {
     };
   }
 
-  // 7. Check for General Animal Husbandry (Milk, feed, breeding, management)
+  // 7. Check for New Clinical Symptoms / Disease (Evaluated BEFORE General Husbandry)
+  // Ensures negative health phrases like "चारा नहीं", "भूख नहीं", "खाना नहीं खा" are NOT shadowed by generic feed words
+  const symptomTerms = [
+    'चारा नहीं', 'चारा नही', 'भूख नहीं', 'भूख नही', 'खाना नहीं खा', 'खाना नही खा',
+    'खाना नहीं', 'खाना नही', 'खा नहीं रही', 'खा नही रही', 'खा नहीं रहा', 'खा नही रहा',
+    'कुछ नहीं खा', 'कुछ नही खा', 'जुगाली नहीं', 'जुगाली बंद', 'सुस्त', 'कमजोर',
+    'बुखार', 'लार', 'खुर', 'घाव', 'दस्त', 'गोबर', 'पतला', 'आंखों से पानी',
+    'सूजन', 'गांठ', 'दाने', 'चेचक', 'धब्बे', 'मवाद', 'कीड़े', 'लंगड़ा', 'बीमार',
+    'fever', 'cough', 'wound', 'diarrhea', 'pus', 'swelling', 'nodule', 'rash', 'limping', 'not eating', 'sick'
+  ];
+  if (symptomTerms.some((t) => q.includes(t))) {
+    return {
+      intent: INTENTS.NEW_SYMPTOM_OR_DISEASE,
+      shouldIncludeDiagnosis: false,
+      shouldIncludeAnimal: true,
+      shouldIncludeAlerts: true,
+      shouldIncludeHelpline: true,
+      description: 'Farmer reported active clinical signs, anorexia, or sickness.'
+    };
+  }
+
+  // 8. Check for General Animal Husbandry (Milk yield, feed, breeding, management)
+  // Only evaluated if NO clinical symptom or negative-health phrase was matched above
   const husbandryTerms = [
     'दूध', 'मिल्क', 'दूध उत्पादन', 'दूध कैसे बढ़ाएं', 'फैट', 'snf',
     'चारा', 'आहार', 'खुराक', 'साइलेज', 'खली', 'चोकर', 'बिनौला',
@@ -151,24 +175,6 @@ function detectIntent(query = '', context = {}) {
       shouldIncludeAlerts: false,
       shouldIncludeHelpline: false,
       description: 'Livestock management, milk yield, feed nutrition, or breeding.'
-    };
-  }
-
-  // 8. Check for New Clinical Symptoms / Disease
-  const symptomTerms = [
-    'बुखार', 'चारा नहीं', 'भूख नहीं', 'लार', 'खुर', 'घाव', 'दस्त',
-    'गोबर', 'पतला', 'आंखों से पानी', 'सूजन', 'गांठ', 'दाने', 'चेचक',
-    'धब्बे', 'मवाद', 'कीड़े', 'लंगड़ा', 'fever', 'cough', 'wound',
-    'diarrhea', 'pus', 'swelling', 'nodule', 'rash', 'limping'
-  ];
-  if (symptomTerms.some((t) => q.includes(t))) {
-    return {
-      intent: INTENTS.NEW_SYMPTOM_OR_DISEASE,
-      shouldIncludeDiagnosis: false,
-      shouldIncludeAnimal: true,
-      shouldIncludeAlerts: true,
-      shouldIncludeHelpline: true,
-      description: 'Farmer reported active clinical signs or sickness.'
     };
   }
 
