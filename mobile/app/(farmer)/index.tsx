@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
@@ -68,9 +69,26 @@ export default function FarmerHomeScreen() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/(auth)/login');
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/(auth)/login');
+            } catch (err: any) {
+              Alert.alert('Sign Out Notice', err.message || 'Error signing out.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Compute live KPI metrics from real API data
@@ -137,9 +155,19 @@ export default function FarmerHomeScreen() {
           <View style={styles.badge}>
             <Text style={styles.badgeText}>FARMER SAATHI</Text>
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Text style={styles.logoutButtonText}>Sign Out</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/(farmer)/profile' as any)}
+              style={styles.profileButton}
+              activeOpacity={0.7}
+              accessibilityLabel="Farmer Profile"
+            >
+              <Text style={styles.profileButtonText}>👤 Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
+              <Text style={styles.logoutButtonText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.title}>
@@ -450,6 +478,24 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     color: colors.light.farmerBadge,
     letterSpacing: 0.5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  profileButton: {
+    backgroundColor: colors.light.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+  },
+  profileButtonText: {
+    color: colors.light.textPrimary,
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
   },
   logoutButton: {
     backgroundColor: colors.light.dangerBg,

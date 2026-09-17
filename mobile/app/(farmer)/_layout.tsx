@@ -101,6 +101,12 @@ export default function FarmerLayout() {
           title: 'Veterinary Centers Map',
         }}
       />
+      <Stack.Screen
+        name="profile/index"
+        options={{
+          title: 'Profile & Settings',
+        }}
+      />
     </Stack>
   );
 }
