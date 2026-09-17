@@ -1145,9 +1145,9 @@ export default function DiseaseDetectionPage() {
                     <MapPin className="w-3 h-3 text-red-600" />
                     <span>{detectedDistrict}</span>
                   </span>
-                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold rounded-lg flex items-center gap-1">
-                    <UserCheck className="w-3 h-3 text-emerald-700" />
-                    <span>{districtVets.length || 2} {isEnglish ? 'Vets Online' : 'डॉक्टर सक्रिय'}</span>
+                  <span className={`px-2.5 py-1 ${districtVets.length > 0 ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300'} border font-bold rounded-lg flex items-center gap-1`}>
+                    <UserCheck className={`w-3 h-3 ${districtVets.length > 0 ? 'text-emerald-700' : 'text-amber-700'}`} />
+                    <span>{districtVets.length} {isEnglish ? (districtVets.length === 1 ? 'Vet Online' : 'Vets Online') : 'डॉक्टर सक्रिय'}</span>
                   </span>
                 </div>
               </div>
@@ -1155,25 +1155,32 @@ export default function DiseaseDetectionPage() {
               {/* Referral Status / Action */}
               {referralCase ? (
                 <div className="p-3.5 bg-white rounded-xl border border-rose-200/90 shadow-2xs space-y-3">
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs text-emerald-800 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{isEnglish ? 'Case referred successfully to District Veterinary Unit!' : 'केस सफलतापूर्वक जिला पशु चिकित्सा इकाई को रेफर कर दिया गया!'}</span>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="space-y-0.5">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        {isEnglish ? 'Active Referral Case' : 'सक्रिय रेफरल केस'}
+                        {isEnglish ? 'Active Referral Case ID' : 'रेफरल केस आईडी'}
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-sm font-black text-slate-900">{referralCase.caseId}</span>
                         <span
                           className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                            referralCase.status === 'ACCEPTED'
+                            referralCase.status === 'ACCEPTED' || referralCase.status === 'Investigating'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : referralCase.status === 'IN_TREATMENT'
+                              : referralCase.status === 'IN_TREATMENT' || referralCase.status === 'Containment'
                               ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                              : referralCase.status === 'RESOLVED'
+                              : referralCase.status === 'RESOLVED' || referralCase.status === 'Resolved'
                               ? 'bg-purple-100 text-purple-800 border border-purple-300'
                               : 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
                           }`}
                         >
-                          {referralCase.status === 'OPEN' ? (isEnglish ? 'Pending Claim...' : 'दावे की प्रतीक्षा...') : referralCase.status}
+                          {referralCase.status === 'OPEN' || referralCase.status === 'New'
+                            ? (isEnglish ? 'Pending Claim...' : 'दावे की प्रतीक्षा...')
+                            : referralCase.status}
                         </span>
                       </div>
                     </div>
@@ -1188,7 +1195,7 @@ export default function DiseaseDetectionPage() {
                     </button>
                   </div>
 
-                  {referralCase.assignedVetId && (
+                  {(referralCase.assignedVetId || referralCase.assignedVet) && (
                     <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-full bg-emerald-700 text-white flex items-center justify-center font-black shrink-0">
@@ -1196,22 +1203,22 @@ export default function DiseaseDetectionPage() {
                         </div>
                         <div>
                           <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                            <span>{referralCase.assignedVetId.name}</span>
+                            <span>{(referralCase.assignedVetId?.name || referralCase.assignedVet?.name)}</span>
                             <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-semibold">Assigned Vet</span>
                           </div>
                           <p className="text-[11px] text-slate-600">
-                            {referralCase.assignedVetId.department || `${detectedDistrict} District Animal Health Office`}
+                            {(referralCase.assignedVetId?.department || referralCase.assignedVet?.department || `${detectedDistrict} District Animal Health Office`)}
                           </p>
                         </div>
                       </div>
 
-                      {referralCase.assignedVetId.phone && (
+                      {(referralCase.assignedVetId?.phone || referralCase.assignedVet?.phone) && (
                         <a
-                          href={`tel:${referralCase.assignedVetId.phone}`}
+                          href={`tel:${referralCase.assignedVetId?.phone || referralCase.assignedVet?.phone}`}
                           className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg transition shadow-xs shrink-0 cursor-pointer"
                         >
                           <PhoneCall className="w-3.5 h-3.5" />
-                          <span>{isEnglish ? 'Call Doctor' : 'कॉल करें'} ({referralCase.assignedVetId.phone})</span>
+                          <span>{isEnglish ? 'Call Doctor' : 'कॉल करें'} ({referralCase.assignedVetId?.phone || referralCase.assignedVet?.phone})</span>
                         </a>
                       )}
                     </div>
@@ -1220,9 +1227,22 @@ export default function DiseaseDetectionPage() {
               ) : (
                 <div className="space-y-2">
                   {referralError && (
-                    <div className="p-2.5 bg-red-100 text-red-900 text-xs rounded-xl font-medium flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />
-                      <span>{referralError}</span>
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xl font-medium space-y-2">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                        <span className="font-bold">{referralError}</span>
+                      </div>
+                      {referralError.includes('1962') && (
+                        <div className="pt-1">
+                          <a
+                            href="tel:1962"
+                            className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition shadow-xs"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                            <span>{isEnglish ? 'Call Toll-Free 1962 Helpline' : 'टोल-फ्री 1962 पर कॉल करें'}</span>
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1235,7 +1255,7 @@ export default function DiseaseDetectionPage() {
                     {isCreatingReferral ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>{isEnglish ? 'Dispatching to District Vets...' : 'जिले के डॉक्टरों को अलर्ट भेजा जा रहा है...'}</span>
+                        <span>{isEnglish ? 'Referring...' : 'केस रेफर किया जा रहा है...'}</span>
                       </>
                     ) : (
                       <>

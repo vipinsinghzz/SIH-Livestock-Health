@@ -114,21 +114,26 @@ class NotificationService {
   /**
    * Dispatch notifications to all matching district veterinarians and record audit logs
    */
-  async notifyDistrictVets(caseDoc, matchingVets) {
+  async notifyDistrictVets(caseDoc, matchingVets = []) {
     const notifiedRecords = [];
-    const targetDistrict = (caseDoc.districtId || '').trim();
+    const targetDistrict = (caseDoc.districtId || caseDoc.district || '').trim();
+    const caseUuid = String(caseDoc.id || caseDoc._id || '');
+    const caseNumber = caseDoc.caseId || caseDoc.case_id || 'CASE-REF';
+
+    const notifBatch = [];
+    const auditBatch = [];
 
     for (const vet of matchingVets) {
-      const vetIdStr = vet._id.toString();
+      const vetIdStr = String(vet.id || vet._id || '');
       const isOnline = Array.from(this.clients.values()).some((c) => c.userId === vetIdStr);
 
       const notificationData = {
-        recipientId: vet._id,
-        caseId: caseDoc._id,
-        caseNumber: caseDoc.caseId,
+        recipientId: vetIdStr,
+        caseId: caseUuid,
+        caseNumber: caseNumber,
         type: 'NEW_CASE_ALERT',
-        title: `🚨 New ${caseDoc.risk} Risk Referral: ${caseDoc.disease}`,
-        message: `Farmer ${caseDoc.farmerContact?.name || 'Farmer'} reported suspected ${caseDoc.disease} in ${caseDoc.farmerLocation?.block || targetDistrict}.`,
+        title: `🚨 New ${caseDoc.risk || 'High'} Risk Referral: ${caseDoc.disease}`,
+        message: `Farmer ${caseDoc.farmerContact?.name || caseDoc.farmerName || 'Farmer'} reported suspected ${caseDoc.disease} in ${caseDoc.farmerLocation?.block || targetDistrict}.`,
         district: targetDistrict,
         status: isOnline ? 'DELIVERED' : 'QUEUED',
         metadata: {
@@ -136,50 +141,48 @@ class NotificationService {
           risk: caseDoc.risk,
           confidence: caseDoc.confidence,
           animalSpecies: caseDoc.species,
-          farmerName: caseDoc.farmerContact?.name,
-          farmerPhone: caseDoc.farmerContact?.phone
+          farmerName: caseDoc.farmerContact?.name || caseDoc.farmerName,
+          farmerPhone: caseDoc.farmerContact?.phone || caseDoc.farmerPhone
         }
       };
 
-      try {
-        const notif = await Notification.create(notificationData);
-        try {
-          await supabaseDb.notifications.create({
-            recipientId: vet.id ? vet.id : vet._id.toString(),
-            caseId: caseDoc.id ? caseDoc.id : caseDoc._id.toString(),
-            caseNumber: caseDoc.caseId,
-            type: 'NEW_CASE_ALERT',
-            title: notificationData.title,
-            message: notificationData.message,
-            district: targetDistrict,
-            status: isOnline ? 'DELIVERED' : 'QUEUED',
-            metadata: notificationData.metadata
-          });
-        } catch (sbErr) {}
+      notifBatch.push(notificationData);
 
-        notifiedRecords.push({
-          vetId: vet._id,
-          name: vet.name,
-          phone: vet.phone,
-          notifiedAt: new Date(),
-          deliveryStatus: isOnline ? 'SENT' : 'PENDING',
-          channel: 'SSE'
-        });
-      } catch (err) {
-        console.error(`[NotificationService] Error logging notification for vet ${vet._id}:`, err);
-        notifiedRecords.push({
-          vetId: vet._id,
-          name: vet.name,
-          phone: vet.phone,
-          notifiedAt: new Date(),
-          deliveryStatus: 'FAILED',
-          channel: 'SSE',
-          error: err.message
-        });
-      }
+      const auditRecord = {
+        caseId: caseUuid,
+        vetId: vetIdStr,
+        name: vet.name || 'Veterinarian',
+        phone: vet.phone || '',
+        notifiedAt: new Date().toISOString(),
+        deliveryStatus: isOnline ? 'SENT' : 'PENDING',
+        channel: 'SSE'
+      };
+
+      auditBatch.push(auditRecord);
+      notifiedRecords.push(auditRecord);
     }
 
-    // Broadcast SSE alert to all active district vet clients
+    // 1. Batch insert into Supabase notifications & case_notified_vets
+    try {
+      if (notifBatch.length > 0) {
+        await supabaseDb.notifications.createBatch(notifBatch);
+      }
+      if (auditBatch.length > 0) {
+        await supabaseDb.caseNotifiedVets.createBatch(auditBatch);
+      }
+    } catch (sbErr) {
+      console.warn('[NotificationService] Supabase batch notification notice:', sbErr.message);
+    }
+
+    // 2. Mongoose fallback (only if connected)
+    try {
+      const mongoose = require('mongoose');
+      if (mongoose.connection && mongoose.connection.readyState === 1 && notifBatch.length > 0) {
+        await Notification.insertMany(notifBatch, { ordered: false });
+      }
+    } catch (mErr) { }
+
+    // 3. Broadcast SSE alert to all active district vet clients
     this.broadcastToDistrictVets(targetDistrict, 'NEW_CASE_ALERT', {
       case: caseDoc,
       timestamp: new Date()

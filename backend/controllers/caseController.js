@@ -87,20 +87,81 @@ exports.createCase = async (req, res) => {
       district: explicitDistrict
     } = req.body;
 
-    if (!disease) {
+    if (!disease || !String(disease).trim()) {
       return res.status(400).json({
         success: false,
+        error: 'DISEASE_REQUIRED',
         message: 'Disease name is required to create a clinical referral case.'
       });
     }
 
+    const cleanDisease = String(disease).trim();
     const isVetStaff = ['field_worker', 'veterinarian', 'officer', 'admin'].includes(req.user.role);
 
-    // 1. Resolve coordinates
+    // 1. Authoritative farmer identity derived strictly from authenticated user profile
+    const farmerProfileId = String(req.user.id || req.user._id || '').trim();
+    if (!farmerProfileId) {
+      return res.status(401).json({
+        success: false,
+        error: 'UNAUTHORIZED_FARMER',
+        message: 'Authenticated farmer profile could not be resolved.'
+      });
+    }
+
+    // 2. Animal validation & IDOR ownership check
+    let linkedAnimal = null;
+    if (animalId) {
+      const cleanAnimalId = String(animalId).trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanAnimalId);
+      if (isUuid) {
+        linkedAnimal = await supabaseDb.animals.findById(cleanAnimalId);
+      } else {
+        linkedAnimal = await supabaseDb.animals.findByTagId(cleanAnimalId);
+      }
+
+      if (!linkedAnimal) {
+        return res.status(404).json({
+          success: false,
+          error: 'ANIMAL_NOT_FOUND',
+          message: `Animal with identifier '${animalId}' was not found.`
+        });
+      }
+
+      // Farmers can only refer their own animals
+      if (req.user.role === 'farmer') {
+        let animalOwnerId = '';
+        if (linkedAnimal.ownerId && typeof linkedAnimal.ownerId === 'object') {
+          animalOwnerId = String(linkedAnimal.ownerId.id || linkedAnimal.ownerId._id || '');
+        } else if (linkedAnimal.ownerId) {
+          animalOwnerId = String(linkedAnimal.ownerId);
+        } else if (linkedAnimal.owner_id) {
+          animalOwnerId = String(linkedAnimal.owner_id);
+        }
+        animalOwnerId = animalOwnerId.trim();
+
+        const reqUserIds = [
+          farmerProfileId,
+          String(req.user.id || ''),
+          String(req.user._id || ''),
+          String(req.user.auth_user_id || '')
+        ].filter(Boolean);
+
+        const isAuthorizedOwner = reqUserIds.some((id) => id === animalOwnerId);
+
+        if (animalOwnerId && !isAuthorizedOwner) {
+          return res.status(403).json({
+            success: false,
+            error: 'FORBIDDEN_ANIMAL_OWNERSHIP',
+            message: 'You are not authorized to refer an animal belonging to another farmer.'
+          });
+        }
+      }
+    }
+
+    // 3. Resolve coordinates & District
     let lat = coordinates?.lat ? parseFloat(coordinates.lat) : (req.user?.location?.lat || 18.5204);
     let lng = coordinates?.lng ? parseFloat(coordinates.lng) : (req.user?.location?.lng || 73.8567);
 
-    // 2. Dynamic District Identification (Never hardcoded)
     let detectedDistrict = explicitDistrict ? explicitDistrict.trim() : '';
     let detectedState = req.user?.state || 'Maharashtra';
     let detectedBlock = block || req.user?.block || '';
@@ -115,31 +176,49 @@ exports.createCase = async (req, res) => {
           detectedBlock = detectedBlock || geoInfo.block || '';
           detectedVillage = detectedVillage || geoInfo.village || '';
         }
-      } catch (geoErr) {
-        console.warn('[CaseController] Geocoding lookup failed, falling back to user profile:', geoErr.message);
-      }
+      } catch (geoErr) { }
     }
 
-    // Fallback to user's registered district if geo detection didn't return one
     if (!detectedDistrict) {
       detectedDistrict = req.user?.district || 'Pune';
     }
 
-    // 3. Generate human-friendly Unique Case ID
+    // 4. Duplicate Case Protection: Reuse active case if already open for this condition
+    const targetAnimalId = linkedAnimal ? String(linkedAnimal.id || linkedAnimal._id) : null;
+    const existingActiveCase = await supabaseDb.diseaseCases.findActiveByAnimalOrFarmer({
+      animalId: targetAnimalId,
+      farmerId: farmerProfileId,
+      disease: cleanDisease
+    });
+
+    if (existingActiveCase) {
+      const matchingVets = await supabaseDb.veterinarians.findByDistrict(detectedDistrict);
+      return res.status(200).json({
+        success: true,
+        reused: true,
+        message: `Active referral case ${existingActiveCase.caseId || existingActiveCase.case_id} is already open.`,
+        case: existingActiveCase,
+        matchingVetsCount: matchingVets.length,
+        matchingVets: matchingVets.map((v) => ({ id: v.id || v._id, name: v.name, role: v.role }))
+      });
+    }
+
+    // 5. Query eligible active veterinarians for referral
+    const matchingVets = await supabaseDb.veterinarians.findByDistrict(detectedDistrict);
+    if (!matchingVets || matchingVets.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'NO_VETS_AVAILABLE',
+        message: 'No veterinarian is currently available. Please contact 1962.'
+      });
+    }
+
+    // 6. Generate human-friendly Unique Case ID
     const distPrefix = detectedDistrict.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'DIS');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const caseId = `CASE-2026-${distPrefix}-${randomSuffix}`;
 
-    // 4. Find ALL active veterinary officials matching this district
-    const districtRegex = new RegExp(`^${escapeRegex(detectedDistrict.trim())}$`, 'i');
-    const matchingVets = await User.find({
-      role: { $in: ['field_worker', 'veterinarian', 'officer'] },
-      district: districtRegex,
-      isActive: { $ne: false }
-    }).select('_id name phone email district block role registrationNo department');
-
-    // 5. Determine initial status and assignment
-    // Canonical 5 stages: New -> Investigating -> Confirmed -> Containment -> Resolved
+    // 7. Determine initial status and assignment
     let targetStatus = 'New';
     let assignedVet = null;
     let acceptedAtTime = null;
@@ -150,7 +229,7 @@ exports.createCase = async (req, res) => {
       if (allowedInit.includes(initialStatus)) {
         targetStatus = initialStatus;
         if (['Investigating', 'Confirmed', 'ACCEPTED'].includes(initialStatus)) {
-          assignedVet = req.user._id;
+          assignedVet = farmerProfileId;
           acceptedAtTime = new Date();
           if (initialStatus === 'Confirmed') {
             confirmedAtTime = new Date();
@@ -160,26 +239,24 @@ exports.createCase = async (req, res) => {
     }
 
     const countAffected = parseInt(affectedCount, 10) > 0 ? parseInt(affectedCount, 10) : 1;
-
-    // Contact info
     const contactName = isVetStaff && farmerName ? farmerName : (req.user.name || 'Farmer');
     const contactPhone = isVetStaff && farmerPhone ? farmerPhone : (req.user.phone || '');
 
-    // 6. Create the DiseaseCase in MongoDB
-    const safeAnimalId = animalId && mongoose.Types.ObjectId.isValid(animalId) ? animalId : null;
-    const newCase = await DiseaseCase.create({
+    // 8. Create the DiseaseCase in Supabase PostgreSQL
+    const newCase = await supabaseDb.diseaseCases.create({
       caseId,
-      farmerId: req.user._id,
-      animalId: safeAnimalId,
-      animalName: animalName || '',
-      species: species || 'Cattle',
-      image: image || '',
-      disease,
+      farmerId: farmerProfileId,
+      animalId: targetAnimalId,
+      animalName: linkedAnimal?.name || animalName || 'Livestock',
+      species: linkedAnimal?.species || species || 'Cattle',
+      imageUrl: image || '',
+      disease: cleanDisease,
       confidence: confidence ? Math.round(Number(confidence)) : 88,
       risk: risk || 'High',
       districtId: detectedDistrict,
       state: detectedState,
-      coordinates: { lat, lng },
+      latitude: lat,
+      longitude: lng,
       farmerLocation: {
         village: detectedVillage,
         block: detectedBlock,
@@ -190,7 +267,7 @@ exports.createCase = async (req, res) => {
         name: contactName,
         phone: contactPhone
       },
-      symptoms: Array.isArray(symptoms) ? symptoms : [],
+      symptoms: Array.isArray(symptoms) ? symptoms : (symptoms ? [symptoms] : []),
       temperature: parseFloat(temperature || 0),
       duration: parseFloat(duration || 0),
       affectedCount: countAffected,
@@ -201,59 +278,22 @@ exports.createCase = async (req, res) => {
       assignedVetId: assignedVet,
       acceptedAt: acceptedAtTime,
       confirmedAt: confirmedAtTime,
-      timeline: [
-        {
-          status: targetStatus,
-          updatedBy: req.user._id,
-          updaterName: req.user.name,
-          timestamp: new Date(),
-          notes: isVetStaff
-            ? `Case logged directly by veterinary official ${req.user.name} (${disease} - ${targetStatus}).`
-            : `Referral case initiated following AI detection (${disease} - ${confidence || 88}% confidence).`
-        }
-      ]
+      timelineNotes: isVetStaff
+        ? `Case logged directly by veterinary official ${req.user.name} (${cleanDisease} - ${targetStatus}).`
+        : `Referral case initiated following AI detection (${cleanDisease} - ${confidence || 88}% confidence).`
     });
 
-    // 7. Notify all matching veterinarians in the district via SSE and persistent queue
-    const notifiedRecords = await notificationService.notifyDistrictVets(newCase, matchingVets);
-
-    // Save notified vets onto the case document
-    newCase.notifiedVets = notifiedRecords;
-    await newCase.save();
-
-    // Populate for immediate frontend rendering
-    await newCase.populate('farmerId', 'name phone village block district');
-    if (assignedVet) {
-      await newCase.populate('assignedVetId', 'name phone email registrationNo department');
-    }
-
-    // Module 6: Dual-write Disease Case to Supabase PostgreSQL
-    try {
-      await supabaseDb.diseaseCases.create({
-        caseId: newCase.caseId,
-        farmerId: String(req.user._id || req.user.id),
-        animalId: animalId || null,
-        animalName: animalName || '',
-        species: species || 'Cattle',
-        imageUrl: image || '',
-        disease,
-        confidence: confidence ? Math.round(Number(confidence)) : 88,
-        risk: risk || 'High',
-        districtId: detectedDistrict,
-        state: detectedState,
-        latitude: lat,
-        longitude: lng,
-        symptoms: Array.isArray(symptoms) ? symptoms : [symptoms],
-        temperature: parseFloat(temperature || 0),
-        duration: parseFloat(duration || 0),
-        affectedCount: countAffected,
-        notes: notes || '',
-        status: targetStatus,
-        assignedVetId: assignedVet ? String(assignedVet) : null
+    if (!newCase) {
+      return res.status(500).json({
+        success: false,
+        error: 'VETERINARIAN_REFERRAL_FAILED',
+        message: 'Unable to refer the case right now.'
       });
-    } catch (sbErr) {
-      console.warn('[CaseController] Supabase dual-write notice:', sbErr.message);
     }
+
+    // 9. Dispatch notifications to all matching veterinarians
+    const notifiedRecords = await notificationService.notifyDistrictVets(newCase, matchingVets);
+    newCase.notifiedVets = notifiedRecords;
 
     try {
       await realtimeHub.notifyCaseCreated(newCase, matchingVets);
@@ -264,14 +304,15 @@ exports.createCase = async (req, res) => {
       message: `Case ${caseId} created successfully.`,
       case: newCase,
       matchingVetsCount: matchingVets.length,
-      matchingVets: matchingVets.map((v) => ({ id: v._id, name: v.name, role: v.role }))
+      matchingVets: matchingVets.map((v) => ({ id: v.id || v._id, name: v.name, role: v.role }))
     });
   } catch (err) {
     console.error('[CaseController] Error creating case:', err);
     res.status(500).json({
       success: false,
+      error: 'VETERINARIAN_REFERRAL_FAILED',
       message: 'Failed to create disease referral case.',
-      error: err.message
+      details: err.message
     });
   }
 };
@@ -284,85 +325,57 @@ exports.createCase = async (req, res) => {
 exports.getCases = async (req, res) => {
   try {
     const { status, filter, district, disease, limit = 100 } = req.query;
-    let query = {};
+    let queryFilter = { limit };
 
     if (req.user.role === 'farmer') {
-      // Farmers see their own cases
-      query.farmerId = req.user._id;
+      queryFilter.farmerId = String(req.user.id || req.user._id);
       if (status) {
         if (status === 'New' || status === 'OPEN') {
-          query.status = { $in: ['New', 'OPEN'] };
+          queryFilter.status = ['New', 'OPEN'];
         } else if (status === 'Investigating' || status === 'ACCEPTED') {
-          query.status = { $in: ['Investigating', 'ACCEPTED'] };
+          queryFilter.status = ['Investigating', 'ACCEPTED'];
         } else if (status === 'Containment' || status === 'IN_TREATMENT') {
-          query.status = { $in: ['Containment', 'IN_TREATMENT'] };
+          queryFilter.status = ['Containment', 'IN_TREATMENT'];
         } else if (status === 'Resolved' || status === 'RESOLVED') {
-          query.status = { $in: ['Resolved', 'RESOLVED'] };
+          queryFilter.status = ['Resolved', 'RESOLVED'];
         } else {
-          query.status = status;
+          queryFilter.status = status;
         }
       }
     } else if (['field_worker', 'veterinarian', 'officer'].includes(req.user.role)) {
-      // Veterinarians: Can see open/district cases or cases assigned to them
       const targetDistrict = district || req.user.district || 'Pune';
-      const userDistrictRegex = new RegExp(`^${escapeRegex(targetDistrict.trim())}$`, 'i');
+      const vetIdStr = String(req.user.id || req.user._id);
 
       if (filter === 'my_cases' || filter === 'assigned') {
-        query.assignedVetId = req.user._id;
+        queryFilter.assignedVetId = vetIdStr;
       } else if (filter === 'open' || filter === 'new') {
-        query.status = { $in: ['New', 'OPEN'] };
-        query.districtId = userDistrictRegex;
+        queryFilter.status = ['New', 'OPEN'];
+        queryFilter.districtId = targetDistrict;
       } else {
-        query.$or = [
-          { districtId: userDistrictRegex },
-          { assignedVetId: req.user._id }
-        ];
+        queryFilter.orCondition = `district_id.ilike.%${targetDistrict}%,assigned_vet_id.eq.${vetIdStr}`;
       }
 
-      if (status && !query.status) {
+      if (status && !queryFilter.status) {
         if (status === 'New' || status === 'OPEN') {
-          query.status = { $in: ['New', 'OPEN'] };
+          queryFilter.status = ['New', 'OPEN'];
         } else if (status === 'Investigating' || status === 'ACCEPTED') {
-          query.status = { $in: ['Investigating', 'ACCEPTED'] };
+          queryFilter.status = ['Investigating', 'ACCEPTED'];
         } else if (status === 'Containment' || status === 'IN_TREATMENT') {
-          query.status = { $in: ['Containment', 'IN_TREATMENT'] };
+          queryFilter.status = ['Containment', 'IN_TREATMENT'];
         } else if (status === 'Resolved' || status === 'RESOLVED') {
-          query.status = { $in: ['Resolved', 'RESOLVED'] };
+          queryFilter.status = ['Resolved', 'RESOLVED'];
         } else {
-          query.status = status;
+          queryFilter.status = status;
         }
       }
     } else if (req.user.role === 'admin') {
-      if (district) {
-        query.districtId = new RegExp(`^${escapeRegex(district.trim())}$`, 'i');
-      }
-      if (status) {
-        if (status === 'New' || status === 'OPEN') {
-          query.status = { $in: ['New', 'OPEN'] };
-        } else if (status === 'Investigating' || status === 'ACCEPTED') {
-          query.status = { $in: ['Investigating', 'ACCEPTED'] };
-        } else if (status === 'Containment' || status === 'IN_TREATMENT') {
-          query.status = { $in: ['Containment', 'IN_TREATMENT'] };
-        } else if (status === 'Resolved' || status === 'RESOLVED') {
-          query.status = { $in: ['Resolved', 'RESOLVED'] };
-        } else {
-          query.status = status;
-        }
-      }
+      if (district) queryFilter.districtId = district;
+      if (status) queryFilter.status = status;
     }
 
-    if (disease) {
-      query.disease = new RegExp(`^${escapeRegex(disease.trim())}$`, 'i');
-    }
+    if (disease) queryFilter.disease = disease;
 
-    const cases = await DiseaseCase.find(query)
-      .populate('farmerId', 'name phone village block district')
-      .populate('assignedVetId', 'name phone email registrationNo department')
-      .populate('animalId', 'tagId name species breed')
-      .populate('containmentZoneId')
-      .populate('ringVaccinationDriveId')
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit, 10) || 100);
+    const cases = await supabaseDb.diseaseCases.find(queryFilter);
 
     res.json({
       success: true,
@@ -387,13 +400,7 @@ exports.getCases = async (req, res) => {
 exports.getCaseById = async (req, res) => {
   try {
     const { id } = req.params;
-    let caseDoc;
-
-    if (id.startsWith('CASE-')) {
-      caseDoc = await DiseaseCase.findOne({ caseId: id });
-    } else {
-      caseDoc = await DiseaseCase.findById(id);
-    }
+    const caseDoc = await supabaseDb.diseaseCases.findById(id);
 
     if (!caseDoc) {
       return res.status(404).json({
@@ -402,9 +409,12 @@ exports.getCaseById = async (req, res) => {
       });
     }
 
+    const callerIdStr = String(req.user.id || req.user._id || '').trim();
+    const caseFarmerIdStr = String(caseDoc.farmerId || caseDoc.farmer?.id || '').trim();
+
     // Authorization checks
     if (req.user.role === 'farmer') {
-      if (!caseDoc.farmerId.equals(req.user._id)) {
+      if (caseFarmerIdStr && caseFarmerIdStr !== callerIdStr) {
         return res.status(403).json({
           success: false,
           message: 'Access denied: You are not authorized to view another farmer\'s case.'
@@ -413,7 +423,8 @@ exports.getCaseById = async (req, res) => {
     } else if (['field_worker', 'veterinarian', 'officer'].includes(req.user.role)) {
       const userDistrict = (req.user.district || '').toLowerCase().trim();
       const caseDistrict = (caseDoc.districtId || '').toLowerCase().trim();
-      const isAssigned = caseDoc.assignedVetId && caseDoc.assignedVetId.equals(req.user._id);
+      const assignedVetIdStr = String(caseDoc.assignedVetId || caseDoc.assignedVet?.id || '').trim();
+      const isAssigned = assignedVetIdStr === callerIdStr;
 
       if (userDistrict !== caseDistrict && !isAssigned && req.user.role !== 'admin') {
         return res.status(403).json({
@@ -422,12 +433,6 @@ exports.getCaseById = async (req, res) => {
         });
       }
     }
-
-    await caseDoc.populate('farmerId', 'name phone village block district');
-    await caseDoc.populate('assignedVetId', 'name phone email registrationNo department');
-    await caseDoc.populate('animalId', 'tagId name species breed');
-    await caseDoc.populate('containmentZoneId');
-    await caseDoc.populate('ringVaccinationDriveId');
 
     res.json({
       success: true,
@@ -460,8 +465,7 @@ exports.claimCase = async (req, res) => {
       });
     }
 
-    const caseQuery = id.startsWith('CASE-') ? { caseId: id } : (mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { caseId: id });
-    const existingCheck = await DiseaseCase.findOne(caseQuery);
+    const existingCheck = await supabaseDb.diseaseCases.findById(id);
     if (!existingCheck) {
       return res.status(404).json({
         success: false,
@@ -478,70 +482,29 @@ exports.claimCase = async (req, res) => {
       });
     }
 
-    // ATOMIC CAS (Compare-And-Swap) in MongoDB
-    // Matches if status is 'New' or legacy 'OPEN' and assignedVetId is null
-    const updatedCase = await DiseaseCase.findOneAndUpdate(
-      {
-        ...caseQuery,
-        status: { $in: ['New', 'OPEN'] },
-        assignedVetId: null
-      },
-      {
-        $set: {
-          status: 'Investigating',
-          assignedVetId: req.user._id,
-          acceptedAt: new Date()
-        },
-        $push: {
-          timeline: {
-            status: 'Investigating',
-            updatedBy: req.user._id,
-            updaterName: req.user.name,
-            timestamp: new Date(),
-            notes: `Case claimed by Dr. ${req.user.name}. Clinical investigation initiated.`
-          }
-        }
-      },
-      { new: true }
-    )
-      .populate('farmerId', 'name phone village block district')
-      .populate('assignedVetId', 'name phone email registrationNo department')
-      .populate('animalId', 'tagId name species breed');
+    if (!['New', 'OPEN'].includes(existingCheck.status)) {
+      return res.status(409).json({
+        success: false,
+        alreadyClaimed: true,
+        message: `This case was already claimed by ${existingCheck.assignedVet?.name || 'another veterinarian'}.`,
+        assignedVet: existingCheck.assignedVet,
+        status: existingCheck.status
+      });
+    }
+
+    const vetIdStr = String(req.user.id || req.user._id);
+    const updatedCase = await supabaseDb.diseaseCases.claimCase(
+      id,
+      vetIdStr,
+      req.user.name
+    );
 
     if (!updatedCase) {
-      // Either case does not exist or was ALREADY CLAIMED by another vet!
-      const currentCase = await DiseaseCase.findOne(caseQuery).populate('assignedVetId', 'name phone email');
-
-      if (currentCase && !['New', 'OPEN'].includes(currentCase.status)) {
-        return res.status(409).json({
-          success: false,
-          alreadyClaimed: true,
-          message: `This case was already claimed by ${currentCase.assignedVetId?.name || 'another veterinarian'}.`,
-          assignedVet: currentCase.assignedVetId,
-          status: currentCase.status
-        });
-      }
-
       return res.status(400).json({
         success: false,
         message: 'Unable to claim case: Case is not in New/OPEN status.'
       });
     }
-
-    // Update notification status for this vet to 'READ'
-    await Notification.updateMany(
-      { caseId: updatedCase._id, recipientId: req.user._id },
-      { $set: { status: 'READ' } }
-    );
-
-    // Module 6: Sync claim to Supabase PostgreSQL
-    try {
-      await supabaseDb.diseaseCases.claimCase(
-        updatedCase.caseId || id,
-        String(req.user._id || req.user.id),
-        req.user.name
-      );
-    } catch (sbErr) {}
 
     try {
       await realtimeHub.notifyCaseClaimed(updatedCase, req.user);
@@ -598,8 +561,7 @@ exports.updateCaseStatus = async (req, res) => {
       });
     }
 
-    const caseQuery = id.startsWith('CASE-') ? { caseId: id } : (mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { caseId: id });
-    const caseDoc = await DiseaseCase.findOne(caseQuery);
+    const caseDoc = await supabaseDb.diseaseCases.findById(id);
     if (!caseDoc) {
       return res.status(404).json({
         success: false,
@@ -607,8 +569,12 @@ exports.updateCaseStatus = async (req, res) => {
       });
     }
 
+    const currentStatus = caseDoc.status;
+    const callerIdStr = String(req.user.id || req.user._id || '').trim();
+    const assignedVetIdStr = String(caseDoc.assignedVetId || caseDoc.assignedVet?.id || '').trim();
+
     // Security check: Must be the assigned vet or an admin
-    const isAssignedVet = caseDoc.assignedVetId && caseDoc.assignedVetId.equals(req.user._id);
+    const isAssignedVet = assignedVetIdStr && assignedVetIdStr === callerIdStr;
     if (!isAssignedVet && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -622,51 +588,24 @@ exports.updateCaseStatus = async (req, res) => {
     if (status === 'IN_TREATMENT') canonicalStatus = 'Containment';
     if (status === 'RESOLVED') canonicalStatus = 'Resolved';
 
-    caseDoc.status = canonicalStatus;
-
-    if (canonicalStatus === 'Investigating' && !caseDoc.acceptedAt) {
-      caseDoc.acceptedAt = new Date();
-    }
-    if (canonicalStatus === 'Confirmed' && !caseDoc.confirmedAt) {
-      caseDoc.confirmedAt = new Date();
-    }
-    if (canonicalStatus === 'Containment' && !caseDoc.containmentStartedAt) {
-      caseDoc.containmentStartedAt = new Date();
-    }
-    if (canonicalStatus === 'Resolved') {
-      caseDoc.resolvedAt = new Date();
-    }
-
-    if (clinicalDiagnosis) caseDoc.clinicalDiagnosis = clinicalDiagnosis;
-    if (investigationNotes) caseDoc.investigationNotes = investigationNotes;
-    if (treatmentNotes) caseDoc.treatmentNotes = treatmentNotes;
-    if (prescription) caseDoc.prescription = prescription;
-    if (parseInt(affectedCount, 10) > 0) caseDoc.affectedCount = parseInt(affectedCount, 10);
-
     const timelineNote =
       notes ||
       `Case transitioned to ${canonicalStatus}.${
         clinicalDiagnosis ? ` Clinical diagnosis: ${clinicalDiagnosis}.` : ''
       }${treatmentNotes ? ' Clinical/Treatment notes updated.' : ''}`;
 
-    caseDoc.timeline.push({
-      status: canonicalStatus,
-      updatedBy: req.user._id,
-      updaterName: req.user.name,
-      timestamp: new Date(),
-      notes: timelineNote
-    });
-
-    await caseDoc.save();
-    await caseDoc.populate('farmerId', 'name phone village block district');
-    await caseDoc.populate('assignedVetId', 'name phone email registrationNo department');
-    await caseDoc.populate('containmentZoneId');
-    await caseDoc.populate('ringVaccinationDriveId');
+    const updated = await supabaseDb.diseaseCases.updateStatus(
+      id,
+      canonicalStatus,
+      timelineNote,
+      callerIdStr,
+      req.user.name
+    );
 
     // Update animal health record if resolved
     if (caseDoc.animalId && canonicalStatus === 'Resolved') {
       try {
-        await Animal.findByIdAndUpdate(caseDoc.animalId, {
+        await supabaseDb.animals.updateById(caseDoc.animalId, {
           healthStatus: 'Recovered',
           lastCheckup: new Date().toLocaleDateString('en-GB')
         });
@@ -675,38 +614,27 @@ exports.updateCaseStatus = async (req, res) => {
       }
     }
 
-    // Module 6: Sync status update to Supabase PostgreSQL
-    try {
-      await supabaseDb.diseaseCases.updateStatus(
-        caseDoc.caseId || caseDoc._id.toString(),
-        canonicalStatus,
-        timelineNote,
-        String(req.user._id || req.user.id),
-        req.user.name
-      );
-    } catch (sbErr) {}
-
     // Broadcast SSE & Supabase Realtime update
-    notificationService.notifyCaseUpdate(caseDoc, 'CASE_STATUS_UPDATE');
+    notificationService.notifyCaseUpdate(updated || caseDoc, 'CASE_STATUS_UPDATE');
 
     try {
       await supabaseDb.auditLogs.log(
         'UPDATE_CASE_STATUS',
         'disease_case',
-        caseDoc.caseId || caseDoc._id.toString(),
-        String(req.user._id || req.user.id),
+        caseDoc.caseId || String(caseDoc.id),
+        callerIdStr,
         { oldStatus: currentStatus, newStatus: canonicalStatus, note: timelineNote }
       );
     } catch (auditErr) {}
 
     try {
-      await realtimeHub.notifyCaseStatusUpdated(caseDoc, req.user, currentStatus, canonicalStatus);
+      await realtimeHub.notifyCaseStatusUpdated(updated || caseDoc, req.user, currentStatus, canonicalStatus);
     } catch (rtErr) {}
 
     res.json({
       success: true,
       message: `Case ${caseDoc.caseId} updated to ${canonicalStatus}.`,
-      case: caseDoc
+      case: updated || caseDoc
     });
   } catch (err) {
     console.error('[CaseController] Error updating case status:', err);
@@ -1414,13 +1342,7 @@ exports.retryNotifications = async (req, res) => {
 exports.getDistrictVets = async (req, res) => {
   try {
     const district = req.query.district || req.user.district || 'Pune';
-    const districtRegex = new RegExp(`^${escapeRegex(district.trim())}$`, 'i');
-
-    const vets = await User.find({
-      role: { $in: ['field_worker', 'veterinarian', 'officer'] },
-      district: districtRegex,
-      isActive: { $ne: false }
-    }).select('_id name phone email district block role registrationNo department');
+    const vets = await supabaseDb.veterinarians.findByDistrict(district);
 
     res.json({
       success: true,
@@ -1429,6 +1351,7 @@ exports.getDistrictVets = async (req, res) => {
       vets
     });
   } catch (err) {
+    console.error('[CaseController] Error fetching district vets:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch district vets.', error: err.message });
   }
 };

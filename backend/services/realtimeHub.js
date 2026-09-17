@@ -89,9 +89,6 @@ class RealtimeHub {
     // Broadcast to Supabase Realtime channel
     await this.broadcastEvent(`district:${targetDistrict}`, 'NEW_CASE_ALERT', sanitizedVet);
     await this.broadcastEvent('officer:surveillance', 'NEW_CASE_ALERT', sanitizedOfficer);
-
-    // Persistent notifications in PostgreSQL & MongoDB
-    await notificationService.notifyDistrictVets(caseDoc, matchingVets);
   }
 
   /**

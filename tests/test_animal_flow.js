@@ -33,7 +33,19 @@ function assert(condition, message) {
   }
 }
 
+async function ensureBackendRunning() {
+  try {
+    const res = await fetch(`${BASE_URL}/health`);
+    if (res.status === 200) return;
+  } catch (e) {}
+
+  console.log(`[Test Setup] Starting API server on port 5000...`);
+  require('../backend/server');
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+}
+
 async function runAnimalFlowTests() {
+  await ensureBackendRunning();
   console.log('================================================================');
   console.log('🧪 RUNNING COMPREHENSIVE ANIMAL FLOW TEST SUITE');
   console.log(`📡 Target API: ${BASE_URL}`);
@@ -260,6 +272,7 @@ async function runAnimalFlowTests() {
   console.log('================================================================');
   console.log(`🎉 ALL ANIMAL FLOW TESTS PASSED: ${passed}/${passed + failed}`);
   console.log('================================================================\n');
+  process.exit(0);
 }
 
 runAnimalFlowTests().catch(err => {
