@@ -33,25 +33,35 @@ if (!key || key.includes('your_gemini_api_key')) {
   process.exit(0);
 }
 
-const isAiStudioKey = key.startsWith('AIzaSy');
+const isLegacyAiStudioKey = key.startsWith('AIzaSy');
+const isNewAuthKey = key.startsWith('AQ.');
 console.log(`  - Key present: YES`);
 console.log(`  - Prefix: ${key.substring(0, 7)}...`);
-console.log(`  - Standard Google AI Studio format (AIzaSy...): ${isAiStudioKey ? '✅ YES' : '⚠️ NO (Starts with ' + key.substring(0, 6) + ')'}`);
+if (isLegacyAiStudioKey) {
+  console.log(`  - Key Format: Classic Google Cloud API Key (AIzaSy...) ✅`);
+} else if (isNewAuthKey) {
+  console.log(`  - Key Format: New Google AI Studio Auth Key (AQ....) ℹ️`);
+} else {
+  console.log(`  - Key Format: Custom / Unknown prefix (${key.substring(0, 6)}...) ⚠️`);
+}
 
 // 2. Test Live Ping to Google AI Studio API
-console.log('\nStep 2: Sending Live Test Request to Google AI Studio...');
+console.log('\nStep 2: Sending Live Test Request to Google AI Studio API...');
 const modelsToTest = ['gemini-1.5-flash', 'gemini-2.0-flash'];
 
 (async () => {
   let isWorking = false;
 
   for (const model of modelsToTest) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     try {
       const startTime = Date.now();
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: 'Respond with exactly: "GEMINI_ONLINE"' }] }]
         })
@@ -67,7 +77,7 @@ const modelsToTest = ['gemini-1.5-flash', 'gemini-2.0-flash'];
         isWorking = true;
         break;
       } else {
-        console.log(`\n  ❌ Model ${model} failed (HTTP ${res.status}):`);
+        console.log(`\n  ❌ Model ${model} returned HTTP ${res.status}:`);
         console.log(`     Error: ${json?.error?.message || JSON.stringify(json)}`);
       }
     } catch (err) {
@@ -79,16 +89,23 @@ const modelsToTest = ['gemini-1.5-flash', 'gemini-2.0-flash'];
   if (isWorking) {
     console.log('🎉 RESULT: Google Gemini is 100% OPERATIONAL & WORKING!');
   } else {
-    console.log('⚠️ RESULT: Google Gemini is currently NOT working.');
-    console.log('\nReason: Your GEMINI_API_KEY is rejected by Google (HTTP 401 Unauthorized).');
-    console.log('A valid Google AI Studio key must begin with "AIzaSy...".');
-    console.log('\n👉 Quick Fix (Takes 60 seconds):');
-    console.log('   1. Open: https://aistudio.google.com/');
-    console.log('   2. Click "Get API Key" -> "Create API Key"');
-    console.log('   3. Copy your key (begins with AIzaSy...)');
-    console.log('   4. Put it in:');
-    console.log('      • backend/.env  -> GEMINI_API_KEY=AIzaSy...');
-    console.log('      • Railway/Render -> Environment Variables -> GEMINI_API_KEY');
+    console.log('⚠️ RESULT: Google Gemini is currently NOT working with this key.');
+    console.log('\nℹ️ Why this happens:');
+    console.log('1. Google AI Studio recently started issuing keys starting with "AQ." (Auth Keys).');
+    console.log('   However, many Google REST endpoints and project quotas reject them unless bound');
+    console.log('   to a paid/standard Google Cloud Project or sent via specific Google SDKs.');
+    console.log('2. The guaranteed, universally-compatible key format starts with "AIzaSy...".');
+    console.log('\n👉 How to get a working "AIzaSy..." key in 60 seconds (100% Free):');
+    console.log('   1. Visit Google Cloud Console Credentials:');
+    console.log('      https://console.cloud.google.com/apis/credentials');
+    console.log('   2. Select any project (or create one).');
+    console.log('   3. Click "+ CREATE CREDENTIALS" at the top -> Select "API key".');
+    console.log('   4. It will immediately generate a key starting with: AIzaSy...');
+    console.log('   5. Make sure "Generative Language API" is enabled in your project:');
+    console.log('      https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com');
+    console.log('   6. Update backend/.env:');
+    console.log('      GEMINI_API_KEY=AIzaSy...');
+    console.log('   7. Add GEMINI_API_KEY=AIzaSy... to your Railway environment variables.');
   }
   console.log('======================================================\n');
 })();
