@@ -154,6 +154,8 @@ const healthHandler = async (req, res) => {
   const isDbConfigured = Boolean(isLiveSupabase ? supabase : true);
   const isAiHealthy = Boolean(aiHealth.online && aiHealth.modelLoaded);
 
+const geminiService = require('./services/geminiService');
+
   res.status(isDbConfigured ? 200 : 503).json({
     status: isDbConfigured ? (isAiHealthy ? 'healthy' : 'degraded') : 'unhealthy',
     service: 'Livestock Saathi Surveillance API',
@@ -171,6 +173,7 @@ const healthHandler = async (req, res) => {
       modelLoaded: Boolean(aiHealth.modelLoaded),
       fallbackMode: !isAiHealthy
     },
+    gemini: geminiService.getStatus(),
     timestamp: new Date().toISOString()
   });
 };

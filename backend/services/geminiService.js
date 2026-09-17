@@ -35,6 +35,9 @@ function sanitizeError(msg) {
 class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || '';
+    this.lastStatus = null;
+    this.lastError = null;
+    this.lastModel = null;
   }
 
   getApiKey() {
@@ -50,6 +53,19 @@ class GeminiService {
       !key.includes('your_gemini_api_key') &&
       !key.includes('placeholder')
     );
+  }
+
+  getStatus() {
+    const key = this.getApiKey();
+    return {
+      configured: this.isConfigured(),
+      keyPresent: Boolean(key && key.trim().length > 5),
+      keyPrefix: key ? key.substring(0, 10) + '...' : null,
+      lastStatus: this.lastStatus,
+      lastError: this.lastError,
+      lastModel: this.lastModel,
+      activeModels: getActiveModels()
+    };
   }
 
   /**
@@ -388,6 +404,9 @@ UNIVERSAL CLINICAL SAFETY & QUALITY RULES:
 
         if (!response.ok) {
           const err = await response.text();
+          this.lastStatus = response.status;
+          this.lastError = sanitizeError(err);
+          this.lastModel = model;
           console.warn(`[GeminiService] Consultation model ${model} status ${response.status}:`, sanitizeError(err));
           continue;
         }
@@ -401,19 +420,18 @@ UNIVERSAL CLINICAL SAFETY & QUALITY RULES:
           parsed = JSON.parse(rawText);
         } catch {
           const clean = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-          try {
-            parsed = JSON.parse(clean);
-          } catch {
-            parsed = null;
-          }
+          parsed = JSON.parse(clean);
         }
 
-        if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 0) {
+        if (parsed && parsed.reply) {
+          this.lastStatus = 200;
+          this.lastError = null;
+          this.lastModel = model;
           return {
             success: true,
             reply: parsed.reply.trim(),
             riskLevel: parsed.riskLevel || (shouldIncludeHelpline ? 'Moderate' : 'Low'),
-            keyAdvice: Array.isArray(parsed.keyAdvice) ? parsed.keyAdvice : [],
+            keyAdvice: parsed.keyAdvice || [],
             intent,
             model,
             isAIPowered: true,
