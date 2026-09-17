@@ -1,8 +1,8 @@
 // Google Gemini LLM Service for Livestock Agrometeorological AI Recommendations
 // Synthesizes live NADRES disease risks, local microclimate/weather, and bovine THI into trilingual recommendations
 
-// Production-verified stable Gemini models: primary and single fallback
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
+// Production-verified stable Gemini models
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'];
 
 // In-memory cache with 30-minute TTL to preserve API quota
 const geminiCache = new Map();

@@ -38,6 +38,10 @@ api.interceptors.response.use(
         path.startsWith('/language') ||
         path.startsWith('/kisan') ||
         path.startsWith('/report-sick') ||
+        path.startsWith('/report_sick') ||
+        path.startsWith('/report%20sick') ||
+        path.startsWith('/disease') ||
+        path.startsWith('/scan') ||
         path.startsWith('/veterinary-help') ||
         path.startsWith('/government-schemes');
 

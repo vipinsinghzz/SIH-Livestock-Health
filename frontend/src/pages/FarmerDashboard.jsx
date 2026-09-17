@@ -93,24 +93,22 @@ export default function FarmerDashboard() {
   };
 
   const detectLocationAndFetchAlerts = () => {
-    setIsGeolocating(true);
+    // 1. Immediately load user profile district so dashboard renders in milliseconds
+    const dist = user?.district || 'Nagpur';
+    const st = user?.state || 'Maharashtra';
+    const userLat = user?.location?.lat;
+    const userLng = user?.location?.lng;
+
     setAlertsLoading(true);
-
-    const fallbackToUserProfile = async () => {
-      const dist = user?.district || 'Nagpur';
-      const st = user?.state || 'Maharashtra';
-      const userLat = user?.location?.lat;
-      const userLng = user?.location?.lng;
-
-      try {
-        const data = await nadresService.getVillageAlerts({
-          district: dist,
-          state: st,
-          village: user?.village,
-          block: user?.block,
-          lat: userLat,
-          lng: userLng
-        });
+    nadresService.getVillageAlerts({
+      district: dist,
+      state: st,
+      village: user?.village,
+      block: user?.block,
+      lat: userLat,
+      lng: userLng
+    })
+      .then((data) => {
         const resolvedDist = data?.district || dist;
         const resolvedState = data?.state || st;
         setDetectedDistrict(resolvedDist);
@@ -118,17 +116,18 @@ export default function FarmerDashboard() {
         setLocationStatus('fallback');
         setVillageAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
         loadLiveWeather({ district: resolvedDist, state: resolvedState, lat: userLat, lng: userLng });
-      } catch (err) {
-        console.warn('Fallback alerts error:', err);
+      })
+      .catch((err) => {
+        console.warn('Initial profile alerts error:', err);
         setVillageAlerts([]);
-        setLocationStatus('denied');
-      } finally {
+      })
+      .finally(() => {
         setAlertsLoading(false);
-        setIsGeolocating(false);
-      }
-    };
+      });
 
+    // 2. Concurrently check GPS in background without blocking initial render
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      setIsGeolocating(true);
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
@@ -140,29 +139,22 @@ export default function FarmerDashboard() {
               setLocationStatus('detected');
               setVillageAlerts(Array.isArray(data.alerts) ? data.alerts : []);
               loadLiveWeather({ lat: latitude, lng: longitude, district: data.district, state: data.state });
-            } else {
-              fallbackToUserProfile();
             }
           } catch (err) {
-            console.warn('GPS alert retrieval error:', err);
-            fallbackToUserProfile();
+            console.warn('GPS alert retrieval notice:', err);
           } finally {
-            setAlertsLoading(false);
             setIsGeolocating(false);
           }
         },
         (geoError) => {
-          console.info('GPS unavailable/denied, falling back to registered user profile:', geoError.message);
-          fallbackToUserProfile();
+          setIsGeolocating(false);
         },
         {
-          enableHighAccuracy: true,
-          timeout: 8000,
-          maximumAge: 60000
+          enableHighAccuracy: false, // Low-latency fast fix
+          timeout: 4000,
+          maximumAge: 120000
         }
       );
-    } else {
-      fallbackToUserProfile();
     }
   };
 

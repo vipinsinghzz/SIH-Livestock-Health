@@ -68,43 +68,79 @@ class NadresService {
   }
 
   /**
-   * Queries active, verified field outbreak reports from MongoDB strictly for the target district.
+   * Queries active, verified field outbreak reports strictly for the target district.
+   * Prioritizes authoritative Supabase PostgreSQL; skips Mongoose if not connected (zero 10s buffer freeze).
    */
   async getActiveDatabaseOutbreaks(district) {
     if (!district) return [];
     try {
-      // Find reports in this district that are active
-      const reports = await Report.find({
-        'location.district': new RegExp(`^${district.trim()}$`, 'i'),
-        status: { $in: ['Reported', 'Triaged', 'Field Verified', 'Escalated'] }
-      })
-        .sort({ createdAt: -1 })
-        .limit(20)
-        .lean();
+      // 1. Query Supabase PostgreSQL reports
+      const { supabase } = require('../config/supabaseClient');
+      if (supabase) {
+        try {
+          const { data: sbReports, error: sbErr } = await supabase
+            .from('reports')
+            .select('*')
+            .ilike('district', `%${district.trim()}%`)
+            .order('created_at', { ascending: false })
+            .limit(20);
 
-      if (!reports || reports.length === 0) return [];
-
-      const reportIds = reports.map(r => r._id);
-      const triageList = await TriageResult.find({
-        reportId: { $in: reportIds },
-        $or: [
-          { outbreakFlag: true },
-          { riskLevel: { $in: ['High', 'Critical'] } }
-        ]
-      }).lean();
-
-      const triageMap = new Map();
-      triageList.forEach(t => triageMap.set(t.reportId.toString(), t));
-
-      const outbreakCases = [];
-      reports.forEach(report => {
-        const triage = triageMap.get(report._id.toString());
-        if (triage) {
-          outbreakCases.push({ report, triage });
+          if (!sbErr && sbReports && sbReports.length > 0) {
+            return sbReports.map((r) => ({
+              report: {
+                _id: r.id,
+                id: r.id,
+                species: r.species,
+                status: r.status,
+                location: { district: r.district, village: r.village, block: r.block },
+                createdAt: r.created_at
+              },
+              triage: {
+                riskLevel: r.risk_level || 'Moderate',
+                predictedDisease: r.disease_detected || r.disease || 'Livestock Infection',
+                outbreakFlag: Boolean(r.risk_level === 'High' || r.risk_level === 'Critical')
+              }
+            }));
+          }
+        } catch (sbEx) {
+          // non-fatal Supabase check
         }
-      });
+      }
 
-      return outbreakCases;
+      // 2. Only query MongoDB if Mongoose connection is actively connected (readyState === 1)
+      const mongoose = require('mongoose');
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        const reports = await Report.find({
+          'location.district': new RegExp(`^${district.trim()}$`, 'i'),
+          status: { $in: ['Reported', 'Triaged', 'Field Verified', 'Escalated'] }
+        })
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .lean();
+
+        if (reports && reports.length > 0) {
+          const reportIds = reports.map((r) => r._id);
+          const triageList = await TriageResult.find({
+            reportId: { $in: reportIds },
+            $or: [{ outbreakFlag: true }, { riskLevel: { $in: ['High', 'Critical'] } }]
+          }).lean();
+
+          const triageMap = new Map();
+          triageList.forEach((t) => triageMap.set(t.reportId.toString(), t));
+
+          const outbreakCases = [];
+          reports.forEach((report) => {
+            const triage = triageMap.get(report._id.toString());
+            if (triage) {
+              outbreakCases.push({ report, triage });
+            }
+          });
+
+          return outbreakCases;
+        }
+      }
+
+      return [];
     } catch (dbErr) {
       console.warn('[NadresService] Database outbreak query notice:', dbErr.message);
       return [];

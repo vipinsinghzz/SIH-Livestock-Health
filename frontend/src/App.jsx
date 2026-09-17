@@ -8,7 +8,58 @@ import FarmerBottomNav from './components/FarmerBottomNav';
 
 import AppLoadingScreen from './components/AppLoadingScreen';
 
-// Route-Level Code Splitting: Lazy-load page components to minimize initial bundle size
+// Global Error Boundary to prevent blank white screens
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[AppErrorBoundary] Uncaught rendering exception:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 max-w-md w-full text-center space-y-4 shadow-modal">
+            <span className="text-4xl block">⚠️</span>
+            <h2 className="text-xl font-black text-slate-900">
+              पृष्ठ लोड करने में समस्या आई / Page Error
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              सॉफ़्टवेयर में अस्थायी समस्या के कारण यह पृष्ठ लोड नहीं हो सका। कृपया पुनः प्रयास करें।
+            </p>
+            <div className="flex gap-3 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  window.location.reload();
+                }}
+                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm rounded-xl transition shadow-xs cursor-pointer"
+              >
+                पुनः लोड करें (Reload)
+              </button>
+              <a
+                href="/"
+                className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-sm rounded-xl transition"
+              >
+                होम पेज (Home)
+              </a>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 const LandingPage = React.lazy(() => import('./pages/LandingPage'));
 const Login = React.lazy(() => import('./pages/Login'));
 const Register = React.lazy(() => import('./pages/Register'));
@@ -77,26 +128,36 @@ function AppContent() {
       <OfflineBanner />
       <Navbar />
       <main className="flex-grow">
-        <React.Suspense fallback={<AppLoadingScreen message="लोड हो रहा है... Loading page..." />}>
-          <Routes>
-            {/* Public & Dynamic Entry */}
-            <Route path="/" element={<HomeRoute />} />
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/select-language" element={<SelectLanguagePage />} />
-            <Route path="/language" element={<SelectLanguagePage />} />
+        <AppErrorBoundary>
+          <React.Suspense fallback={<AppLoadingScreen message="लोड हो रहा है... Loading page..." />}>
+            <Routes>
+              {/* Public & Dynamic Entry */}
+              <Route path="/" element={<HomeRoute />} />
+              <Route path="/landing" element={<LandingPage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/select-language" element={<SelectLanguagePage />} />
+              <Route path="/language" element={<SelectLanguagePage />} />
 
-            {/* Accessible Farmer & Public Features */}
-            <Route path="/kisan-saathi" element={<KisanSaathiPage />} />
-            <Route path="/kisan%20saathi" element={<Navigate to="/kisan-saathi" replace />} />
-            <Route path="/kisan saathi" element={<Navigate to="/kisan-saathi" replace />} />
-            <Route path="/kisansaathi" element={<Navigate to="/kisan-saathi" replace />} />
-            <Route path="/kisan_saathi" element={<Navigate to="/kisan-saathi" replace />} />
-            <Route path="/report-sick" element={<DiseaseDetectionPage />} />
-            <Route path="/veterinary-help" element={<VeterinaryHelpPage />} />
-            <Route path="/emergency-sos" element={<EmergencySOSPage />} />
-            <Route path="/government-schemes" element={<GovernmentSchemesPage />} />
+              {/* Accessible Farmer & Public Features */}
+              <Route path="/kisan-saathi" element={<KisanSaathiPage />} />
+              <Route path="/kisan%20saathi" element={<Navigate to="/kisan-saathi" replace />} />
+              <Route path="/kisan saathi" element={<Navigate to="/kisan-saathi" replace />} />
+              <Route path="/kisansaathi" element={<Navigate to="/kisan-saathi" replace />} />
+              <Route path="/kisan_saathi" element={<Navigate to="/kisan-saathi" replace />} />
+              <Route path="/report-sick" element={<DiseaseDetectionPage />} />
+              <Route path="/report_sick" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/report%20sick" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/report sick" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/reportsick" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/disease-scan" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/disease_scan" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/disease scan" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/disease%20scan" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/scan" element={<Navigate to="/report-sick" replace />} />
+              <Route path="/veterinary-help" element={<VeterinaryHelpPage />} />
+              <Route path="/emergency-sos" element={<EmergencySOSPage />} />
+              <Route path="/government-schemes" element={<GovernmentSchemesPage />} />
 
             {/* Authenticated Portals */}
             <Route
@@ -168,7 +229,8 @@ function AppContent() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </React.Suspense>
-      </main>
+      </AppErrorBoundary>
+    </main>
 
       {/* Mobile Bottom Navigation Bar for Farmer Experience */}
       {user && isFarmer && <FarmerBottomNav />}

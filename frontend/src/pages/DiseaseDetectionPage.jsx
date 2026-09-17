@@ -121,6 +121,19 @@ export default function DiseaseDetectionPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [symptomSearch, setSymptomSearch] = useState('');
 
+  // Dynamically filter 27 clinical symptoms based on search input
+  const filteredSymptoms = React.useMemo(() => {
+    if (!symptomSearch || !symptomSearch.trim()) return SYMPTOMS_27;
+    const q = symptomSearch.toLowerCase().trim();
+    return SYMPTOMS_27.filter((sym) => {
+      const en = (sym.nameEn || sym.labelEn || '').toLowerCase();
+      const hi = (sym.labelHi || '').toLowerCase();
+      const mr = (sym.labelMr || '').toLowerCase();
+      const id = (sym.id || '').toLowerCase();
+      return en.includes(q) || hi.includes(q) || mr.includes(q) || id.includes(q);
+    });
+  }, [symptomSearch]);
+
   // Step 3: AI Progress Simulation
   const [aiStage, setAiStage] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -426,17 +439,6 @@ export default function DiseaseDetectionPage() {
       setCaseIdSaved('CASE-' + Date.now().toString().slice(-6));
     }
   };
-
-  // Filter symptoms based on search query
-  const filteredSymptoms = SYMPTOMS_27.filter((sym) => {
-    if (!symptomSearch.trim()) return true;
-    const q = symptomSearch.toLowerCase();
-    return (
-      sym.id.toLowerCase().includes(q) ||
-      sym.labelEn.toLowerCase().includes(q) ||
-      sym.labelHi.toLowerCase().includes(q)
-    );
-  });
 
   return (
     <div className="min-h-screen bg-[#fafaf9] py-6 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-12">
