@@ -1,8 +1,23 @@
 // Google Gemini LLM Service for Livestock Agrometeorological AI Recommendations
 // Synthesizes live NADRES disease risks, local microclimate/weather, and bovine THI into trilingual recommendations
 
-// Production-verified stable Gemini models
-const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'];
+// Production-verified stable Gemini models (includes 2.5, 2.0, and 1.5 families)
+const DEFAULT_GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro'
+];
+
+function getActiveModels() {
+  if (process.env.GEMINI_MODEL) {
+    const custom = process.env.GEMINI_MODEL.trim();
+    return [custom, ...DEFAULT_GEMINI_MODELS.filter(m => m !== custom)];
+  }
+  return DEFAULT_GEMINI_MODELS;
+}
 
 // In-memory cache with 30-minute TTL to preserve API quota
 const geminiCache = new Map();
@@ -100,7 +115,7 @@ VETERINARY SAFETY & AGROMETEOROLOGICAL GUIDELINES:
 
     const apiKey = this.getApiKey();
 
-    for (const model of GEMINI_MODELS) {
+    for (const model of getActiveModels()) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
@@ -352,7 +367,7 @@ UNIVERSAL CLINICAL SAFETY & QUALITY RULES:
 
     const apiKey = this.getApiKey();
 
-    for (const model of GEMINI_MODELS) {
+    for (const model of getActiveModels()) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 

@@ -45,12 +45,39 @@ if (isLegacyAiStudioKey) {
   console.log(`  - Key Format: Custom / Unknown prefix (${key.substring(0, 6)}...) ⚠️`);
 }
 
-// 2. Test Live Ping to Google AI Studio API
-console.log('\nStep 2: Sending Live Test Request to Google AI Studio API...');
-const modelsToTest = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+// 2. Test GET https://generativelanguage.googleapis.com/v1beta/models
+console.log('\nStep 2: Testing Google AI Studio GET Models API (/v1beta/models)...');
 
 (async () => {
   let isWorking = false;
+
+  try {
+    const getRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': key }
+    });
+    console.log(`  - GET /v1beta/models response status: HTTP ${getRes.status} ${getRes.statusText}`);
+    const getJson = await getRes.json();
+    if (getRes.ok && Array.isArray(getJson.models)) {
+      console.log(`  ✅ GET API SUCCESS! Found ${getJson.models.length} accessible models.`);
+      const sample = getJson.models.slice(0, 5).map(m => m.name.replace('models/', ''));
+      console.log(`  📋 Available models sample: ${sample.join(', ')}...`);
+    } else {
+      console.log(`  ❌ GET /v1beta/models returned HTTP ${getRes.status}: ${getJson?.error?.message || JSON.stringify(getJson)}`);
+    }
+  } catch (err) {
+    console.log(`  ❌ GET models request error: ${err.message}`);
+  }
+
+  // 3. Test Generate Content across models including Gemini 2.5, 2.0, 1.5
+  console.log('\nStep 3: Sending Live Test Request across Gemini Model Families (2.5 / 2.0 / 1.5)...');
+  const modelsToTest = [
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro'
+  ];
 
   for (const model of modelsToTest) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -77,11 +104,10 @@ const modelsToTest = ['gemini-1.5-flash', 'gemini-2.0-flash'];
         isWorking = true;
         break;
       } else {
-        console.log(`\n  ❌ Model ${model} returned HTTP ${res.status}:`);
-        console.log(`     Error: ${json?.error?.message || JSON.stringify(json)}`);
+        console.log(`  ❌ Model ${model} returned HTTP ${res.status}: ${json?.error?.message || JSON.stringify(json)}`);
       }
     } catch (err) {
-      console.log(`\n  ❌ Network request failed for ${model}: ${err.message}`);
+      console.log(`  ❌ Network request failed for ${model}: ${err.message}`);
     }
   }
 
