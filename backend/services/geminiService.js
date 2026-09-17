@@ -1,10 +1,23 @@
 // Google Gemini LLM Service for Livestock Agrometeorological AI Recommendations
 // Synthesizes live NADRES disease risks, local microclimate/weather, and bovine THI into trilingual recommendations
 
-const GEMINI_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+// Production-verified stable Gemini models: primary and single fallback
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
 
 // In-memory cache with 30-minute TTL to preserve API quota
 const geminiCache = new Map();
+
+/**
+ * Sanitizes log messages to ensure API keys or authorization tokens never appear in server logs.
+ */
+function sanitizeError(msg) {
+  if (!msg || typeof msg !== 'string') return '';
+  return msg
+    .replace(/AIza[0-9A-Za-z-_]{35}/g, '[REDACTED_API_KEY]')
+    .replace(/(?:key|token|secret|password)=([^\s&"']+)/gi, '$1=[REDACTED]')
+    .replace(/(?:Bearer\s+)[^\s"']+/gi, 'Bearer [REDACTED]')
+    .slice(0, 150);
+}
 
 class GeminiService {
   constructor() {
@@ -17,7 +30,13 @@ class GeminiService {
 
   isConfigured() {
     const key = this.getApiKey();
-    return Boolean(key && key.trim().length > 10 && !key.includes('your_gemini_api_key'));
+    return Boolean(
+      key &&
+      typeof key === 'string' &&
+      key.trim().length > 10 &&
+      !key.includes('your_gemini_api_key') &&
+      !key.includes('placeholder')
+    );
   }
 
   /**
@@ -64,12 +83,14 @@ INPUT CONTEXT:
   * Precipitation / Rain: ${precipitationMm} mm (${condition})
   * Bovine Temperature-Humidity Index (THI): ${thi} (${stressLevel} Heat Stress)
 
-CLINICAL & AGROMETEOROLOGICAL GUIDELINES:
-1. ADDRESS ONLY THE SPECIFIED LOCATION: "${location}". NEVER invent or mention any other town, taluka, or district (e.g. do not mention Baramati if location is Khed or Nagpur).
-2. If high humidity or rain (>60% humidity or precipitation): emphasize vector (mosquito/fly) breeding control, mud-rot foot hygiene, or fungal/bacterial spread.
-3. If high heat/THI (>78 THI): emphasize shaded shed ventilation, hydration, and avoiding vaccination stress during peak daylight heat.
-4. Keep each recommendation to 1-2 powerful, actionable sentences specifically for the farmer.
-5. Output STRICT JSON only with 3 keys:
+VETERINARY SAFETY & AGROMETEOROLOGICAL GUIDELINES:
+1. ADVISORY ONLY: Provide preventative and supportive agrometeorological guidance only. Do not claim a confirmed veterinary diagnosis or replace a licensed veterinarian.
+2. NO RESTRICTED PHARMACEUTICALS: Do not prescribe prescription-only antibiotics or schedule drugs; focus on hygiene, biosecurity, vector control, and hydration.
+3. NO FABRICATION: Address ONLY the specified location: "${location}". Never invent towns, talukas, outbreak numbers, or weather figures.
+4. If high humidity or rain (>60% humidity or precipitation): emphasize vector (mosquito/fly) breeding control, mud-rot foot hygiene, or fungal/bacterial spread.
+5. If high heat/THI (>78 THI): emphasize shaded shed ventilation, hydration, and avoiding vaccination stress during peak daylight heat.
+6. Keep each recommendation to 1-2 powerful, actionable sentences specifically for the farmer.
+7. Output STRICT JSON only with 3 keys:
 {
   "recommendationEn": "English advisory",
   "recommendationHi": "Hindi advisory in Devanagari script",
@@ -81,12 +102,13 @@ CLINICAL & AGROMETEOROLOGICAL GUIDELINES:
 
     for (const model of GEMINI_MODELS) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
           },
           body: JSON.stringify({
             contents: [
@@ -106,7 +128,7 @@ CLINICAL & AGROMETEOROLOGICAL GUIDELINES:
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.warn(`[GeminiService] Model ${model} returned status ${response.status}:`, errorText.substring(0, 150));
+          console.warn(`[GeminiService] Model ${model} returned status ${response.status}:`, sanitizeError(errorText));
           continue; // Try next model
         }
 
@@ -119,14 +141,18 @@ CLINICAL & AGROMETEOROLOGICAL GUIDELINES:
           parsed = JSON.parse(rawText);
         } catch {
           const clean = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-          parsed = JSON.parse(clean);
+          try {
+            parsed = JSON.parse(clean);
+          } catch {
+            parsed = null;
+          }
         }
 
-        if (parsed && parsed.recommendationEn) {
+        if (parsed && typeof parsed.recommendationEn === 'string' && parsed.recommendationEn.trim().length > 0) {
           const result = {
             recommendationEn: parsed.recommendationEn.trim(),
-            recommendationHi: parsed.recommendationHi ? parsed.recommendationHi.trim() : null,
-            recommendationMr: parsed.recommendationMr ? parsed.recommendationMr.trim() : null,
+            recommendationHi: typeof parsed.recommendationHi === 'string' ? parsed.recommendationHi.trim() : null,
+            recommendationMr: typeof parsed.recommendationMr === 'string' ? parsed.recommendationMr.trim() : null,
             model,
             isAIPowered: true,
             generatedAt: new Date().toISOString()
@@ -136,7 +162,7 @@ CLINICAL & AGROMETEOROLOGICAL GUIDELINES:
           return result;
         }
       } catch (err) {
-        console.warn(`[GeminiService] Model ${model} execution failed:`, err.message);
+        console.warn(`[GeminiService] Model ${model} execution failed:`, sanitizeError(err.message));
       }
     }
 
@@ -297,7 +323,7 @@ ${districtAlerts.map(a => `- Active ${a.diseaseName} (${a.riskLevel} Risk)`).joi
 - Do not dump unrelated medical context.`;
     }
 
-    // 4. Construct Prompt
+    // 4. Construct Prompt with rigorous veterinary safety directives
     const prompt = `
 You are Kisan Saathi AI (किसान साथी), an expert livestock assistant for farmers in India.
 Farmer: ${farmerName} in ${district} District, ${state}.
@@ -307,12 +333,16 @@ ${contextSections.length > 0 ? contextSections.join('\n\n') + '\n\n' : ''}USER'S
 
 ${intentDirective}
 
-UNIVERSAL QUALITY & ANTI-REPETITION RULES:
-1. Target Language: Respond ONLY in ${languageName} using natural rural phrasing in the correct native script.
-2. Anti-Repetition: DO NOT start every response with formulaic greetings like "नमस्ते किसान भाई... आपकी स्थिति चिंताजनक है...". If this is an ongoing conversation, be direct and conversational.
-3. Conciseness: Keep responses short and focused (around 50-130 words, or 3-5 bullet points). NEVER dump all medical recommendations into unrelated questions.
-4. Scope Discipline: Give ONLY information relevant to the user's current question.
-5. Return STRICT JSON:
+UNIVERSAL CLINICAL SAFETY & QUALITY RULES:
+1. VETERINARY ADVISORY ROLE: You provide supportive, practical first-aid and livestock management guidance. Never claim a definitive veterinary diagnosis. Do not replace an on-ground veterinarian. Recommend veterinary evaluation whenever symptoms are present or worsening.
+2. NO RESTRICTED MEDICATIONS: Never prescribe prescription-only pharmaceuticals (e.g. Schedule H antibiotics, steroid injectables). Never recommend invasive surgical procedures.
+3. NO FABRICATION: Never fabricate local disease outbreaks, animal history, vaccination records, weather, government schemes, or fake addresses. Use strictly the provided context.
+4. EMERGENCY HELPLINE: For critical medical emergencies or severe distress, always direct the farmer to the National Animal Emergency Helpline 1962.
+5. Target Language: Respond ONLY in ${languageName} using natural rural phrasing in the correct native script.
+6. Anti-Repetition: DO NOT start every response with formulaic greetings like "नमस्ते किसान भाई... आपकी स्थिति चिंताजनक है...". If this is an ongoing conversation, be direct and conversational.
+7. Conciseness: Keep responses short and focused (around 50-130 words, or 3-5 bullet points). NEVER dump all medical recommendations into unrelated questions.
+8. Scope Discipline: Give ONLY information relevant to the user's current question.
+9. Return STRICT JSON:
 {
   "reply": "Your response in ${languageName}",
   "riskLevel": "${shouldIncludeHelpline ? 'Moderate' : 'Low'}",
@@ -324,11 +354,14 @@ UNIVERSAL QUALITY & ANTI-REPETITION RULES:
 
     for (const model of GEMINI_MODELS) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: {
@@ -342,7 +375,7 @@ UNIVERSAL QUALITY & ANTI-REPETITION RULES:
 
         if (!response.ok) {
           const err = await response.text();
-          console.warn(`[GeminiService] Consultation model ${model} status ${response.status}:`, err.substring(0, 120));
+          console.warn(`[GeminiService] Consultation model ${model} status ${response.status}:`, sanitizeError(err));
           continue;
         }
 
@@ -355,15 +388,19 @@ UNIVERSAL QUALITY & ANTI-REPETITION RULES:
           parsed = JSON.parse(rawText);
         } catch {
           const clean = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-          parsed = JSON.parse(clean);
+          try {
+            parsed = JSON.parse(clean);
+          } catch {
+            parsed = null;
+          }
         }
 
-        if (parsed && parsed.reply) {
+        if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 0) {
           return {
             success: true,
             reply: parsed.reply.trim(),
             riskLevel: parsed.riskLevel || (shouldIncludeHelpline ? 'Moderate' : 'Low'),
-            keyAdvice: parsed.keyAdvice || [],
+            keyAdvice: Array.isArray(parsed.keyAdvice) ? parsed.keyAdvice : [],
             intent,
             model,
             isAIPowered: true,
@@ -371,7 +408,7 @@ UNIVERSAL QUALITY & ANTI-REPETITION RULES:
           };
         }
       } catch (err) {
-        console.warn(`[GeminiService] Consultation model ${model} error:`, err.message);
+        console.warn(`[GeminiService] Consultation model ${model} error:`, sanitizeError(err.message));
       }
     }
 
