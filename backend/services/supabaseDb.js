@@ -335,11 +335,13 @@ const animals = {
       if (offlineMatch) return toCamel(offlineMatch);
     }
 
-    // Fallback to Mongoose if offline
-    try {
-      const doc = await Animal.findOne({ tagId: cleanTag }).select('tagId name ownerId').lean();
-      if (doc) return toCamel(doc);
-    } catch (e) { }
+    // Fallback to Mongoose if offline and connected
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const doc = await Animal.findOne({ tagId: cleanTag }).select('tagId name ownerId').lean();
+        if (doc) return toCamel(doc);
+      } catch (e) { }
+    }
 
     return null;
   },
@@ -473,41 +475,44 @@ const animals = {
       }
     }
 
-    // Fallback to Mongoose if Supabase is offline
-    try {
-      const query = {};
-      if (filter.tagId) query.tagId = filter.tagId;
-      if (filter.ownerId) {
-        if (mongoose.Types.ObjectId.isValid(filter.ownerId)) {
-          query.ownerId = filter.ownerId;
-        } else {
-          const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
-          if (u) query.ownerId = u._id;
+    // Fallback to Mongoose if Supabase is offline and connected
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const query = {};
+        if (filter.tagId) query.tagId = filter.tagId;
+        if (filter.ownerId) {
+          if (mongoose.Types.ObjectId.isValid(filter.ownerId)) {
+            query.ownerId = filter.ownerId;
+          } else {
+            const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
+            if (u) query.ownerId = u._id;
+          }
         }
-      }
-      if (filter.species) query.species = filter.species;
-      if (filter.village) query.village = new RegExp(filter.village, 'i');
-      if (filter.block) query.block = new RegExp(filter.block, 'i');
-      if (filter.district) query.district = new RegExp(filter.district, 'i');
+        if (filter.species) query.species = filter.species;
+        if (filter.village) query.village = new RegExp(filter.village, 'i');
+        if (filter.block) query.block = new RegExp(filter.block, 'i');
+        if (filter.district) query.district = new RegExp(filter.district, 'i');
 
-      const res = await Animal.find(query)
-        .populate('ownerId', 'name phone email village block district')
-        .sort({ createdAt: -1 })
-        .lean();
-      return (res || []).map((doc) => {
-        const camelDoc = toCamel(doc);
-        const rawVacc = (camelDoc.vaccinations && camelDoc.vaccinations.length > 0)
-          ? camelDoc.vaccinations
-          : (camelDoc.vaccinationHistory || []);
-        const normVacc = rawVacc.map(normalizeVaccination);
-        camelDoc.vaccinations = normVacc;
-        camelDoc.vaccinationHistory = normVacc;
-        camelDoc.timeline = camelDoc.timeline || [];
-        return camelDoc;
-      });
-    } catch (e) {
-      return [];
+        const res = await Animal.find(query)
+          .populate('ownerId', 'name phone email village block district')
+          .sort({ createdAt: -1 })
+          .lean();
+        return (res || []).map((doc) => {
+          const camelDoc = toCamel(doc);
+          const rawVacc = (camelDoc.vaccinations && camelDoc.vaccinations.length > 0)
+            ? camelDoc.vaccinations
+            : (camelDoc.vaccinationHistory || []);
+          const normVacc = rawVacc.map(normalizeVaccination);
+          camelDoc.vaccinations = normVacc;
+          camelDoc.vaccinationHistory = normVacc;
+          camelDoc.timeline = camelDoc.timeline || [];
+          return camelDoc;
+        });
+      } catch (e) {
+        return [];
+      }
     }
+    return [];
   },
 
   async findById(id) {
@@ -590,6 +595,11 @@ const animals = {
 
           return res;
         }
+
+        // Authoritative Supabase returned definitive not-found for this UUID
+        if (!animalError && !animalData && isUUID) {
+          return null;
+        }
       } catch (e) {
         console.error('[SupabaseDb] animals.findById exception:', e.message);
       }
@@ -597,7 +607,7 @@ const animals = {
 
     // Fallback to OFFLINE_ANIMALS if offline
     if (!isLiveSupabase && OFFLINE_ANIMALS.length > 0) {
-      const offlineMatch = OFFLINE_ANIMALS.find(a => a.id === id || a._id === id);
+      const offlineMatch = OFFLINE_ANIMALS.find(a => a.id === id || a._id === id || (a.tagId || a.tag_id) === cleanId || (a.tagId || a.tag_id) === cleanId.toUpperCase());
       if (offlineMatch) {
         const camelA = toCamel(offlineMatch);
         const animalId = String(camelA.id || camelA._id);
@@ -620,26 +630,30 @@ const animals = {
       }
     }
 
-    // Fallback to Mongoose
-    try {
-      const animal = await Animal.findById(id)
-        .populate('ownerId', 'name phone email village block district')
-        .lean();
-      if (!animal) return null;
-      const pastReports = await Report.find({ animalId: animal._id }).sort({ createdAt: -1 }).lean();
-      const rawVacc = (animal.vaccinations && animal.vaccinations.length > 0)
-        ? animal.vaccinations
-        : (animal.vaccinationHistory || []);
-      const normVacc = rawVacc.map(normalizeVaccination);
-      return toCamel({
-        ...animal,
-        vaccinations: normVacc,
-        vaccinationHistory: normVacc,
-        pastReports
-      });
-    } catch (e) {
-      return null;
+    // Fallback to Mongoose only if actively connected
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const animal = await Animal.findById(id)
+          .populate('ownerId', 'name phone email village block district')
+          .lean();
+        if (!animal) return null;
+        const pastReports = await Report.find({ animalId: animal._id }).sort({ createdAt: -1 }).lean();
+        const rawVacc = (animal.vaccinations && animal.vaccinations.length > 0)
+          ? animal.vaccinations
+          : (animal.vaccinationHistory || []);
+        const normVacc = rawVacc.map(normalizeVaccination);
+        return toCamel({
+          ...animal,
+          vaccinations: normVacc,
+          vaccinationHistory: normVacc,
+          pastReports
+        });
+      } catch (e) {
+        return null;
+      }
     }
+
+    return null;
   },
 
   async create(data) {
@@ -722,8 +736,8 @@ const animals = {
       }
     }
 
-    // Dual-write to MongoDB during transition (non-blocking, only if Mongo available)
-    if (createdAnimal) {
+    // Dual-write to MongoDB during transition (non-blocking, only if Mongo available and connected)
+    if (createdAnimal && mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         const mongoData = { ...data };
         mongoData.village = (mongoData.village || createdAnimal.village || 'Rural Village').trim();
@@ -755,29 +769,31 @@ const animals = {
       OFFLINE_ANIMALS.push(offlineRecord);
       createdAnimal = offlineRecord;
 
-      // 2. Also attempt Mongoose create if Mongo is available
-      try {
-        const mongoData = { ...data };
-        mongoData.village = (mongoData.village || 'Rural Village').trim();
-        mongoData.block = (mongoData.block || mongoData.village || 'Rural Block').trim();
-        mongoData.district = (mongoData.district || 'Pune').trim();
-        if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
-          const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
-          mongoData.ownerId = u ? u._id : new mongoose.Types.ObjectId();
+      // 2. Also attempt Mongoose create if Mongo is connected
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        try {
+          const mongoData = { ...data };
+          mongoData.village = (mongoData.village || 'Rural Village').trim();
+          mongoData.block = (mongoData.block || mongoData.village || 'Rural Block').trim();
+          mongoData.district = (mongoData.district || 'Pune').trim();
+          if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
+            const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
+            mongoData.ownerId = u ? u._id : new mongoose.Types.ObjectId();
+          }
+          const doc = await Animal.create(mongoData);
+          const populated = await Animal.findById(doc._id).populate('ownerId', 'name phone email village block district').lean();
+          if (populated) {
+            createdAnimal = {
+              ...toCamel(populated),
+              id: fallbackId,
+              _id: fallbackId,
+              ownerId: data.ownerId,
+              owner_id: data.ownerId
+            };
+          }
+        } catch (e) {
+          console.warn('[SupabaseDb] Optional offline Mongoose create notice:', e.message);
         }
-        const doc = await Animal.create(mongoData);
-        const populated = await Animal.findById(doc._id).populate('ownerId', 'name phone email village block district').lean();
-        if (populated) {
-          createdAnimal = {
-            ...toCamel(populated),
-            id: fallbackId,
-            _id: fallbackId,
-            ownerId: data.ownerId,
-            owner_id: data.ownerId
-          };
-        }
-      } catch (e) {
-        // Mongoose error in offline mode is non-fatal since offlineRecord is saved
       }
     }
 
@@ -834,14 +850,17 @@ const animals = {
       }
     }
 
-    try {
-      const doc = await Animal.findByIdAndUpdate(id, updates, { new: true })
-        .populate('ownerId', 'name phone email village block district')
-        .lean();
-      return toCamel(doc);
-    } catch (e) {
-      return null;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const doc = await Animal.findByIdAndUpdate(id, updates, { new: true })
+          .populate('ownerId', 'name phone email village block district')
+          .lean();
+        return toCamel(doc);
+      } catch (e) {
+        return null;
+      }
     }
+    return null;
   },
 
   async deleteById(id) {
@@ -858,12 +877,15 @@ const animals = {
         if (isLiveSupabase) throw e;
       }
     }
-    try {
-      await Animal.findByIdAndDelete(id);
-      return true;
-    } catch (e) {
-      return false;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        await Animal.findByIdAndDelete(id);
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
+    return true;
   }
 };
 

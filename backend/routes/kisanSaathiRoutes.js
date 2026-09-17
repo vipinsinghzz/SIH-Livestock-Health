@@ -6,7 +6,8 @@ const router = express.Router();
 const geminiService = require('../services/geminiService');
 const nadresService = require('../services/nadresService');
 const weatherService = require('../services/weatherService');
-const Animal = require('../models/Animal');
+const supabaseDb = require('../services/supabaseDb');
+const { resolveFarmerProfile } = require('../controllers/animalController');
 const { optionalProtect } = require('../middleware/auth');
 
 /**
@@ -124,15 +125,76 @@ router.post('/consult', optionalProtect, async (req, res, next) => {
 
     const userQuery = message || query || '';
 
-    // 1. Resolve animal profile (from DB if animalId provided, otherwise client payload)
-    let resolvedAnimal = clientAnimal || null;
-    if (animalId && (!resolvedAnimal || !resolvedAnimal.name)) {
-      try {
-        const dbAnimal = await Animal.findById(animalId).lean();
-        if (dbAnimal) resolvedAnimal = dbAnimal;
-      } catch (err) {
-        // Continue with client animal
+    // 1. Resolve animal profile (from Supabase DB if animalId provided, otherwise client payload)
+    let resolvedAnimal = null;
+
+    if (animalId) {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required to consult with an animal ID.'
+        });
       }
+
+      let dbAnimal = null;
+      try {
+        dbAnimal = await supabaseDb.animals.findById(animalId);
+      } catch (dbErr) {
+        console.error('[KisanSaathiRoutes] Error fetching animal by ID:', dbErr.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Unable to retrieve animal record at this time.'
+        });
+      }
+
+      if (!dbAnimal) {
+        return res.status(404).json({
+          success: false,
+          message: 'Animal not found.'
+        });
+      }
+
+      // Role-based Ownership Enforcement: Farmers can only consult for their own animals
+      if (req.user.role === 'farmer') {
+        const profile = await resolveFarmerProfile(req.user);
+        const farmerId = String(profile?.id || req.user.id || req.user._id || '').trim();
+        const farmerEmail = (profile?.email || req.user.email || '').toLowerCase().trim();
+
+        const ownerObj = typeof dbAnimal.ownerId === 'object' && dbAnimal.ownerId !== null ? dbAnimal.ownerId : null;
+        const animalOwnerId = String(ownerObj?.id || ownerObj?._id || dbAnimal.ownerId || dbAnimal.owner_id || '').trim();
+        const animalOwnerEmail = (ownerObj?.email || '').toLowerCase().trim();
+
+        const isOwner = (farmerId && animalOwnerId && farmerId === animalOwnerId) ||
+                        (farmerEmail && animalOwnerEmail && farmerEmail === animalOwnerEmail);
+
+        if (!isOwner) {
+          return res.status(403).json({
+            success: false,
+            message: 'You are not authorized to consult for this animal.'
+          });
+        }
+      }
+
+      // Authoritative DB record takes precedence over client-supplied animal object
+      resolvedAnimal = {
+        ...dbAnimal,
+        id: dbAnimal.id || dbAnimal._id || animalId,
+        tagId: dbAnimal.tagId || dbAnimal.tag_id || null,
+        name: dbAnimal.name || null,
+        species: dbAnimal.species || null,
+        breed: dbAnimal.breed || null,
+        age: (dbAnimal.age !== undefined && dbAnimal.age !== null) ? dbAnimal.age : null,
+        gender: dbAnimal.gender || null,
+        healthStatus: dbAnimal.healthStatus || dbAnimal.health_status || null,
+        milkYield: dbAnimal.milkYield || dbAnimal.milkYieldDaily || dbAnimal.milk_yield_daily || null,
+        milkYieldDaily: dbAnimal.milkYieldDaily || dbAnimal.milkYield || dbAnimal.milk_yield_daily || null,
+        district: dbAnimal.district || null,
+        village: dbAnimal.village || null,
+        block: dbAnimal.block || null
+      };
+    } else if (clientAnimal && typeof clientAnimal === 'object') {
+      // Backward compatibility: preserve client-supplied animal object if no animalId supplied
+      resolvedAnimal = clientAnimal;
     }
 
     // 2. Detect Intent & Context Relevance
@@ -144,8 +206,8 @@ router.post('/consult', optionalProtect, async (req, res, next) => {
     });
 
     // 3. Resolve real-time district disease surveillance alerts ONLY if relevant
-    let activeDistrict = clientDistrict || req.user?.district || 'Nagpur';
-    let activeState = clientState || req.user?.state || 'Maharashtra';
+    let activeDistrict = clientDistrict || resolvedAnimal?.district || req.user?.district || 'Nagpur';
+    let activeState = clientState || resolvedAnimal?.state || req.user?.state || 'Maharashtra';
     let districtAlerts = [];
 
     if (intentResult.shouldIncludeAlerts) {

@@ -201,29 +201,32 @@ async function resolveFarmerProfile(user) {
     };
   }
 
-  // 8. Check Mongo User model only for legacy non-UUID MongoDB users
-  try {
-    const User = require('../models/User');
-    const u = await User.findOne({
-      $or: [
-        ...(email ? [{ email }] : []),
-        ...(phone ? [{ phone }] : []),
-        ...(authUserId.length === 24 ? [{ _id: authUserId }] : [])
-      ]
-    }).lean();
-    if (u) {
-      return {
-        id: isUUID ? userId : String(u._id),
-        auth_user_id: authUserId || String(u._id),
-        name: u.name,
-        email: u.email,
-        village: u.village || '',
-        block: u.block || '',
-        district: u.district || 'Pune',
-        role: u.role || 'farmer'
-      };
-    }
-  } catch (e) { }
+  // 8. Check Mongo User model only for legacy non-UUID MongoDB users if connected
+  const mongoose = require('mongoose');
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    try {
+      const User = require('../models/User');
+      const u = await User.findOne({
+        $or: [
+          ...(email ? [{ email }] : []),
+          ...(phone ? [{ phone }] : []),
+          ...(authUserId.length === 24 ? [{ _id: authUserId }] : [])
+        ]
+      }).lean();
+      if (u) {
+        return {
+          id: isUUID ? userId : String(u._id),
+          auth_user_id: authUserId || String(u._id),
+          name: u.name,
+          email: u.email,
+          village: u.village || '',
+          block: u.block || '',
+          district: u.district || 'Pune',
+          role: u.role || 'farmer'
+        };
+      }
+    } catch (e) { }
+  }
 
   return null;
 }
