@@ -22,6 +22,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
 import animalService from '../../src/services/animalService';
 import caseService from '../../src/services/caseService';
+import notificationService from '../../src/services/notificationService';
 import { Animal } from '../../src/types/animal';
 import { DiseaseCase } from '../../src/types/case';
 import { calculateVaccinationMetrics } from '../../src/types/vaccination';
@@ -32,6 +33,7 @@ export default function FarmerHomeScreen() {
 
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [cases, setCases] = useState<DiseaseCase[]>([]);
+  const [unreadAlertsCount, setUnreadAlertsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export default function FarmerHomeScreen() {
   const fetchDashboardData = useCallback(async () => {
     try {
       setErrorMessage(null);
-      const [animalList, caseList] = await Promise.all([
+      const [animalList, caseList, notifList] = await Promise.all([
         animalService.getAnimals().catch((err) => {
           console.warn('Dashboard: Failed to load animals:', err);
           return [] as Animal[];
@@ -48,17 +50,24 @@ export default function FarmerHomeScreen() {
           console.warn('Dashboard: Failed to load cases:', err);
           return [] as DiseaseCase[];
         }),
+        notificationService
+          .getFarmerNotifications({ userId: user?.id || user?._id, district: user?.district })
+          .catch((err) => {
+            console.warn('Dashboard: Failed to load notifications:', err);
+            return [];
+          }),
       ]);
 
       setAnimals(animalList);
       setCases(caseList);
+      setUnreadAlertsCount(notificationService.getUnreadCount(notifList));
     } catch (err: any) {
       setErrorMessage(err.message || 'Unable to refresh dashboard data.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.id, user?._id, user?.district]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -439,9 +448,18 @@ export default function FarmerHomeScreen() {
             style={styles.serviceTile}
             onPress={() => router.push('/(farmer)/notifications' as any)}
           >
-            <Text style={styles.serviceIcon}>🔔</Text>
+            <View style={styles.serviceTileHeader}>
+              <Text style={styles.serviceIcon}>🔔</Text>
+              {unreadAlertsCount > 0 && (
+                <View style={styles.serviceBadge}>
+                  <Text style={styles.serviceBadgeText}>{unreadAlertsCount}</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.serviceTitle}>Alerts</Text>
-            <Text style={styles.serviceSub}>Disease warnings</Text>
+            <Text style={styles.serviceSub}>
+              {unreadAlertsCount > 0 ? `${unreadAlertsCount} unread warnings` : 'Disease warnings'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -825,6 +843,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.light.border,
     ...shadows.sm,
+  },
+  serviceTileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  serviceBadge: {
+    backgroundColor: colors.light.danger,
+    borderRadius: radii.round,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    minWidth: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceBadgeText: {
+    color: colors.light.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
   },
   serviceIcon: {
     fontSize: 22,
