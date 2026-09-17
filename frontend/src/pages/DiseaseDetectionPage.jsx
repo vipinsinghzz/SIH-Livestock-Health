@@ -13,6 +13,7 @@ import {
   Info,
   Check,
   AlertTriangle,
+  AlertCircle,
   Activity,
   Cpu,
   Thermometer,
