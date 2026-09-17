@@ -488,6 +488,39 @@ exports.createAnimal = async (req, res, next) => {
       }
     }
 
+    // Insert initial vaccinations into Supabase animal_vaccinations table if provided
+    const targetAnimId = animal.id || animal._id;
+    const initialVacc = (Array.isArray(vaccinationHistory) && vaccinationHistory.length > 0)
+      ? vaccinationHistory
+      : (Array.isArray(req.body.vaccinations) ? req.body.vaccinations : []);
+
+    if (initialVacc.length > 0 && targetAnimId) {
+      for (const v of initialVacc) {
+        try {
+          await supabaseDb.animalVaccinations.create({
+            animal_id: targetAnimId,
+            vaccine_name: v.vaccine || v.name || v.vaccineName || 'Routine Vaccine',
+            date: v.date ? new Date(v.date) : new Date(),
+            next_due: v.nextDue ? new Date(v.nextDue) : null,
+            status: v.status || 'Completed',
+            dose: v.dose || 'Primary Dose',
+            batch_number: v.batchNumber || '',
+            administered_by: v.administeredBy || (req.user ? req.user.name : ''),
+            camp: v.camp || '',
+            notes: v.notes || ''
+          });
+        } catch (ve) {
+          console.warn('[Animal] Initial vaccination creation notice:', ve.message);
+        }
+      }
+      const loadedVacc = await supabaseDb.animalVaccinations.findByAnimalId(targetAnimId);
+      animal.vaccinations = loadedVacc;
+      animal.vaccinationHistory = loadedVacc;
+    } else {
+      animal.vaccinations = animal.vaccinations || [];
+      animal.vaccinationHistory = animal.vaccinationHistory || [];
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Animal profile registered successfully.',
@@ -573,14 +606,15 @@ exports.updateAnimal = async (req, res, next) => {
 
       if (req.body.newVaccination) {
         const nv = req.body.newVaccination;
-        const vName = nv.vaccine || nv.name;
+        const vName = nv.vaccine || nv.name || nv.vaccineName;
         if (vName) {
           try {
-            await supabaseDb.supabase.from('animal_vaccinations').insert({
+            await supabaseDb.animalVaccinations.create({
               animal_id: targetAnimalId,
               vaccine_name: vName,
               date: nv.date ? new Date(nv.date) : new Date(),
               next_due: nv.nextDue ? new Date(nv.nextDue) : null,
+              status: nv.status || 'Completed',
               dose: nv.dose || 'Primary Dose',
               batch_number: nv.batchNumber || '',
               administered_by: nv.administeredBy || '',
@@ -679,8 +713,10 @@ exports.updateAnimal = async (req, res, next) => {
 
     const updated = await supabaseDb.animals.updateById(existing.id || existing._id, dbUpdates);
 
-    const returnAnimal = updated ? { ...updated } : { ...existing, ...dbUpdates };
-    if (updates.timeline) {
+    // Reload complete record with embedded vaccinations and timeline
+    const reloaded = await supabaseDb.animals.findById(existing.id || existing._id);
+    const returnAnimal = reloaded || (updated ? { ...updated } : { ...existing, ...dbUpdates });
+    if (updates.timeline && !returnAnimal.timeline) {
       returnAnimal.timeline = updates.timeline;
     }
 

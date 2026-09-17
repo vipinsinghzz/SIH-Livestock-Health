@@ -334,9 +334,9 @@ exports.registerForCamp = async (req, res, next) => {
 
     for (const animal of verifiedAnimals) {
       const animId = animal.id || animal._id;
-      if (supabaseDb.supabase) {
+      if (supabaseDb.animalVaccinations) {
         try {
-          await supabaseDb.supabase.from('animal_vaccinations').insert({
+          await supabaseDb.animalVaccinations.create({
             animal_id: animId,
             vaccine_name: drive.vaccineFullName || drive.vaccine,
             date: campDateObj.toISOString(),
@@ -349,7 +349,9 @@ exports.registerForCamp = async (req, res, next) => {
         } catch (ve) {
           console.warn('[VaccinationController] Notice inserting scheduled vaccination:', ve.message);
         }
+      }
 
+      if (supabaseDb.supabase) {
         try {
           await supabaseDb.supabase.from('animal_timeline').insert({
             animal_id: animId,

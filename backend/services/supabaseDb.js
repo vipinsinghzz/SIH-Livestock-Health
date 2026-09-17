@@ -17,6 +17,7 @@ const crypto = require('crypto');
 
 // In-memory animal store for offline/test mode (when live Supabase is offline)
 const OFFLINE_ANIMALS = [];
+const OFFLINE_VACCINATIONS = [];
 
 // Mongoose Models for fallback during transition
 const User = require('../models/User');
@@ -100,6 +101,110 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     Math.sin(dLon / 2) *
     Math.sin(dLon / 2);
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+// ============================================================================
+// VACCINATION NORMALIZATION & HONEST DATE-BASED STATUS SEMANTICS (Phase 6.3)
+// ============================================================================
+/**
+ * Computes authoritative semantic vaccination status from stored dates and record status.
+ *
+ * Semantic Rules:
+ * 1. "Overdue":
+ *    - Next booster/renewal date (nextDue) is in the past (nextDue < now).
+ *    - Or scheduled appointment date is in the past without completion record (date < now).
+ *    - Or stored status is explicitly 'Overdue'.
+ * 2. "Due Soon":
+ *    - Next booster/renewal date is within the next 30 days (now <= nextDue <= now + 30 days).
+ *    - Or scheduled appointment date is within the next 30 days (now <= date <= now + 30 days).
+ * 3. "Upcoming":
+ *    - Next booster/renewal date is more than 30 days in the future (nextDue > now + 30 days).
+ *    - Or scheduled appointment is more than 30 days in the future (date > now + 30 days).
+ *    - Note: Per Phase 6.3 rules, a vaccination scheduled far in the future is NOT marked "Due Soon".
+ * 4. "Scheduled":
+ *    - Stored status is 'Scheduled' (when no specific date-window classification overrides).
+ * 5. "Completed":
+ *    - Stored status is 'Completed' or 'Administered' and no nextDue is overdue/due soon.
+ *    - Default state for past administered doses.
+ */
+function computeVaccinationStatus(record) {
+  if (!record) return 'Completed';
+
+  const now = Date.now();
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  const rawStatus = (record.status || '').trim();
+
+  // 1. Check nextDue booster date
+  const nextDueDateStr = record.nextDue || record.next_due;
+  if (nextDueDateStr) {
+    const nextTime = new Date(nextDueDateStr).getTime();
+    if (!isNaN(nextTime)) {
+      if (nextTime < now) {
+        return 'Overdue';
+      }
+      if (nextTime <= now + thirtyDaysMs) {
+        return 'Due Soon';
+      }
+      // If nextDue is > 30 days away, and this record was already administered
+      if (rawStatus.toLowerCase() === 'completed' || rawStatus.toLowerCase() === 'administered') {
+        return 'Completed';
+      }
+      return 'Upcoming';
+    }
+  }
+
+  // 2. Check Scheduled camp/appointment date
+  if (rawStatus.toLowerCase() === 'scheduled') {
+    const schedDateStr = record.date;
+    if (schedDateStr) {
+      const schedTime = new Date(schedDateStr).getTime();
+      if (!isNaN(schedTime)) {
+        if (schedTime < now) {
+          return 'Overdue'; // Missed scheduled camp
+        }
+        if (schedTime <= now + thirtyDaysMs) {
+          return 'Due Soon'; // Scheduled within 30 days
+        }
+        return 'Upcoming'; // Scheduled far in future (> 30 days)
+      }
+    }
+    return 'Scheduled';
+  }
+
+  if (rawStatus.toLowerCase() === 'overdue') {
+    return 'Overdue';
+  }
+
+  if (rawStatus.toLowerCase() === 'completed' || rawStatus.toLowerCase() === 'administered') {
+    return 'Completed';
+  }
+
+  return rawStatus || 'Completed';
+}
+
+function normalizeVaccination(v) {
+  if (!v) return null;
+  const camelV = toCamel(v);
+  const vName = camelV.vaccineName || camelV.name || camelV.vaccine || 'Routine Vaccination';
+  const computed = computeVaccinationStatus(camelV);
+
+  return {
+    id: camelV.id || camelV._id || crypto.randomUUID(),
+    animalId: camelV.animalId || camelV.animal_id || '',
+    name: vName,
+    vaccine: vName,
+    vaccineName: vName,
+    date: camelV.date ? new Date(camelV.date).toISOString() : new Date().toISOString(),
+    nextDue: camelV.nextDue ? new Date(camelV.nextDue).toISOString() : null,
+    status: camelV.status || 'Completed',
+    computedStatus: computed,
+    dose: camelV.dose || 'Primary Dose',
+    batchNumber: camelV.batchNumber || '',
+    administeredBy: camelV.administeredBy || '',
+    camp: camelV.camp || '',
+    notes: camelV.notes || '',
+    createdAt: camelV.createdAt || camelV.created_at || new Date().toISOString()
+  };
 }
 
 // ============================================================================
@@ -270,24 +375,43 @@ const animals = {
             try {
               const animalIds = data.map((a) => a.id).filter(Boolean);
               if (animalIds.length > 0) {
-                const { data: timelines } = await supabase
-                  .from('animal_timeline')
-                  .select('*')
-                  .in('animal_id', animalIds)
-                  .order('created_at', { ascending: false });
+                // Batch-query timelines and vaccinations concurrently in O(1) roundtrips (Zero N+1)
+                const [timelineRes, vaccRes] = await Promise.all([
+                  supabase
+                    .from('animal_timeline')
+                    .select('*')
+                    .in('animal_id', animalIds)
+                    .order('created_at', { ascending: false }),
+                  supabase
+                    .from('animal_vaccinations')
+                    .select('*')
+                    .in('animal_id', animalIds)
+                    .order('date', { ascending: false })
+                ]);
 
                 const timelineMap = new Map();
-                if (timelines) {
-                  timelines.forEach((t) => {
+                if (timelineRes && timelineRes.data) {
+                  timelineRes.data.forEach((t) => {
                     if (!timelineMap.has(t.animal_id)) timelineMap.set(t.animal_id, []);
                     timelineMap.get(t.animal_id).push(toCamel(t));
+                  });
+                }
+
+                const vaccMap = new Map();
+                if (vaccRes && vaccRes.data) {
+                  vaccRes.data.forEach((v) => {
+                    if (!vaccMap.has(v.animal_id)) vaccMap.set(v.animal_id, []);
+                    vaccMap.get(v.animal_id).push(normalizeVaccination(v));
                   });
                 }
 
                 return data.map((a) => {
                   const camelA = toCamel(a);
                   const tList = timelineMap.get(a.id) || [];
+                  const vList = vaccMap.get(a.id) || [];
                   camelA.timeline = tList;
+                  camelA.vaccinations = vList;
+                  camelA.vaccinationHistory = vList;
                   const diag = tList.find((e) => e.disease);
                   if (diag) {
                     camelA.disease = diag.disease;
@@ -297,10 +421,15 @@ const animals = {
                 });
               }
             } catch (te) {
-              console.warn('[SupabaseDb] Batch timeline fetch notice:', te.message);
+              console.warn('[SupabaseDb] Batch timeline/vaccination fetch notice:', te.message);
             }
           }
-          return toCamel(data);
+          return toCamel(data).map(a => ({
+            ...a,
+            timeline: a.timeline || [],
+            vaccinations: a.vaccinations || [],
+            vaccinationHistory: a.vaccinationHistory || []
+          }));
         }
       } catch (e) {
         console.error('[SupabaseDb] animals.find exception:', e.message);
@@ -321,7 +450,26 @@ const animals = {
       if (filter.species) matches = matches.filter(a => a.species === filter.species);
       if (filter.village) matches = matches.filter(a => (a.village || '').toLowerCase().includes(filter.village.toLowerCase()));
       if (matches.length > 0) {
-        return toCamel(matches);
+        return matches.map((a) => {
+          const camelA = toCamel(a);
+          const animalId = String(camelA.id || camelA._id);
+          const offlineVaccs = OFFLINE_VACCINATIONS.filter(v => String(v.animalId || v.animal_id) === animalId);
+          const combined = [...(camelA.vaccinations || []), ...offlineVaccs];
+          const seen = new Set();
+          const uniqueVacc = [];
+          for (const rawV of combined) {
+            const v = normalizeVaccination(rawV);
+            const vKey = v.id || `${v.vaccine}-${v.date}`;
+            if (!seen.has(vKey)) {
+              seen.add(vKey);
+              uniqueVacc.push(v);
+            }
+          }
+          camelA.vaccinations = uniqueVacc;
+          camelA.vaccinationHistory = uniqueVacc;
+          camelA.timeline = camelA.timeline || [];
+          return camelA;
+        });
       }
     }
 
@@ -346,7 +494,17 @@ const animals = {
         .populate('ownerId', 'name phone email village block district')
         .sort({ createdAt: -1 })
         .lean();
-      return toCamel(res);
+      return (res || []).map((doc) => {
+        const camelDoc = toCamel(doc);
+        const rawVacc = (camelDoc.vaccinations && camelDoc.vaccinations.length > 0)
+          ? camelDoc.vaccinations
+          : (camelDoc.vaccinationHistory || []);
+        const normVacc = rawVacc.map(normalizeVaccination);
+        camelDoc.vaccinations = normVacc;
+        camelDoc.vaccinationHistory = normVacc;
+        camelDoc.timeline = camelDoc.timeline || [];
+        return camelDoc;
+      });
     } catch (e) {
       return [];
     }
@@ -404,8 +562,9 @@ const animals = {
               .select('*')
               .eq('animal_id', id)
               .order('date', { ascending: false });
-            res.vaccinations = toCamel(vaccData || []);
-            res.vaccinationHistory = toCamel(vaccData || []);
+            const normalizedVacc = (vaccData || []).map(normalizeVaccination);
+            res.vaccinations = normalizedVacc;
+            res.vaccinationHistory = normalizedVacc;
           } catch (ve) { res.vaccinations = []; res.vaccinationHistory = []; }
 
           // Safely load treatments
@@ -439,7 +598,26 @@ const animals = {
     // Fallback to OFFLINE_ANIMALS if offline
     if (!isLiveSupabase && OFFLINE_ANIMALS.length > 0) {
       const offlineMatch = OFFLINE_ANIMALS.find(a => a.id === id || a._id === id);
-      if (offlineMatch) return toCamel(offlineMatch);
+      if (offlineMatch) {
+        const camelA = toCamel(offlineMatch);
+        const animalId = String(camelA.id || camelA._id);
+        const offlineVaccs = OFFLINE_VACCINATIONS.filter(v => String(v.animalId || v.animal_id) === animalId);
+        const combined = [...(camelA.vaccinations || []), ...offlineVaccs];
+        const seen = new Set();
+        const uniqueVacc = [];
+        for (const rawV of combined) {
+          const v = normalizeVaccination(rawV);
+          const vKey = v.id || `${v.vaccine}-${v.date}`;
+          if (!seen.has(vKey)) {
+            seen.add(vKey);
+            uniqueVacc.push(v);
+          }
+        }
+        camelA.vaccinations = uniqueVacc;
+        camelA.vaccinationHistory = uniqueVacc;
+        camelA.timeline = camelA.timeline || [];
+        return camelA;
+      }
     }
 
     // Fallback to Mongoose
@@ -449,7 +627,16 @@ const animals = {
         .lean();
       if (!animal) return null;
       const pastReports = await Report.find({ animalId: animal._id }).sort({ createdAt: -1 }).lean();
-      return toCamel({ ...animal, pastReports });
+      const rawVacc = (animal.vaccinations && animal.vaccinations.length > 0)
+        ? animal.vaccinations
+        : (animal.vaccinationHistory || []);
+      const normVacc = rawVacc.map(normalizeVaccination);
+      return toCamel({
+        ...animal,
+        vaccinations: normVacc,
+        vaccinationHistory: normVacc,
+        pastReports
+      });
     } catch (e) {
       return null;
     }
@@ -677,6 +864,115 @@ const animals = {
     } catch (e) {
       return false;
     }
+  }
+};
+
+// ============================================================================
+// 2.1 ANIMAL VACCINATIONS REPOSITORY (Phase 6.3)
+// ============================================================================
+const animalVaccinations = {
+  async findByAnimalId(animalId) {
+    if (!animalId) return [];
+    const cleanId = String(animalId).trim();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('animal_vaccinations')
+          .select('*')
+          .eq('animal_id', cleanId)
+          .order('date', { ascending: false });
+        if (!error && data) {
+          return data.map(normalizeVaccination);
+        }
+      } catch (e) {
+        console.warn('[SupabaseDb] animalVaccinations.findByAnimalId error:', e.message);
+      }
+    }
+
+    const offlineMatches = OFFLINE_VACCINATIONS.filter(v => String(v.animalId || v.animal_id) === cleanId);
+    return offlineMatches.map(normalizeVaccination);
+  },
+
+  async findByAnimalIds(animalIds = []) {
+    if (!Array.isArray(animalIds) || animalIds.length === 0) return [];
+    const cleanIds = animalIds.map(id => String(id).trim()).filter(Boolean);
+    if (cleanIds.length === 0) return [];
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('animal_vaccinations')
+          .select('*')
+          .in('animal_id', cleanIds)
+          .order('date', { ascending: false });
+        if (!error && data) {
+          return data.map(normalizeVaccination);
+        }
+      } catch (e) {
+        console.warn('[SupabaseDb] animalVaccinations.findByAnimalIds error:', e.message);
+      }
+    }
+
+    const idSet = new Set(cleanIds);
+    const offlineMatches = OFFLINE_VACCINATIONS.filter(v => idSet.has(String(v.animalId || v.animal_id)));
+    return offlineMatches.map(normalizeVaccination);
+  },
+
+  async create(data) {
+    const snake = toSnake(data);
+    const vName = snake.vaccine_name || snake.name || snake.vaccine || 'Routine Vaccination';
+    const cleanAnimId = String(snake.animal_id || data.animalId || '').trim();
+
+    const insertPayload = {
+      animal_id: cleanAnimId,
+      vaccine_name: vName,
+      date: snake.date ? new Date(snake.date).toISOString() : new Date().toISOString(),
+      next_due: snake.next_due ? new Date(snake.next_due).toISOString() : null,
+      status: snake.status || 'Completed',
+      dose: snake.dose || 'Primary Dose',
+      batch_number: snake.batch_number || '',
+      administered_by: snake.administered_by || '',
+      camp: snake.camp || '',
+      notes: snake.notes || ''
+    };
+
+    if (supabase) {
+      try {
+        const { data: inserted, error } = await supabase
+          .from('animal_vaccinations')
+          .insert(insertPayload)
+          .select('*')
+          .single();
+        if (!error && inserted) {
+          return normalizeVaccination(inserted);
+        }
+        if (error) {
+          console.warn('[SupabaseDb] animalVaccinations.create Supabase warning:', error.message);
+        }
+      } catch (e) {
+        console.warn('[SupabaseDb] animalVaccinations.create exception:', e.message);
+      }
+    }
+
+    // Save into offline store for resilient/offline test environments
+    const offlineItem = {
+      ...toCamel(insertPayload),
+      id: crypto.randomUUID(),
+      animalId: cleanAnimId,
+      createdAt: new Date().toISOString()
+    };
+    OFFLINE_VACCINATIONS.push(offlineItem);
+
+    // Also attach to matching OFFLINE_ANIMALS if present
+    const targetAnim = OFFLINE_ANIMALS.find(a => String(a.id || a._id) === cleanAnimId);
+    if (targetAnim) {
+      if (!targetAnim.vaccinations) targetAnim.vaccinations = [];
+      if (!targetAnim.vaccinationHistory) targetAnim.vaccinationHistory = [];
+      targetAnim.vaccinations.unshift(offlineItem);
+      targetAnim.vaccinationHistory.unshift(offlineItem);
+    }
+
+    return normalizeVaccination(offlineItem);
   }
 };
 
@@ -2170,12 +2466,15 @@ module.exports = {
   advisories,
   vaccinationDrives,
   campRegistrations,
+  animalVaccinations,
   containmentZones,
   outbreaks,
   notifications,
   dashboard,
   auditLogs,
   scanImages,
+  computeVaccinationStatus,
+  normalizeVaccination,
   toCamel,
   toSnake
 };
