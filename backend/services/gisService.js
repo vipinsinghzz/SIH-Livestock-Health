@@ -84,17 +84,9 @@ class GisService {
       }
     }
 
-    // Resilient fallback for local test / offline environments
+    // Resilient fallback for local test / offline environments or when PostGIS RPC is not installed
     try {
-      const cutoff = new Date(Date.now() - (days * 24 * 60 * 60 * 1000));
-      const query = {
-        createdAt: { $gte: cutoff }
-      };
-      if (district) {
-        query.districtId = new RegExp(district, 'i');
-      }
-
-      const docs = await DiseaseCase.find(query).lean();
+      const docs = await supabaseDb.diseaseCases.find({ districtId: district });
       const results = [];
 
       for (const doc of docs) {
@@ -104,7 +96,7 @@ class GisService {
           const dist = haversineDistance(parseFloat(lat), parseFloat(lng), parseFloat(cLat), parseFloat(cLng));
           if (dist <= radiusKm) {
             results.push({
-              id: doc._id?.toString() || doc.id,
+              id: doc.id || doc._id?.toString(),
               caseId: doc.caseId,
               disease: doc.disease,
               species: doc.species,
@@ -176,10 +168,10 @@ class GisService {
 
     // Resilient fallback clustering
     try {
-      const activeCases = await DiseaseCase.find({
-        districtId: new RegExp(district, 'i'),
-        status: { $nin: ['Resolved', 'RESOLVED'] }
-      }).lean();
+      const activeCases = await supabaseDb.diseaseCases.find({
+        districtId: district,
+        status: ['New', 'Investigating', 'Confirmed', 'Containment', 'OPEN', 'ACCEPTED', 'IN_TREATMENT']
+      });
 
       return this.clusterCases(activeCases, distanceKm, minCases);
     } catch (e) {

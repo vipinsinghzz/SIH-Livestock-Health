@@ -178,9 +178,10 @@ export default function FarmerDashboard() {
     const unsub = caseService.subscribeToCaseStream((evt) => {
       if (evt.case) {
         setFarmerReferrals((prev) => {
-          const exists = prev.some((c) => c._id === evt.case._id);
+          const targetKey = evt.case.id || evt.case.caseId || evt.case._id;
+          const exists = prev.some((c) => (c.id || c.caseId || c._id) === targetKey);
           if (exists) {
-            return prev.map((c) => (c._id === evt.case._id ? evt.case : c));
+            return prev.map((c) => ((c.id || c.caseId || c._id) === targetKey ? evt.case : c));
           }
           return [evt.case, ...prev];
         });
@@ -405,63 +406,73 @@ export default function FarmerDashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {farmerReferrals.slice(0, 4).map((refCase) => (
-              <div
-                key={refCase._id}
-                className="bg-white rounded-xl p-4 border border-rose-200/90 shadow-2xs flex items-start justify-between gap-3 text-sm"
-              >
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs text-slate-800 bg-stone-100 px-2 py-0.5 rounded">
-                      {refCase.caseId}
-                    </span>
-                    <span
-                      className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
-                        refCase.status === 'Investigating' || refCase.status === 'ACCEPTED'
-                          ? 'bg-blue-100 text-blue-800'
-                          : refCase.status === 'Confirmed'
-                          ? 'bg-amber-100 text-amber-800'
-                          : refCase.status === 'Containment' || refCase.status === 'IN_TREATMENT'
-                          ? 'bg-purple-100 text-purple-800'
-                          : refCase.status === 'Resolved' || refCase.status === 'RESOLVED'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800 animate-pulse'
-                      }`}
-                    >
-                      {refCase.status}
-                    </span>
-                  </div>
+            {farmerReferrals.slice(0, 4).map((refCase) => {
+              const vet = (refCase.assignedVet && typeof refCase.assignedVet === 'object')
+                ? refCase.assignedVet
+                : (refCase.assignedVetId && typeof refCase.assignedVetId === 'object')
+                ? refCase.assignedVetId
+                : null;
+              const vetName = vet?.name || (typeof refCase.assignedVet === 'string' ? refCase.assignedVet : null);
+              const vetPhone = vet?.phone || null;
 
-                  <h4 className="font-black text-slate-900 text-lg">{refCase.disease}</h4>
-                  <p className="text-sm text-slate-600 font-medium">
-                    {refCase.species} {refCase.animalName ? `• ${refCase.animalName}` : ''} • {refCase.districtId}
-                  </p>
-
-                  {refCase.assignedVetId ? (
-                    <div className="pt-1 flex items-center gap-2.5 text-xs sm:text-sm text-emerald-900 font-bold">
-                      <span>👨‍⚕️ Dr. {refCase.assignedVetId.name}</span>
-                      {refCase.assignedVetId.phone && (
-                        <a
-                          href={`tel:${refCase.assignedVetId.phone}`}
-                          className="px-2.5 py-1 bg-emerald-700 text-white rounded-lg font-bold flex items-center gap-1 shadow-xs hover:bg-emerald-800 transition"
-                        >
-                          <PhoneCall className="w-3 h-3" />
-                          <span>Call</span>
-                        </a>
-                      )}
+              return (
+                <div
+                  key={refCase.id || refCase.caseId || refCase._id}
+                  className="bg-white rounded-xl p-4 border border-rose-200/90 shadow-2xs flex items-start justify-between gap-3 text-sm"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-xs text-slate-800 bg-stone-100 px-2 py-0.5 rounded">
+                        {refCase.caseId}
+                      </span>
+                      <span
+                        className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                          refCase.status === 'Investigating' || refCase.status === 'ACCEPTED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : refCase.status === 'Confirmed'
+                            ? 'bg-amber-100 text-amber-800'
+                            : refCase.status === 'Containment' || refCase.status === 'IN_TREATMENT'
+                            ? 'bg-purple-100 text-purple-800'
+                            : refCase.status === 'Resolved' || refCase.status === 'RESOLVED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800 animate-pulse'
+                        }`}
+                      >
+                        {refCase.status}
+                      </span>
                     </div>
-                  ) : (
-                    <p className="pt-1 text-xs sm:text-sm text-amber-800 font-medium">
-                      ⏳ {isEnglish ? 'Notifying district veterinarians...' : 'जिले के डॉक्टरों को सूचित किया जा रहा है...'}
+
+                    <h4 className="font-black text-slate-900 text-lg">{refCase.disease}</h4>
+                    <p className="text-sm text-slate-600 font-medium">
+                      {refCase.species} {refCase.animalName ? `• ${refCase.animalName}` : ''} • {refCase.districtId}
                     </p>
-                  )}
-                </div>
+
+                    {vetName ? (
+                      <div className="pt-1 flex items-center gap-2.5 text-xs sm:text-sm text-emerald-900 font-bold">
+                        <span>👨‍⚕️ Dr. {vetName}</span>
+                        {vetPhone && (
+                          <a
+                            href={`tel:${vetPhone}`}
+                            className="px-2.5 py-1 bg-emerald-700 text-white rounded-lg font-bold flex items-center gap-1 shadow-xs hover:bg-emerald-800 transition"
+                          >
+                            <PhoneCall className="w-3 h-3" />
+                            <span>Call</span>
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="pt-1 text-xs sm:text-sm text-amber-800 font-medium">
+                        ⏳ {isEnglish ? 'Notifying district veterinarians...' : 'जिले के डॉक्टरों को सूचित किया जा रहा है...'}
+                      </p>
+                    )}
+                  </div>
 
                 <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
                   {new Date(refCase.createdAt).toLocaleDateString('en-GB')}
                 </span>
               </div>
-            ))}
+            );
+          })}
           </div>
         </div>
       )}

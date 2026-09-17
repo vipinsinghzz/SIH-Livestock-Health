@@ -11,9 +11,9 @@ router.use(protect);
 
 router.route('/')
   .get(getLabReferrals)
-  .post(authorize('field_worker', 'officer', 'admin'), createLabReferral);
+  .post(authorize('veterinarian', 'field_worker', 'officer', 'admin'), createLabReferral);
 
 router.route('/:id')
-  .patch(authorize('field_worker', 'officer', 'admin'), updateLabReferral);
+  .patch(authorize('veterinarian', 'field_worker', 'officer', 'admin'), updateLabReferral);
 
 module.exports = router;

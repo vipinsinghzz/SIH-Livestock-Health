@@ -1642,7 +1642,20 @@ const diseaseCases = {
         }
 
         const { data, error } = await q.maybeSingle();
-        if (data && !error) return toCamel(data);
+        if (data && !error) {
+          const caseObj = toCamel(data);
+          if (data.animal_id) {
+            try {
+              const { data: treatRows } = await supabase
+                .from('animal_treatments')
+                .select('*, vet:profiles!animal_treatments_vet_id_fkey(name, phone, clinic_name)')
+                .eq('animal_id', data.animal_id)
+                .order('date', { ascending: false });
+              if (treatRows) caseObj.treatments = treatRows.map(toCamel);
+            } catch (tErr) {}
+          }
+          return caseObj;
+        }
         if (error) {
           console.warn('[SupabaseDb] diseaseCases.findById error:', error.message);
         }
@@ -1680,7 +1693,7 @@ const diseaseCases = {
           .from('disease_cases')
           .update({
             assigned_vet_id: vetId,
-            status: 'ACCEPTED',
+            status: 'Investigating',
             accepted_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
@@ -1704,7 +1717,7 @@ const diseaseCases = {
         if (data && !error) {
           await supabase.from('case_timeline').insert({
             case_id: data.id,
-            status: 'ACCEPTED',
+            status: 'Investigating',
             updated_by: vetId,
             updater_name: vetName || 'Veterinarian',
             notes: `Case claimed by Dr. ${vetName || 'Veterinarian'}. Scheduled for immediate clinical examination.`
@@ -1749,7 +1762,7 @@ const diseaseCases = {
     return result;
   },
 
-  async updateStatus(id, newStatus, notes, updaterId, updaterName) {
+  async updateStatus(id, newStatus, notes, updaterId, updaterName, extraFields = {}) {
     if (!id || !newStatus) return null;
     const cleanId = String(id).trim();
     let result = null;
@@ -1757,12 +1770,53 @@ const diseaseCases = {
     if (supabase) {
       try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+        const updatePayload = {
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        };
+
+        if (extraFields.clinicalDiagnosis !== undefined) {
+          updatePayload.clinical_diagnosis = extraFields.clinicalDiagnosis;
+        }
+        if (extraFields.investigationNotes !== undefined) {
+          updatePayload.investigation_notes = extraFields.investigationNotes;
+        }
+        if (extraFields.treatmentNotes !== undefined) {
+          updatePayload.treatment_notes = extraFields.treatmentNotes;
+        }
+        if (extraFields.prescription !== undefined) {
+          updatePayload.prescription = extraFields.prescription;
+        }
+        if (extraFields.affectedCount !== undefined) {
+          updatePayload.affected_count = parseInt(extraFields.affectedCount, 10) || 1;
+        }
+        if (extraFields.containmentZoneId !== undefined) {
+          updatePayload.containment_zone_id = extraFields.containmentZoneId;
+        }
+        if (extraFields.ringVaccinationDriveId !== undefined) {
+          updatePayload.ring_vaccination_drive_id = extraFields.ringVaccinationDriveId;
+        }
+
+        const nowIso = new Date().toISOString();
+        if (newStatus === 'Investigating' || newStatus === 'ACCEPTED') {
+          updatePayload.accepted_at = nowIso;
+        }
+        if (newStatus === 'Confirmed') {
+          updatePayload.confirmed_at = nowIso;
+        }
+        if (newStatus === 'Containment' || newStatus === 'IN_TREATMENT') {
+          updatePayload.containment_started_at = nowIso;
+        }
+        if (newStatus === 'Resolved' || newStatus === 'RESOLVED') {
+          updatePayload.resolved_at = nowIso;
+        }
+        if (extraFields.treatmentNotes || extraFields.prescription) {
+          updatePayload.treatment_started_at = nowIso;
+        }
+
         let q = supabase
           .from('disease_cases')
-          .update({
-            status: newStatus,
-            updated_at: new Date().toISOString()
-          });
+          .update(updatePayload);
 
         if (isUuid) {
           q = q.or(`id.eq.${cleanId},case_id.eq.${cleanId}`);
@@ -1774,7 +1828,8 @@ const diseaseCases = {
           .select(`
             *,
             farmer:profiles!disease_cases_farmer_id_fkey(id, name, phone, email, district, village),
-            assignedVet:profiles!disease_cases_assigned_vet_id_fkey(id, name, phone, clinic_name, department)
+            assignedVet:profiles!disease_cases_assigned_vet_id_fkey(id, name, phone, clinic_name, department),
+            animal:animals(id, tag_id, name, species, breed)
           `)
           .single();
 
@@ -1796,10 +1851,17 @@ const diseaseCases = {
     if (!result && mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         const query = cleanId.match(/^[0-9a-fA-F]{24}$/) ? { _id: cleanId } : { caseId: cleanId };
+        const setFields = { status: newStatus };
+        if (extraFields.clinicalDiagnosis !== undefined) setFields.clinicalDiagnosis = extraFields.clinicalDiagnosis;
+        if (extraFields.investigationNotes !== undefined) setFields.investigationNotes = extraFields.investigationNotes;
+        if (extraFields.treatmentNotes !== undefined) setFields.treatmentNotes = extraFields.treatmentNotes;
+        if (extraFields.prescription !== undefined) setFields.prescription = extraFields.prescription;
+        if (extraFields.affectedCount !== undefined) setFields.affectedCount = extraFields.affectedCount;
+
         const updated = await DiseaseCase.findOneAndUpdate(
           query,
           {
-            $set: { status: newStatus },
+            $set: setFields,
             $push: {
               timeline: {
                 status: newStatus,
@@ -1878,6 +1940,60 @@ const caseNotifiedVets = {
 };
 
 // ============================================================================
+// 6.2 ANIMAL TREATMENTS (PRESCRIPTIONS & CLINICAL INTERVENTIONS) REPOSITORY
+// ============================================================================
+const animalTreatments = {
+  async create(data) {
+    let created = null;
+
+    if (supabase) {
+      try {
+        const snake = toSnake(data);
+        const { data: inserted, error } = await supabase
+          .from('animal_treatments')
+          .insert({
+            animal_id: snake.animal_id,
+            condition: snake.condition || snake.disease || 'Clinical Intervention',
+            treatment: snake.treatment || snake.treatment_notes || snake.prescription || 'Prescribed clinical treatment',
+            date: snake.date || new Date().toISOString(),
+            vet_id: snake.vet_id || null
+          })
+          .select('*, vet:profiles!animal_treatments_vet_id_fkey(name, phone, clinic_name, district)')
+          .single();
+
+        if (inserted && !error) {
+          created = toCamel(inserted);
+        } else if (error) {
+          console.warn('[SupabaseDb] animalTreatments.create error:', error.message);
+        }
+      } catch (e) {
+        console.warn('[SupabaseDb] animalTreatments.create exception:', e.message);
+      }
+    }
+
+    return created;
+  },
+
+  async findByAnimalId(animalId) {
+    if (!animalId) return [];
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('animal_treatments')
+          .select('*, vet:profiles!animal_treatments_vet_id_fkey(name, phone, clinic_name, district)')
+          .eq('animal_id', animalId)
+          .order('date', { ascending: false });
+
+        if (data && !error) return data.map(toCamel);
+      } catch (e) { }
+    }
+
+    return [];
+  }
+};
+
+// ============================================================================
 // 7. LABORATORY WORKFLOW REPOSITORY
 // ============================================================================
 const labReferrals = {
@@ -1898,36 +2014,115 @@ const labReferrals = {
             collected_by: snake.collected_by || null,
             result_summary: snake.result_summary || {}
           })
-          .select()
+          .select('*, report:reports(*), collector:profiles!lab_referrals_collected_by_fkey(name, phone, role)')
           .single();
         if (inserted && !error) created = toCamel(inserted);
+        else if (error) console.warn('[SupabaseDb] labReferrals.create error:', error.message);
+      } catch (e) {
+        console.warn('[SupabaseDb] labReferrals.create exception:', e.message);
+      }
+    }
+
+    if (!created && mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const doc = await LabReferral.create(data);
+        if (doc) created = toCamel(doc.toObject ? doc.toObject() : doc);
       } catch (e) { }
     }
 
-    try {
-      const doc = await LabReferral.create(data);
-      if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) { }
-
     return created;
+  },
+
+  async findById(id) {
+    if (!id) return null;
+    const cleanId = String(id).trim();
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('lab_referrals')
+          .select('*, report:reports(*), collector:profiles!lab_referrals_collected_by_fkey(name, phone, role)')
+          .eq('id', cleanId)
+          .maybeSingle();
+
+        if (data && !error) return toCamel(data);
+      } catch (e) { }
+    }
+
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const doc = await LabReferral.findById(cleanId).populate('reportId').lean();
+        if (doc) return toCamel(doc);
+      } catch (e) { }
+    }
+
+    return null;
+  },
+
+  async updateById(id, data) {
+    if (!id) return null;
+    const cleanId = String(id).trim();
+    const snake = toSnake(data);
+    let updated = null;
+
+    if (supabase) {
+      try {
+        const updatePayload = {
+          updated_at: new Date().toISOString()
+        };
+        if (snake.status !== undefined) updatePayload.status = snake.status;
+        if (snake.result_summary !== undefined) updatePayload.result_summary = snake.result_summary;
+        if (snake.referred_lab !== undefined) updatePayload.referred_lab = snake.referred_lab;
+        if (snake.sample_type !== undefined) updatePayload.sample_type = snake.sample_type;
+
+        const { data: row, error } = await supabase
+          .from('lab_referrals')
+          .update(updatePayload)
+          .eq('id', cleanId)
+          .select('*, report:reports(*), collector:profiles!lab_referrals_collected_by_fkey(name, phone, role)')
+          .single();
+
+        if (row && !error) updated = toCamel(row);
+        if (error) console.warn('[SupabaseDb] labReferrals.updateById notice:', error.message);
+      } catch (e) {
+        console.warn('[SupabaseDb] labReferrals.updateById exception:', e.message);
+      }
+    }
+
+    if (!updated && mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const doc = await LabReferral.findByIdAndUpdate(cleanId, data, { new: true }).populate('reportId').lean();
+        if (doc) updated = toCamel(doc);
+      } catch (e) { }
+    }
+
+    return updated;
   },
 
   async find(filter = {}) {
     if (supabase) {
       try {
-        let q = supabase.from('lab_referrals').select('*, report:reports(*)').order('created_at', { ascending: false });
+        let q = supabase
+          .from('lab_referrals')
+          .select('*, report:reports(*), collector:profiles!lab_referrals_collected_by_fkey(name, phone, role)')
+          .order('created_at', { ascending: false });
         if (filter.status) q = q.eq('status', filter.status);
+        if (filter.sampleType) q = q.eq('sample_type', filter.sampleType);
         const { data, error } = await q;
         if (data && !error) return toCamel(data);
       } catch (e) { }
     }
 
-    try {
-      const docs = await LabReferral.find(filter).populate('reportId').sort({ createdAt: -1 }).lean();
-      return toCamel(docs);
-    } catch (e) {
-      return [];
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const docs = await LabReferral.find(filter).populate('reportId').sort({ createdAt: -1 }).lean();
+        return toCamel(docs);
+      } catch (e) {
+        return [];
+      }
     }
+
+    return [];
   }
 };
 
@@ -2372,35 +2567,125 @@ const containmentZones = {
     if (supabase) {
       try {
         const snake = toSnake(data);
+
+        // Resolve case_id to UUID if a caseId string was passed
+        let resolvedCaseUuid = null;
+        if (snake.case_id) {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(snake.case_id).trim());
+          if (isUuid) {
+            resolvedCaseUuid = String(snake.case_id).trim();
+          } else {
+            const { data: cRow } = await supabase
+              .from('disease_cases')
+              .select('id')
+              .eq('case_id', String(snake.case_id).trim())
+              .maybeSingle();
+            if (cRow) resolvedCaseUuid = cRow.id;
+          }
+        }
+
         const { data: inserted, error } = await supabase
           .from('containment_zones')
           .insert({
             zone_id: snake.zone_id || `ZONE-${Date.now()}`,
-            case_id: snake.case_id || null,
+            case_id: resolvedCaseUuid,
             disease: snake.disease || 'General Containment',
             district: snake.district || 'Pune',
             block: snake.block || '',
             village: snake.village || '',
-            center_lat: snake.center_lat || snake.latitude || 18.5204,
-            center_lng: snake.center_lng || snake.longitude || 73.8567,
-            radius_km: snake.radius_km || 5.0,
+            center_lat: parseFloat(snake.center_lat || snake.latitude || 18.5204),
+            center_lng: parseFloat(snake.center_lng || snake.longitude || 73.8567),
+            radius_km: parseFloat(snake.radius_km || 5.0),
             status: snake.status || 'ACTIVE',
-            enforced_rules: snake.enforced_rules || [],
+            enforced_rules: Array.isArray(snake.enforced_rules) ? snake.enforced_rules : [],
             created_by_vet_id: snake.created_by_vet_id || null,
             creator_name: snake.creator_name || ''
           })
           .select()
           .single();
-        if (inserted && !error) created = toCamel(inserted);
+
+        if (inserted && !error) {
+          created = toCamel(inserted);
+        } else if (error) {
+          console.warn('[SupabaseDb] containmentZones.create notice:', error.message);
+        }
+      } catch (e) {
+        console.warn('[SupabaseDb] containmentZones.create exception:', e.message);
+      }
+    }
+
+    if (!created && mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const doc = await ContainmentZone.create(data);
+        if (doc) created = toCamel(doc.toObject ? doc.toObject() : doc);
       } catch (e) { }
     }
 
-    try {
-      const doc = await ContainmentZone.create(data);
-      if (!created) created = toCamel(doc.toObject ? doc.toObject() : doc);
-    } catch (e) { }
-
     return created;
+  },
+
+  async findByZoneId(zoneId) {
+    if (!zoneId) return null;
+    const cleanId = String(zoneId).trim();
+
+    if (supabase) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+        let q = supabase.from('containment_zones').select('*');
+        if (isUuid) {
+          q = q.or(`id.eq.${cleanId},zone_id.eq.${cleanId}`);
+        } else {
+          q = q.eq('zone_id', cleanId);
+        }
+        const { data, error } = await q.maybeSingle();
+        if (data && !error) return toCamel(data);
+      } catch (e) { }
+    }
+
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const query = cleanId.match(/^[0-9a-fA-F]{24}$/) ? { _id: cleanId } : { zoneId: cleanId };
+        const doc = await ContainmentZone.findOne(query).lean();
+        if (doc) return toCamel(doc);
+      } catch (e) { }
+    }
+
+    return null;
+  },
+
+  async updateStatus(zoneId, status, notes) {
+    if (!zoneId || !status) return null;
+    const cleanId = String(zoneId).trim();
+    let updated = null;
+
+    if (supabase) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+        let q = supabase.from('containment_zones').update({
+          status: status,
+          updated_at: new Date().toISOString()
+        });
+
+        if (isUuid) {
+          q = q.or(`id.eq.${cleanId},zone_id.eq.${cleanId}`);
+        } else {
+          q = q.eq('zone_id', cleanId);
+        }
+
+        const { data, error } = await q.select().single();
+        if (data && !error) updated = toCamel(data);
+      } catch (e) { }
+    }
+
+    if (!updated && mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const query = cleanId.match(/^[0-9a-fA-F]{24}$/) ? { _id: cleanId } : { zoneId: cleanId };
+        const doc = await ContainmentZone.findOneAndUpdate(query, { status }, { new: true }).lean();
+        if (doc) updated = toCamel(doc);
+      } catch (e) { }
+    }
+
+    return updated;
   },
 
   async find(filter = {}) {
@@ -2414,12 +2699,14 @@ const containmentZones = {
       } catch (e) { }
     }
 
-    try {
-      const docs = await ContainmentZone.find(filter).sort({ createdAt: -1 }).lean();
-      return toCamel(docs);
-    } catch (e) {
-      return [];
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const docs = await ContainmentZone.find(filter).sort({ createdAt: -1 }).lean();
+        return toCamel(docs);
+      } catch (e) { }
     }
+
+    return [];
   }
 };
 
@@ -2819,6 +3106,7 @@ module.exports = {
   veterinarians,
   diseaseCases,
   caseNotifiedVets,
+  animalTreatments,
   labReferrals,
   advisories,
   vaccinationDrives,

@@ -594,13 +594,37 @@ exports.updateCaseStatus = async (req, res) => {
         clinicalDiagnosis ? ` Clinical diagnosis: ${clinicalDiagnosis}.` : ''
       }${treatmentNotes ? ' Clinical/Treatment notes updated.' : ''}`;
 
+    const extraFields = {
+      clinicalDiagnosis,
+      investigationNotes,
+      treatmentNotes,
+      prescription,
+      affectedCount
+    };
+
     const updated = await supabaseDb.diseaseCases.updateStatus(
       id,
       canonicalStatus,
       timelineNote,
       callerIdStr,
-      req.user.name
+      req.user.name,
+      extraFields
     );
+
+    // If animalId exists and clinical treatment is prescribed, insert into animal_treatments table
+    if (caseDoc.animalId && (treatmentNotes || prescription || clinicalDiagnosis)) {
+      try {
+        await supabaseDb.animalTreatments.create({
+          animalId: caseDoc.animalId,
+          condition: clinicalDiagnosis || caseDoc.disease || 'Clinical Intervention',
+          treatment: [prescription ? `Prescription: ${prescription}` : '', treatmentNotes].filter(Boolean).join(' | '),
+          vetId: callerIdStr,
+          date: new Date().toISOString()
+        });
+      } catch (treatErr) {
+        console.warn('[CaseController] Could not insert animal treatment record:', treatErr.message);
+      }
+    }
 
     // Update animal health record if resolved
     if (caseDoc.animalId && canonicalStatus === 'Resolved') {
@@ -812,13 +836,13 @@ exports.createContainmentZone = async (req, res) => {
     let linkedCase = null;
 
     if (caseId) {
-      linkedCase = await DiseaseCase.findById(caseId);
+      linkedCase = await supabaseDb.diseaseCases.findById(caseId);
       if (linkedCase) {
         targetDisease = targetDisease || linkedCase.disease;
         targetDistrict = targetDistrict || linkedCase.districtId;
         targetBlock = targetBlock || linkedCase.farmerLocation?.block || '';
         targetVillage = targetVillage || linkedCase.farmerLocation?.village || '';
-        targetCenter = targetCenter || linkedCase.coordinates;
+        targetCenter = targetCenter || (linkedCase.latitude && linkedCase.longitude ? { lat: linkedCase.latitude, lng: linkedCase.longitude } : linkedCase.coordinates);
       }
     }
 
@@ -836,7 +860,7 @@ exports.createContainmentZone = async (req, res) => {
       });
     }
 
-    const distPrefix = targetDistrict.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'DIS');
+    const distPrefix = (targetDistrict || 'DIS').slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'DIS');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const zoneId = `ZONE-2026-${distPrefix}-${randomSuffix}`;
 
@@ -847,61 +871,42 @@ exports.createContainmentZone = async (req, res) => {
       'Immediate ring vaccination within containment buffer'
     ];
 
-    const newZone = await ContainmentZone.create({
+    const rules = Array.isArray(enforcedRules) && enforcedRules.length ? enforcedRules : defaultRules;
+    const vetIdStr = String(req.user.id || req.user._id);
+
+    const newZone = await supabaseDb.containmentZones.create({
       zoneId,
-      caseId: linkedCase ? linkedCase._id : null,
+      caseId: linkedCase ? (linkedCase.id || linkedCase.caseId) : null,
       disease: targetDisease,
       district: targetDistrict,
       block: targetBlock,
       village: targetVillage,
-      center: {
-        lat: parseFloat(targetCenter.lat),
-        lng: parseFloat(targetCenter.lng)
-      },
+      centerLat: parseFloat(targetCenter.lat),
+      centerLng: parseFloat(targetCenter.lng),
       radiusKm: parseFloat(radiusKm) || 5.0,
       status: 'ACTIVE',
-      enforcedRules: Array.isArray(enforcedRules) && enforcedRules.length ? enforcedRules : defaultRules,
-      createdByVetId: req.user._id,
+      enforcedRules: rules,
+      createdByVetId: vetIdStr,
       creatorName: req.user.name,
       notes: notes || `Containment zone declared by Dr. ${req.user.name} for ${targetDisease} control.`
     });
 
     // If linked to a case, advance case to 'Containment'
     if (linkedCase) {
-      linkedCase.containmentZoneId = newZone._id;
-      linkedCase.status = 'Containment';
-      linkedCase.containmentStartedAt = new Date();
-      linkedCase.timeline.push({
-        status: 'Containment',
-        updatedBy: req.user._id,
-        updaterName: req.user.name,
-        timestamp: new Date(),
-        notes: `Containment Zone ${zoneId} established (${newZone.radiusKm} km radius).`
-      });
-      await linkedCase.save();
-
-      // Notify case owner
+      try {
+        await supabaseDb.diseaseCases.updateStatus(
+          linkedCase.id || linkedCase.caseId,
+          'Containment',
+          `Containment Zone ${zoneId} established (${newZone.radiusKm} km radius).`,
+          vetIdStr,
+          req.user.name,
+          { containmentZoneId: newZone.id }
+        );
+      } catch (caseErr) {
+        console.warn('[CaseController] Could not advance linked case to Containment:', caseErr.message);
+      }
       notificationService.notifyCaseUpdate(linkedCase, 'CONTAINMENT_ESTABLISHED');
     }
-
-    // Module 10: Dual-write to Supabase PostgreSQL
-    try {
-      await supabaseDb.containmentZones.create({
-        zoneId: newZone.zoneId,
-        caseId: linkedCase ? (linkedCase.caseId || linkedCase._id.toString()) : null,
-        disease: targetDisease,
-        district: targetDistrict,
-        block: targetBlock,
-        village: targetVillage,
-        centerLat: newZone.center?.lat,
-        centerLng: newZone.center?.lng,
-        radiusKm: newZone.radiusKm,
-        status: newZone.status,
-        enforcedRules: newZone.enforcedRules,
-        createdByVetId: String(req.user._id || req.user.id),
-        creatorName: req.user.name
-      });
-    } catch (sbErr) {}
 
     // Broadcast to district veterinary network
     notificationService.broadcastToDistrictVets(targetDistrict, 'CONTAINMENT_ZONE_CREATED', {
@@ -918,7 +923,7 @@ exports.createContainmentZone = async (req, res) => {
         'CREATE_CONTAINMENT_ZONE',
         'containment_zone',
         newZone.zoneId,
-        String(req.user._id || req.user.id),
+        vetIdStr,
         { disease: targetDisease, district: targetDistrict, radiusKm: newZone.radiusKm }
       );
     } catch (auditErr) {}
@@ -948,33 +953,24 @@ exports.getContainmentZones = async (req, res) => {
   try {
     const { district, status } = req.query;
     const targetDistrict = district || req.user.district || 'Pune';
-    const query = {
-      district: new RegExp(`^${escapeRegex(targetDistrict.trim())}$`, 'i')
-    };
 
-    if (status) {
-      query.status = status;
-    }
-
-    const rawZones = await ContainmentZone.find(query)
-      .populate('caseId', 'caseId disease risk species affectedCount coordinates status')
-      .populate('createdByVetId', 'name phone email registrationNo')
-      .populate('ringVaccinationDriveId', 'campId vaccine status campDate capacity')
-      .sort({ createdAt: -1 });
+    const rawZones = await supabaseDb.containmentZones.find({
+      district: targetDistrict,
+      status: status || undefined
+    });
 
     const userRole = req.user ? req.user.role : 'farmer';
     const zones = rawZones.map(z => {
       if (userRole !== 'farmer') {
         return z;
       }
-      // Farmer view: public biosecurity health alert only, no private case or vet contact details
       const center = z.center || { lat: z.centerLat, lng: z.centerLng };
       const fuzzedCenter = {
         lat: center.lat ? Math.round(center.lat * 100) / 100 : null,
         lng: center.lng ? Math.round(center.lng * 100) / 100 : null
       };
       return {
-        _id: z._id,
+        id: z.id,
         zoneId: z.zoneId,
         disease: z.disease,
         district: z.district,
@@ -1021,44 +1017,27 @@ exports.updateContainmentZoneStatus = async (req, res) => {
       });
     }
 
-    let zone = await ContainmentZone.findOne({ zoneId });
-    if (!zone) {
-      zone = await ContainmentZone.findById(zoneId);
-    }
-
-    if (!zone) {
+    const updatedZone = await supabaseDb.containmentZones.updateStatus(zoneId, status, notes);
+    if (!updatedZone) {
       return res.status(404).json({
         success: false,
         message: 'Containment zone not found.'
       });
     }
 
-    zone.status = status;
-    if (notes) {
-      zone.notes = `${zone.notes ? zone.notes + ' | ' : ''}${notes}`;
-    }
-    if (status === 'CONTAINED' && !zone.containedAt) {
-      zone.containedAt = new Date();
-    }
-    if (status === 'LIFTED') {
-      zone.liftedAt = new Date();
-    }
-
-    await zone.save();
-
-    notificationService.broadcastToDistrictVets(zone.district, 'CONTAINMENT_ZONE_UPDATED', {
-      zone,
+    notificationService.broadcastToDistrictVets(updatedZone.district, 'CONTAINMENT_ZONE_UPDATED', {
+      zone: updatedZone,
       timestamp: new Date()
     });
 
     try {
-      await realtimeHub.notifyContainmentZone(zone, 'UPDATED');
+      await realtimeHub.notifyContainmentZone(updatedZone, 'UPDATED');
     } catch (rtErr) {}
 
     res.json({
       success: true,
       message: `Containment zone status updated to ${status}.`,
-      zone
+      zone: updatedZone
     });
   } catch (err) {
     console.error('[CaseController] Error updating containment zone:', err);
@@ -1080,7 +1059,7 @@ exports.scheduleRingVaccination = async (req, res) => {
     const { id } = req.params;
     const { campDate, venue, capacity, notes } = req.body;
 
-    const caseDoc = await DiseaseCase.findById(id);
+    const caseDoc = await supabaseDb.diseaseCases.findById(id);
     if (!caseDoc) {
       return res.status(404).json({
         success: false,
@@ -1092,11 +1071,12 @@ exports.scheduleRingVaccination = async (req, res) => {
     const targetCapacity = parseInt(capacity, 10) > 0 ? parseInt(capacity, 10) : 250;
     const scheduledDate = campDate ? new Date(campDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const distPrefix = caseDoc.districtId.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'DIS');
+    const distPrefix = (caseDoc.districtId || 'DIS').slice(0, 3).toUpperCase().replace(/[^A-Z]/g, 'DIS');
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const campId = `RING-CAMP-2026-${distPrefix}-${randomSuffix}`;
+    const vetIdStr = String(req.user.id || req.user._id);
 
-    const drive = await VaccinationDrive.create({
+    const drive = await supabaseDb.vaccinationDrives.create({
       campId,
       state: caseDoc.state || 'Maharashtra',
       district: caseDoc.districtId,
@@ -1105,18 +1085,19 @@ exports.scheduleRingVaccination = async (req, res) => {
       venue:
         venue ||
         `Emergency Ring Vaccination Camp - ${caseDoc.farmerLocation?.village || caseDoc.districtId}`,
-      coordinates: caseDoc.coordinates,
+      latitude: caseDoc.latitude || caseDoc.coordinates?.lat || 18.5204,
+      longitude: caseDoc.longitude || caseDoc.coordinates?.lng || 73.8567,
       vaccine: vaccineName,
       vaccineFullName: vaccineName,
       targetSpecies: caseDoc.species || 'Cattle & Buffalo',
-      campDate: scheduledDate,
+      campDate: scheduledDate.toISOString(),
       startTime: '08:30 AM',
       endTime: '05:00 PM',
       isFree: true,
       cost: 'Free (Emergency Govt Outbreak Ring)',
       organizingHospital: req.user.department || 'District Veterinary Outbreak Response Unit',
       assignedOfficer: req.user.name,
-      assignedOfficerId: req.user._id,
+      assignedOfficerId: vetIdStr,
       contactNumber: req.user.phone || '1962',
       capacity: targetCapacity,
       remainingSlots: targetCapacity,
@@ -1129,27 +1110,23 @@ exports.scheduleRingVaccination = async (req, res) => {
         `Emergency Ring Vaccination scheduled for Outbreak Case ${caseDoc.caseId} (${caseDoc.disease}).`
     });
 
-    // Link drive to case
-    caseDoc.ringVaccinationDriveId = drive._id;
-    caseDoc.timeline.push({
-      status: caseDoc.status,
-      updatedBy: req.user._id,
-      updaterName: req.user.name,
-      timestamp: new Date(),
-      notes: `Emergency Ring Vaccination Drive scheduled (${drive.campId} - ${vaccineName}).`
-    });
-    await caseDoc.save();
-
-    // If case has containment zone, link drive to zone too
-    if (caseDoc.containmentZoneId) {
-      await ContainmentZone.findByIdAndUpdate(caseDoc.containmentZoneId, {
-        ringVaccinationDriveId: drive._id
-      });
+    // Link drive to case in Supabase
+    try {
+      await supabaseDb.diseaseCases.updateStatus(
+        caseDoc.id || caseDoc.caseId,
+        caseDoc.status,
+        `Emergency Ring Vaccination Drive scheduled (${drive.campId} - ${vaccineName}).`,
+        vetIdStr,
+        req.user.name,
+        { ringVaccinationDriveId: drive.id }
+      );
+    } catch (upErr) {
+      console.warn('[CaseController] Could not link drive to case:', upErr.message);
     }
 
     // Broadcast SSE update
     notificationService.broadcastToDistrictVets(caseDoc.districtId, 'RING_VACCINATION_SCHEDULED', {
-      caseId: caseDoc._id,
+      caseId: caseDoc.id || caseDoc.caseId,
       drive,
       timestamp: new Date()
     });
@@ -1163,8 +1140,8 @@ exports.scheduleRingVaccination = async (req, res) => {
         'SCHEDULE_RING_VACCINATION',
         'vaccination_drive',
         drive.campId,
-        String(req.user._id || req.user.id),
-        { caseId: caseDoc.caseId || caseDoc._id.toString(), disease: caseDoc.disease, capacity: targetCapacity }
+        vetIdStr,
+        { caseId: caseDoc.caseId || String(caseDoc.id), disease: caseDoc.disease, capacity: targetCapacity }
       );
     } catch (auditErr) {}
 
@@ -1192,17 +1169,16 @@ exports.scheduleRingVaccination = async (req, res) => {
 exports.getAdvisories = async (req, res) => {
   try {
     const targetDistrict = req.query.district || req.user.district || 'Pune';
-    const districtRegex = new RegExp(`^${escapeRegex(targetDistrict.trim())}$`, 'i');
 
-    const activeCases = await DiseaseCase.find({
-      districtId: districtRegex,
-      status: { $nin: ['Resolved', 'RESOLVED'] }
-    }).lean();
+    const activeCases = await supabaseDb.diseaseCases.find({
+      districtId: targetDistrict,
+      status: ['New', 'Investigating', 'Confirmed', 'Containment', 'OPEN', 'ACCEPTED', 'IN_TREATMENT']
+    });
 
-    const activeZones = await ContainmentZone.find({
-      district: districtRegex,
+    const activeZones = await supabaseDb.containmentZones.find({
+      district: targetDistrict,
       status: 'ACTIVE'
-    }).lean();
+    });
 
     // Aggregate disease prevalence
     const diseaseCounts = {};
@@ -1308,21 +1284,13 @@ exports.getAdvisories = async (req, res) => {
 exports.retryNotifications = async (req, res) => {
   try {
     const { id } = req.params;
-    const caseDoc = await DiseaseCase.findById(id);
+    const caseDoc = await supabaseDb.diseaseCases.findById(id);
     if (!caseDoc) {
       return res.status(404).json({ success: false, message: 'Case not found.' });
     }
 
-    const districtRegex = new RegExp(`^${escapeRegex(caseDoc.districtId.trim())}$`, 'i');
-    const matchingVets = await User.find({
-      role: { $in: ['field_worker', 'veterinarian', 'officer'] },
-      district: districtRegex,
-      isActive: { $ne: false }
-    }).select('_id name phone email district block role');
-
+    const matchingVets = await supabaseDb.veterinarians.findByDistrict(caseDoc.districtId || 'Pune');
     const notifiedRecords = await notificationService.notifyDistrictVets(caseDoc, matchingVets);
-    caseDoc.notifiedVets = notifiedRecords;
-    await caseDoc.save();
 
     res.json({
       success: true,

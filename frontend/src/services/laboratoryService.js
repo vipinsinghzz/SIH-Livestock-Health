@@ -1,3 +1,5 @@
+import api from './api';
+
 // Laboratory Sample Referral and Diagnostic Tracking Service
 
 export const LAB_STATUS_STAGES = [
@@ -60,7 +62,31 @@ export const INITIAL_LAB_SAMPLES = [
 ];
 
 export const laboratoryService = {
-  getSamples() {
+  async getSamples(params = {}) {
+    try {
+      const res = await api.get('/lab-referrals', { params });
+      if (res.data?.success && Array.isArray(res.data.referrals) && res.data.referrals.length > 0) {
+        return res.data.referrals.map(r => ({
+          id: r.id || r._id,
+          animalTag: r.report?.animalId || r.report?.animalTag || 'IN-LS-2026',
+          animalName: r.report?.animalName || r.report?.species || 'Livestock',
+          suspectedDisease: r.report?.symptoms?.join(', ') || r.resultSummary?.confirmedDisease || 'Suspected Condition',
+          sampleType: r.sampleType,
+          collectionDate: r.collectionDate ? r.collectionDate.split('T')[0] : '',
+          collectorName: r.collector?.name || 'Attending Field Veterinarian',
+          referralLab: r.referredLab,
+          status: r.status === 'Collected' ? 'Pending' : (r.status === 'Result Confirmed' ? 'Result Available' : r.status),
+          urgency: 'High',
+          testRequested: 'Diagnostic Screening',
+          interimResult: r.resultSummary?.notes || 'Sample processed at regional lab',
+          finalResult: r.resultSummary?.confirmedDisease ? `CONFIRMED: ${r.resultSummary.confirmedDisease}` : null,
+          notes: r.resultSummary?.notes || ''
+        }));
+      }
+    } catch (e) {
+      console.warn('[LaboratoryService] Backend API notice:', e.message);
+    }
+
     try {
       const saved = localStorage.getItem('lab_samples_data');
       return saved ? JSON.parse(saved) : INITIAL_LAB_SAMPLES;
@@ -69,8 +95,23 @@ export const laboratoryService = {
     }
   },
 
-  createSample(sampleData) {
-    const samples = this.getSamples();
+  async createSample(sampleData) {
+    try {
+      const res = await api.post('/lab-referrals', {
+        reportId: sampleData.reportId || sampleData.caseId,
+        caseId: sampleData.caseId,
+        sampleType: sampleData.sampleType,
+        referredLab: sampleData.referralLab || sampleData.referredLab,
+        notes: sampleData.notes
+      });
+      if (res.data?.success) {
+        return res.data.referral;
+      }
+    } catch (e) {
+      console.warn('[LaboratoryService] createSample backend notice:', e.message);
+    }
+
+    const samples = await this.getSamples();
     const newSample = {
       id: 'SMP-2026-' + Math.floor(100 + Math.random() * 900),
       animalTag: sampleData.animalTag || 'IN-LS-2026',
@@ -93,8 +134,21 @@ export const laboratoryService = {
     return newSample;
   },
 
-  updateSampleStatus(id, newStatus, optionalResult = null) {
-    const samples = this.getSamples();
+  async updateSampleStatus(id, newStatus, optionalResult = null) {
+    try {
+      const res = await api.patch(`/lab-referrals/${id}`, {
+        status: newStatus === 'Result Available' ? 'Result Confirmed' : newStatus,
+        confirmedDisease: optionalResult || undefined,
+        notes: optionalResult || undefined
+      });
+      if (res.data?.success) {
+        return res.data.referral;
+      }
+    } catch (e) {
+      console.warn('[LaboratoryService] updateSampleStatus backend notice:', e.message);
+    }
+
+    const samples = await this.getSamples();
     const updated = samples.map(s => {
       if (s.id === id) {
         return {

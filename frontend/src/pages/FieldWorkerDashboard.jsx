@@ -228,7 +228,7 @@ export default function FieldWorkerDashboard() {
       const res = await caseService.claimCase(caseId);
       if (res.success && res.case) {
         setReferralCases((prev) =>
-          prev.map((c) => (c._id === caseId ? res.case : c))
+          prev.map((c) => ((c.id === caseId || c.caseId === caseId || c._id === caseId) ? res.case : c))
         );
         setClaimFeedback({
           type: 'success',
@@ -239,11 +239,10 @@ export default function FieldWorkerDashboard() {
       const errMsg = err.response?.data?.message || 'Failed to claim case.';
       const alreadyClaimed = err.response?.data?.alreadyClaimed;
       if (alreadyClaimed && err.response?.data?.status) {
-        // Update local status so UI immediately reflects claim
         setReferralCases((prev) =>
           prev.map((c) =>
-            c._id === caseId
-              ? { ...c, status: err.response.data.status, assignedVetId: err.response.data.assignedVet }
+            (c.id === caseId || c.caseId === caseId || c._id === caseId)
+              ? { ...c, status: err.response.data.status, assignedVetId: err.response.data.assignedVet, assignedVet: err.response.data.assignedVet }
               : c
           )
         );
@@ -282,8 +281,9 @@ export default function FieldWorkerDashboard() {
   const handleSaveCaseStatus = async () => {
     if (!selectedCaseForAction) return;
     setIsUpdatingStatus(true);
+    const targetCaseId = selectedCaseForAction.id || selectedCaseForAction.caseId || selectedCaseForAction._id;
     try {
-      const res = await caseService.updateCaseStatus(selectedCaseForAction._id, {
+      const res = await caseService.updateCaseStatus(targetCaseId, {
         status: actionTargetStatus,
         clinicalDiagnosis: clinicalDiagnosisInput,
         affectedCount: affectedCountInput,
@@ -293,8 +293,11 @@ export default function FieldWorkerDashboard() {
       });
       if (res.success && res.case) {
         setReferralCases((prev) =>
-          prev.map((c) => (c._id === selectedCaseForAction._id ? res.case : c))
+          prev.map((c) => ((c.id === targetCaseId || c.caseId === targetCaseId || c._id === targetCaseId) ? res.case : c))
         );
+        if (selectedCaseForDetails && (selectedCaseForDetails.id === targetCaseId || selectedCaseForDetails.caseId === targetCaseId || selectedCaseForDetails._id === targetCaseId)) {
+          setSelectedCaseForDetails(res.case);
+        }
         setSelectedCaseForAction(null);
         setClaimFeedback({
           type: 'success',
@@ -359,7 +362,7 @@ export default function FieldWorkerDashboard() {
     setIsCreatingZone(true);
     try {
       const payload = {
-        caseId: targetCaseForZoneOrRing?._id || null,
+        caseId: targetCaseForZoneOrRing?.id || targetCaseForZoneOrRing?.caseId || targetCaseForZoneOrRing?._id || null,
         disease: zoneForm.disease,
         district: zoneForm.district,
         block: zoneForm.block,
@@ -405,8 +408,9 @@ export default function FieldWorkerDashboard() {
     e.preventDefault();
     if (!targetCaseForZoneOrRing) return;
     setIsSchedulingRing(true);
+    const targetCaseId = targetCaseForZoneOrRing.id || targetCaseForZoneOrRing.caseId || targetCaseForZoneOrRing._id;
     try {
-      const res = await caseService.scheduleRingVaccination(targetCaseForZoneOrRing._id, ringForm);
+      const res = await caseService.scheduleRingVaccination(targetCaseId, ringForm);
       if (res.success) {
         setShowRingVaccinationModal(false);
         setTargetCaseForZoneOrRing(null);
@@ -743,248 +747,276 @@ export default function FieldWorkerDashboard() {
                   key: 'Resolved',
                   label: t('vet_portal.filter_resolved', { count: referralCases.filter((c) => c.status === 'Resolved' || c.status === 'RESOLVED').length })
                 },
-                {
-                  key: 'my_cases',
-                  label: t('vet_portal.filter_my_cases', { count: referralCases.filter((c) => {
-                    const uid = user?._id?.toString();
-                    const aid = (c.assignedVetId?._id || c.assignedVetId)?.toString();
-                    return uid && aid === uid;
-                  }).length })
-                }
-              ].map((f) => (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setReferralFilter(f.key)}
-                  className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
-                    referralFilter === f.key
-                      ? 'bg-emerald-700 text-white shadow-xs'
-                      : 'bg-stone-100 text-slate-700 hover:bg-stone-200'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        {
+          key: 'my_cases',
+          label: t('vet_portal.filter_my_cases', { count: referralCases.filter((c) => {
+            const uid = (user?.id || user?._id)?.toString();
+            const aid = (c.assignedVet?.id || c.assignedVetId?.id || c.assignedVetId?._id || c.assignedVetId)?.toString();
+            return uid && aid === uid;
+          }).length })
+        }
+      ].map((f) => (
+        <button
+          key={f.key}
+          type="button"
+          onClick={() => setReferralFilter(f.key)}
+          className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
+            referralFilter === f.key
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'bg-stone-100 text-slate-700 hover:bg-stone-200'
+          }`}
+        >
+          {f.label}
+        </button>
+      ))}
+    </div>
+  </div>
 
-          {/* Cases List */}
-          {filteredCases.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-stone-300 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-stone-100 text-slate-400 mx-auto flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800">
-                {t('vet_portal.empty_queue_title')}
-              </h3>
-              <p className="text-sm text-slate-600 font-medium">
-                {t('vet_portal.empty_queue_sub')}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredCases.map((c) => {
-                const isMyCase =
-                  user?._id &&
-                  (c.assignedVetId?._id === user._id ||
-                    c.assignedVetId === user._id ||
-                    c.assignedVetId?._id?.toString() === user._id.toString());
-                const isUnassigned = c.status === 'New' || c.status === 'OPEN';
+  {/* Cases List */}
+  {filteredCases.length === 0 ? (
+    <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-stone-300 space-y-3">
+      <div className="w-12 h-12 rounded-2xl bg-stone-100 text-slate-400 mx-auto flex items-center justify-center">
+        <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+      </div>
+      <h3 className="text-lg font-bold text-slate-800">
+        {t('vet_portal.empty_queue_title')}
+      </h3>
+      <p className="text-sm text-slate-600 font-medium">
+        {t('vet_portal.empty_queue_sub')}
+      </p>
+    </div>
+  ) : (
+    <div className="grid grid-cols-1 gap-4">
+      {filteredCases.map((c) => {
+        const uid = (user?.id || user?._id)?.toString();
+        const aid = (c.assignedVet?.id || c.assignedVetId?.id || c.assignedVetId?._id || c.assignedVetId)?.toString();
+        const isMyCase = Boolean(uid && aid === uid);
+        const isUnassigned = c.status === 'New' || c.status === 'OPEN';
 
-                return (
-                  <div
-                    key={c._id}
-                    className={`bg-white rounded-2xl p-5 border transition-all shadow-xs hover:shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+        return (
+          <div
+            key={c.id || c.caseId || c._id}
+            className={`bg-white rounded-2xl p-5 border transition-all shadow-xs hover:shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+              c.risk === 'Critical'
+                ? 'border-red-300 ring-1 ring-red-200'
+                : isUnassigned
+                ? 'border-amber-300'
+                : 'border-stone-200'
+            }`}
+          >
+            {/* Left: Thumbnail & Snapshot */}
+            <div className="flex items-start gap-4 flex-1">
+              {c.image || c.imageUrl ? (
+                <div className="w-20 h-20 rounded-xl overflow-hidden bg-stone-900 shrink-0 relative border border-stone-200">
+                  <img
+                    src={c.image || c.imageUrl}
+                    alt={c.disease}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                  <span className="absolute bottom-1 right-1 bg-black/75 text-white text-[8px] px-1 py-0.5 rounded font-mono">
+                    AI
+                  </span>
+                </div>
+              ) : (
+                <div className="w-20 h-20 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-stone-200 text-slate-400">
+                  <Stethoscope className="w-8 h-8" />
+                </div>
+              )}
+
+              <div className="space-y-1.5 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs font-black text-slate-900 bg-stone-100 px-2 py-0.5 rounded-md">
+                    {c.caseId}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
                       c.risk === 'Critical'
-                        ? 'border-red-300 ring-1 ring-red-200'
-                        : isUnassigned
-                        ? 'border-amber-300'
-                        : 'border-stone-200'
+                        ? 'bg-red-100 text-red-800 border border-red-200 animate-pulse'
+                        : c.risk === 'High'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800'
                     }`}
                   >
-                    {/* Left: Thumbnail & Snapshot */}
-                    <div className="flex items-start gap-4 flex-1">
-                      {c.image ? (
-                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-stone-900 shrink-0 relative border border-stone-200">
-                          <img
-                            src={c.image}
-                            alt={c.disease}
-                            className="w-full h-full object-cover"
-                            onError={(e) => { e.target.style.display = 'none'; }}
-                          />
-                          <span className="absolute bottom-1 right-1 bg-black/75 text-white text-[8px] px-1 py-0.5 rounded font-mono">
-                            AI
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="w-20 h-20 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-stone-200 text-slate-400">
-                          <Stethoscope className="w-8 h-8" />
-                        </div>
-                      )}
+                    {c.risk} Risk
+                  </span>
+                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      {new Date(c.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </span>
+                </div>
 
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-black text-slate-900 bg-stone-100 px-2 py-0.5 rounded-md">
-                            {c.caseId}
-                          </span>
-                          <span
-                            className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                              c.risk === 'Critical'
-                                ? 'bg-red-100 text-red-800 border border-red-200 animate-pulse'
-                                : c.risk === 'High'
-                                ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {c.risk} Risk
-                          </span>
-                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {new Date(c.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </span>
-                        </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  {c.disease}{' '}
+                  <span className="text-sm font-normal text-emerald-700 font-mono">
+                    ({c.confidence}% Confidence)
+                  </span>
+                </h3>
 
-                        <h3 className="text-lg font-black text-slate-900">
-                          {c.disease}{' '}
-                          <span className="text-sm font-normal text-emerald-700 font-mono">
-                            ({c.confidence}% Confidence)
-                          </span>
-                        </h3>
+                <p className="text-sm text-slate-600 font-medium">
+                  <strong>{t('vet_portal.species_label')}:</strong> {c.species} {c.animalName ? `(${c.animalName})` : ''} •{' '}
+                  <strong>{t('vet_portal.affected_animals_label')}:</strong> {c.affectedCount || 1} •{' '}
+                  <strong>{t('vet_portal.location_label')}:</strong> {c.farmerLocation?.village || (isEnglish ? 'Village' : isMarathi ? 'गाव' : 'गांव')},{' '}
+                  {c.farmerLocation?.block || userBlock}, {c.districtId}
+                </p>
 
-                        <p className="text-sm text-slate-600 font-medium">
-                          <strong>{t('vet_portal.species_label')}:</strong> {c.species} {c.animalName ? `(${c.animalName})` : ''} •{' '}
-                          <strong>{t('vet_portal.affected_animals_label')}:</strong> {c.affectedCount || 1} •{' '}
-                          <strong>{t('vet_portal.location_label')}:</strong> {c.farmerLocation?.village || (isEnglish ? 'Village' : isMarathi ? 'गाव' : 'गांव')},{' '}
-                          {c.farmerLocation?.block || userBlock}, {c.districtId}
-                        </p>
-
-                        {/* Symptoms */}
-                        {c.symptoms && c.symptoms.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            {c.symptoms.slice(0, 4).map((sym, idx) => (
-                              <span
-                                key={idx}
-                                className="text-[10px] bg-stone-100 text-slate-700 px-2 py-0.5 rounded-md border border-stone-200"
-                              >
-                                • {sym}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Farmer contact & map */}
-                        <div className="flex flex-wrap items-center gap-3 pt-1 text-sm font-medium">
-                          <span className="font-bold text-slate-800">
-                            👤 {c.farmerContact?.name || (isEnglish ? 'Farmer' : isMarathi ? 'शेतकरी' : 'किसान')}
-                          </span>
-                          {c.farmerContact?.phone && (
-                            <a
-                              href={`tel:${c.farmerContact.phone}`}
-                              className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold"
-                            >
-                              <PhoneCall className="w-3.5 h-3.5" />
-                              <span>{c.farmerContact.phone}</span>
-                            </a>
-                          )}
-                          {c.coordinates?.lat && (
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${c.coordinates.lat},${c.coordinates.lng}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-700 hover:underline font-bold"
-                            >
-                              <Navigation className="w-3.5 h-3.5" />
-                              <span>{t('vet_portal.show_map')}</span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: Stage Badge & Action Buttons */}
-                    <div className="flex flex-col sm:items-end gap-2 w-full md:w-auto shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
-                      {/* Current Stage Badge */}
+                {/* Symptoms */}
+                {c.symptoms && c.symptoms.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {c.symptoms.slice(0, 4).map((sym, idx) => (
                       <span
-                        className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider ${
-                          c.status === 'New' || c.status === 'OPEN'
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                            : c.status === 'Investigating' || c.status === 'ACCEPTED'
-                            ? 'bg-blue-100 text-blue-900 border border-blue-300'
-                            : c.status === 'Confirmed'
-                            ? 'bg-red-100 text-red-900 border border-red-300'
-                            : c.status === 'Containment' || c.status === 'IN_TREATMENT'
-                            ? 'bg-purple-100 text-purple-900 border border-purple-300'
-                            : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                        }`}
+                        key={idx}
+                        className="text-[10px] bg-stone-100 text-slate-700 px-2 py-0.5 rounded-md border border-stone-200"
                       >
-                        {c.status}
+                        • {sym}
                       </span>
-
-                      {/* Action buttons based on stage */}
-                      {isUnassigned ? (
-                        <button
-                          type="button"
-                          onClick={() => handleClaimCase(c._id)}
-                          disabled={claimingCaseId === c._id}
-                          className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-extrabold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-60"
-                        >
-                          {claimingCaseId === c._id ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>{t('vet_portal.claiming_spinner')}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-4 h-4" />
-                              <span>{t('vet_portal.claim_case_action')}</span>
-                            </>
-                          )}
-                        </button>
-                      ) : isMyCase ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenActionModal(c)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white text-sm font-bold rounded-xl transition shadow-xs cursor-pointer"
-                          >
-                            <FileEdit className="w-4 h-4" />
-                            <span>{t('vet_portal.advance_status_action')}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleTriggerContainmentForCase(c)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition shadow-xs cursor-pointer"
-                            title={t('vet_portal.declare_containment')}
-                          >
-                            <ShieldAlert className="w-4 h-4" />
-                            <span>{t('vet_portal.containment_action')}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleTriggerRingVaccination(c)}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
-                            title={t('vet_portal.ring_vaccine_action')}
-                          >
-                            <Syringe className="w-3.5 h-3.5" />
-                            <span>{t('vet_portal.ring_vaccine_action')}</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-slate-500 font-semibold bg-stone-100 px-3 py-1.5 rounded-xl border border-stone-200 text-center">
-                          {t('vet_portal.assigned_to')}: {c.assignedVetId?.name || t('vet_portal.other_doctor')}
-                        </div>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                );
-              })}
+                )}
+
+                {/* Farmer contact & map */}
+                <div className="flex flex-wrap items-center gap-3 pt-1 text-sm font-medium">
+                  <span className="font-bold text-slate-800">
+                    👤 {c.farmerContact?.name || c.farmer?.name || (isEnglish ? 'Farmer' : isMarathi ? 'शेतकरी' : 'किसान')}
+                  </span>
+                  {(c.farmerContact?.phone || c.farmer?.phone) && (
+                    <a
+                      href={`tel:${c.farmerContact?.phone || c.farmer?.phone}`}
+                      className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>{c.farmerContact?.phone || c.farmer?.phone}</span>
+                    </a>
+                  )}
+                  {(c.latitude && c.longitude) ? (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-700 hover:underline font-bold"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>{t('vet_portal.show_map')}</span>
+                    </a>
+                  ) : c.coordinates?.lat && (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${c.coordinates.lat},${c.coordinates.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-700 hover:underline font-bold"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>{t('vet_portal.show_map')}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Right: Stage Badge & Action Buttons */}
+            <div className="flex flex-col sm:items-end gap-2 w-full md:w-auto shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+              {/* Current Stage Badge */}
+              <span
+                className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider ${
+                  c.status === 'New' || c.status === 'OPEN'
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                    : c.status === 'Investigating' || c.status === 'ACCEPTED'
+                    ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                    : c.status === 'Confirmed'
+                    ? 'bg-red-100 text-red-900 border border-red-300'
+                    : c.status === 'Containment' || c.status === 'IN_TREATMENT'
+                    ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                    : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                }`}
+              >
+                {c.status}
+              </span>
+
+              {/* Action buttons based on stage */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCaseForDetails(c)}
+                  className="inline-flex items-center gap-1 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5 text-slate-600" />
+                  <span>{isEnglish ? 'Details' : isMarathi ? 'तपशील' : 'विवरण'}</span>
+                </button>
+
+                {isUnassigned ? (
+                  <button
+                    type="button"
+                    onClick={() => handleClaimCase(c.id || c.caseId || c._id)}
+                    disabled={claimingCaseId === (c.id || c.caseId || c._id)}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-60"
+                  >
+                    {claimingCaseId === (c.id || c.caseId || c._id) ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>{t('vet_portal.claiming_spinner')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>{t('vet_portal.claim_case_action')}</span>
+                      </>
+                    )}
+                  </button>
+                ) : isMyCase ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenActionModal(c)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                    >
+                      <FileEdit className="w-3.5 h-3.5" />
+                      <span>{t('vet_portal.advance_status_action')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReportForLab(c.id || c.caseId || c._id)}
+                      className="inline-flex items-center gap-1 px-2.5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                      title="Send Diagnostic Sample to Laboratory"
+                    >
+                      <FlaskConical className="w-3.5 h-3.5" />
+                      <span>Lab</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerContainmentForCase(c)}
+                      className="inline-flex items-center gap-1 px-2.5 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                      title={t('vet_portal.declare_containment')}
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Zone</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerRingVaccination(c)}
+                      className="inline-flex items-center gap-1 px-2.5 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                      title={t('vet_portal.ring_vaccine_action')}
+                    >
+                      <Syringe className="w-3.5 h-3.5" />
+                      <span>Ring</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-xs text-slate-500 font-semibold bg-stone-100 px-3 py-1.5 rounded-xl border border-stone-200 text-center">
+                    {t('vet_portal.assigned_to')}: {c.assignedVet?.name || c.assignedVetId?.name || t('vet_portal.other_doctor')}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
         </div>
       )}
 
@@ -1799,8 +1831,242 @@ export default function FieldWorkerDashboard() {
         <LabReferralModal
           reportId={selectedReportForLab}
           onClose={() => setSelectedReportForLab(null)}
-          onUpdated={() => loadData()}
+          onUpdated={() => {
+            loadData();
+            loadReferralCasesAndOutbreaks();
+          }}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: COMPLETE CASE CLINICAL DETAILS & TIMELINE AUDIT                  */}
+      {/* ========================================================================= */}
+      {selectedCaseForDetails && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-6 space-y-4 border border-stone-200 shadow-2xl animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-black bg-stone-100 text-slate-800 px-2 py-0.5 rounded">
+                    {selectedCaseForDetails.caseId}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      selectedCaseForDetails.risk === 'Critical'
+                        ? 'bg-red-100 text-red-800 border border-red-200'
+                        : selectedCaseForDetails.risk === 'High'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {selectedCaseForDetails.risk} Risk
+                  </span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      selectedCaseForDetails.status === 'New' || selectedCaseForDetails.status === 'OPEN'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : selectedCaseForDetails.status === 'Investigating' || selectedCaseForDetails.status === 'ACCEPTED'
+                        ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                        : selectedCaseForDetails.status === 'Confirmed'
+                        ? 'bg-red-100 text-red-900 border border-red-300'
+                        : selectedCaseForDetails.status === 'Containment' || selectedCaseForDetails.status === 'IN_TREATMENT'
+                        ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                        : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    }`}
+                  >
+                    {selectedCaseForDetails.status}
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mt-1">
+                  {selectedCaseForDetails.disease}{' '}
+                  <span className="text-sm font-normal text-emerald-700 font-mono">
+                    ({selectedCaseForDetails.confidence}% Confidence)
+                  </span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCaseForDetails(null)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Animal & Farmer 2-column info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-1">
+                <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                  🐄 {t('vet_portal.species_label')} &amp; Tag
+                </span>
+                <div className="font-black text-slate-900 text-sm">
+                  {selectedCaseForDetails.species} {selectedCaseForDetails.animalName ? `(${selectedCaseForDetails.animalName})` : ''}
+                </div>
+                <div className="text-slate-600">
+                  Tag ID: <strong className="font-mono text-slate-800">{selectedCaseForDetails.animal?.tagId || selectedCaseForDetails.animalId || 'N/A'}</strong>
+                </div>
+                <div className="text-slate-600">
+                  Affected Animals: <strong className="text-slate-900">{selectedCaseForDetails.affectedCount || 1}</strong>
+                </div>
+              </div>
+
+              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-1">
+                <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                  👤 Farmer &amp; Jurisdiction
+                </span>
+                <div className="font-black text-slate-900 text-sm">
+                  {selectedCaseForDetails.farmerContact?.name || selectedCaseForDetails.farmer?.name || 'Farmer'}
+                </div>
+                <div className="text-slate-600">
+                  Location: {selectedCaseForDetails.farmerLocation?.village || selectedCaseForDetails.farmer?.village || 'Village'}, {selectedCaseForDetails.districtId || 'Nagpur'}
+                </div>
+                {(selectedCaseForDetails.farmerContact?.phone || selectedCaseForDetails.farmer?.phone) && (
+                  <div className="pt-0.5">
+                    <a
+                      href={`tel:${selectedCaseForDetails.farmerContact?.phone || selectedCaseForDetails.farmer?.phone}`}
+                      className="inline-flex items-center gap-1 text-emerald-700 font-bold hover:underline"
+                    >
+                      <PhoneCall className="w-3 h-3" />
+                      <span>{selectedCaseForDetails.farmerContact?.phone || selectedCaseForDetails.farmer?.phone}</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Symptoms & Screening Findings */}
+            <div className="space-y-1.5 text-xs">
+              <span className="font-bold text-slate-700 block">Reported Symptoms &amp; Screening Observations</span>
+              {selectedCaseForDetails.symptoms && selectedCaseForDetails.symptoms.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedCaseForDetails.symptoms.map((s, idx) => (
+                    <span key={idx} className="bg-rose-50 text-rose-800 border border-rose-200 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+                      • {s}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 italic">No symptoms list provided.</p>
+              )}
+            </div>
+
+            {/* Clinical Notes, Diagnosis & Prescriptions */}
+            <div className="space-y-2 p-3.5 bg-blue-50/50 rounded-2xl border border-blue-200/60 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">
+                  🩺 Attending Veterinarian Clinical Record
+                </span>
+                <span className="font-bold text-slate-700">
+                  {selectedCaseForDetails.assignedVet?.name ? `Dr. ${selectedCaseForDetails.assignedVet.name}` : (selectedCaseForDetails.assignedVetId?.name ? `Dr. ${selectedCaseForDetails.assignedVetId.name}` : 'Unassigned')}
+                </span>
+              </div>
+              {selectedCaseForDetails.clinicalDiagnosis && (
+                <div>
+                  <strong className="text-slate-800">Confirmed Diagnosis:</strong>{' '}
+                  <span className="text-blue-900 font-bold">{selectedCaseForDetails.clinicalDiagnosis}</span>
+                </div>
+              )}
+              {selectedCaseForDetails.investigationNotes && (
+                <div>
+                  <strong className="text-slate-800">Clinical Investigation:</strong>{' '}
+                  <span className="text-slate-700">{selectedCaseForDetails.investigationNotes}</span>
+                </div>
+              )}
+              {selectedCaseForDetails.prescription && (
+                <div className="p-2 bg-white rounded-xl border border-blue-200">
+                  <strong className="text-blue-950 block mb-0.5">Rx Prescribed Medications:</strong>
+                  <span className="text-slate-800 font-mono text-[11px] whitespace-pre-wrap">{selectedCaseForDetails.prescription}</span>
+                </div>
+              )}
+              {selectedCaseForDetails.treatmentNotes && (
+                <div>
+                  <strong className="text-slate-800">Treatment Plan / Bio-Interventions:</strong>{' '}
+                  <span className="text-slate-700">{selectedCaseForDetails.treatmentNotes}</span>
+                </div>
+              )}
+              {!selectedCaseForDetails.clinicalDiagnosis && !selectedCaseForDetails.prescription && (
+                <p className="text-slate-500 italic">No clinical diagnosis or prescription recorded yet. Use &quot;Advance Status&quot; to log clinical examination findings.</p>
+              )}
+            </div>
+
+            {/* Case Timeline Audit Trail */}
+            <div className="space-y-2 text-xs border-t pt-3">
+              <span className="font-bold text-slate-800 block text-xs">
+                📜 Case Timeline &amp; Status Transitions ({selectedCaseForDetails.timeline?.length || 0})
+              </span>
+              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                {selectedCaseForDetails.timeline && selectedCaseForDetails.timeline.length > 0 ? (
+                  selectedCaseForDetails.timeline.map((entry, idx) => (
+                    <div key={idx} className="p-2 bg-stone-50 rounded-xl border border-stone-200 flex items-start gap-2.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
+                      <div className="flex-1 space-y-0.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 text-[11px]">
+                            {entry.status} • {entry.updaterName || 'Official'}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {new Date(entry.createdAt || entry.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                          </span>
+                        </div>
+                        <p className="text-slate-700 text-[11px] leading-relaxed">{entry.notes}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 italic">No timeline entries found.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Action Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setSelectedCaseForDetails(null)}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = selectedCaseForDetails;
+                    handleOpenActionModal(c);
+                  }}
+                  className="px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <FileEdit className="w-3.5 h-3.5" />
+                  <span>Advance Status</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = selectedCaseForDetails;
+                    setSelectedReportForLab(c.id || c.caseId || c._id);
+                  }}
+                  className="px-3 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  <span>Order Lab Sample</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = selectedCaseForDetails;
+                    handleTriggerContainmentForCase(c);
+                  }}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Containment</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
