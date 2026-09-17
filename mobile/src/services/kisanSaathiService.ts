@@ -7,6 +7,7 @@
  * token injection, error mapping, and network failure handling.
  */
 
+import NetInfo from '@react-native-community/netinfo';
 import api, { ApiError } from './api';
 import {
   KisanSaathiConsultRequest,
@@ -19,10 +20,20 @@ export const kisanSaathiService = {
    * Handles authenticated and guest requests gracefully.
    * Preserves isAIPowered and model identifiers to clearly distinguish Gemini from
    * the veterinary clinical rule engine fallback.
+   * STRICT ZERO-MOCK: Strictly blocks offline attempts; never hallucinates offline AI responses.
    */
   async consultKisanSaathi(
     request: KisanSaathiConsultRequest
   ): Promise<KisanSaathiConsultResponse> {
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      throw new ApiError(
+        'Kisan Saathi AI consultation requires an active internet connection. Please connect to the internet to consult.',
+        0,
+        'OFFLINE_BLOCKED'
+      );
+    }
+
     try {
       const response = await api.post<KisanSaathiConsultResponse>(
         '/kisan-saathi/consult',

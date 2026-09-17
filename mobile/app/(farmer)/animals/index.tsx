@@ -129,6 +129,11 @@ export default function FarmerAnimalsScreen() {
               <View style={[styles.badge, { backgroundColor: badge.bg }]}>
                 <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
               </View>
+              {item.isPendingSync && (
+                <View style={[styles.badge, { backgroundColor: '#FEF3C7', marginLeft: 6 }]}>
+                  <Text style={[styles.badgeText, { color: '#D97706' }]}>⏳ Pending Sync</Text>
+                </View>
+              )}
             </View>
 
             <Text style={styles.tagText}>🏷️ Tag ID: {item.tagId}</Text>

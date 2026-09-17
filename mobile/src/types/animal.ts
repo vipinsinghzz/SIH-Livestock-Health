@@ -66,6 +66,7 @@ export interface Animal {
   treatmentHistory?: TreatmentRecord[];
   createdAt?: string;
   updatedAt?: string;
+  isPendingSync?: boolean;
 }
 
 export interface AnimalCreateInput {

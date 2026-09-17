@@ -148,16 +148,30 @@ export default function FarmerCasesScreen() {
           <View style={styles.caseIdBadge}>
             <Text style={styles.caseIdText}>{item.caseId || 'CASE'}</Text>
           </View>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusTheme.bgColor, borderColor: statusTheme.borderColor },
-            ]}
-          >
-            <Text style={styles.statusBadgeIcon}>{statusTheme.icon}</Text>
-            <Text style={[styles.statusBadgeText, { color: statusTheme.color }]}>
-              {statusTheme.label}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {item.isPendingSync && (
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: '#FEF3C7', borderColor: '#FDE68A', marginRight: 6 },
+                ]}
+              >
+                <Text style={[styles.statusBadgeText, { color: '#D97706' }]}>
+                  ⏳ Pending Sync
+                </Text>
+              </View>
+            )}
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: statusTheme.bgColor, borderColor: statusTheme.borderColor },
+              ]}
+            >
+              <Text style={styles.statusBadgeIcon}>{statusTheme.icon}</Text>
+              <Text style={[styles.statusBadgeText, { color: statusTheme.color }]}>
+                {statusTheme.label}
+              </Text>
+            </View>
           </View>
         </View>
 

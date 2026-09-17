@@ -66,7 +66,9 @@ export interface PopulatedFarmer {
 
 export interface DiseaseCase {
   _id: string;
+  id?: string;
   caseId: string;
+  isPendingSync?: boolean;
   farmerId?: PopulatedFarmer | string;
   animalId?: PopulatedAnimal | null;
   animalName?: string;

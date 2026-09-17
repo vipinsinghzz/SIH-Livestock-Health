@@ -17,6 +17,8 @@ import {
   getSavedUserProfile,
   clearAllSecureAuthData,
 } from '../services/secureStorage';
+import { clearFarmerCache } from '../services/localDatabase';
+import syncService from '../services/syncService';
 
 export type UserRole = 'farmer' | 'veterinarian' | 'field_worker' | 'officer' | 'admin';
 
@@ -80,11 +82,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore signOut network errors during local logout
     }
 
+    if (user?.id) {
+      await clearFarmerCache(user.id);
+    }
+    syncService.setActiveFarmer(null);
+
     await clearAllSecureAuthData();
     setAuthToken(null);
     setToken(null);
     setUser(null);
-  }, []);
+  }, [user]);
 
   // Initialize Auth & restore persisted session from Android Keystore
   useEffect(() => {
@@ -107,6 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthToken(storedToken);
             setToken(storedToken);
             setUser(storedUser);
+            syncService.setActiveFarmer(storedUser.id || storedUser._id || null);
           }
 
           // Verify session in background with existing backend
@@ -189,6 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Persist in Android Keystore
       await saveAuthTokens(authTokenValue, res.data.refreshToken);
       await saveUserProfile(authUserValue);
+      syncService.setActiveFarmer(authUserValue.id || authUserValue._id || null);
 
       // Synchronize live Supabase client if refreshToken is provided
       if (isLiveSupabase && res.data.refreshToken && supabase?.auth?.setSession) {
@@ -226,6 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await saveAuthTokens(authTokenValue);
       await saveUserProfile(authUserValue);
+      syncService.setActiveFarmer(authUserValue.id || authUserValue._id || null);
 
       return authUserValue;
     } else {
