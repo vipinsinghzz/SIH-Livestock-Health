@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
@@ -37,13 +37,17 @@ import {
   Layers,
   Sparkles,
   RefreshCw,
-  Compass
+  Compass,
+  ArrowRight,
+  ChevronRight
 } from 'lucide-react';
 import caseService from '../services/caseService';
 import ReportsList from './ReportsList';
 import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 
-export default function FieldWorkerDashboard() {
+export default function FieldWorkerDashboard({ initialModule }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const isEnglish = i18n.language?.startsWith('en');
@@ -53,8 +57,36 @@ export default function FieldWorkerDashboard() {
   const userDistrict = user?.district || 'Pune';
   const userBlock = user?.block || 'Baramati';
 
-  // Navigation tab: 'referrals' | 'outbreaks' | 'cases' | 'zoonotic' | 'laboratory'
-  const [activeTab, setActiveTab] = useState('referrals');
+  // Active view: 'command-center' | 'cases' | 'outbreaks' | 'surveillance' | 'zoonotic' | 'laboratory' | 'containment-vaccination'
+  const getActiveView = () => {
+    if (initialModule) {
+      if (initialModule === 'referrals') return 'cases';
+      return initialModule;
+    }
+    const path = location.pathname;
+    if (path.includes('/vet/cases')) return 'cases';
+    if (path.includes('/vet/outbreaks')) return 'outbreaks';
+    if (path.includes('/vet/surveillance')) return 'surveillance';
+    if (path.includes('/vet/zoonotic-diseases') || path.includes('/vet/zoonotic')) return 'zoonotic';
+    if (path.includes('/vet/diagnostic-lab') || path.includes('/vet/laboratory')) return 'laboratory';
+    if (path.includes('/vet/containment-vaccination') || path.includes('/vet/containment')) return 'containment-vaccination';
+    return 'command-center';
+  };
+
+  const activeView = getActiveView();
+
+  const setActiveTab = (tab) => {
+    const routeMap = {
+      'referrals': '/vet/cases',
+      'cases': '/vet/surveillance',
+      'outbreaks': '/vet/outbreaks',
+      'zoonotic': '/vet/zoonotic-diseases',
+      'laboratory': '/vet/diagnostic-lab',
+      'containment-vaccination': '/vet/containment-vaccination',
+      'command-center': '/vet/command-center'
+    };
+    navigate(routeMap[tab] || '/vet/command-center');
+  };
 
   // Reports & Lab data
   const [reports, setReports] = useState([]);
@@ -599,81 +631,278 @@ export default function FieldWorkerDashboard() {
         </div>
       )}
 
-      {/* Portal Navigation Tabs */}
-      <div className="flex border-b border-stone-200 gap-5 text-sm font-black overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setActiveTab('referrals')}
-          className={`pb-3.5 px-3 border-b-2 transition flex items-center gap-2 shrink-0 cursor-pointer ${
-            activeTab === 'referrals'
-              ? 'border-emerald-700 text-emerald-900 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          <Radio className="w-4 h-4 text-emerald-700" />
-          <span>
-            {t('vet_portal.tab_referrals', { count: referralCases.length })}
-          </span>
-        </button>
+      {/* ========================================================================= */}
+      {/* MODULE 1: VETERINARY COMMAND CENTER OVERVIEW                              */}
+      {/* ========================================================================= */}
+      {activeView === 'command-center' && (
+        <div className="space-y-8">
+          {/* Quick Module Navigation Grid */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-700" />
+                  <span>{isEnglish ? 'Veterinary Operational Modules' : isMarathi ? 'पशुवैद्यकीय कार्यप्रणाली मॉड्यूल्स' : 'पशु चिकित्सा संचालन मॉड्यूल'}</span>
+                </h2>
+                <p className="text-sm text-slate-600 font-medium">
+                  {isEnglish ? 'Select a specialized module to access clinical records, surveillance maps, and lab diagnostics' : isMarathi ? 'वैद्यकीय नोंदी, सर्वेक्षण नकाशे आणि प्रयोगशाळा निदानासाठी मॉड्यूल निवडा' : 'नैदानिक रिकॉर्ड, निगरानी मानचित्र और प्रयोगशाला निदान के लिए मॉड्यूल चुनें'}
+                </p>
+              </div>
+            </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('outbreaks')}
-          className={`pb-3.5 px-3 border-b-2 transition flex items-center gap-2 shrink-0 cursor-pointer ${
-            activeTab === 'outbreaks'
-              ? 'border-orange-600 text-orange-700 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4 text-orange-600" />
-          <span>
-            {t('vet_portal.tab_outbreak_map', { count: containmentZones.length })}
-          </span>
-        </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Card 1: Cases */}
+              <Link
+                to="/vet/cases"
+                className="p-5 rounded-2xl bg-white border border-stone-200 hover:border-emerald-500 hover:shadow-md transition-all group relative flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                      <Radio className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      {referralCases.length} {isEnglish ? 'Cases' : isMarathi ? 'केसेस' : 'मामले'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-3 group-hover:text-emerald-700 transition">
+                    {isEnglish ? 'Referral Cases Queue' : isMarathi ? 'रेफरल प्रकरणे रांग' : 'रेफरल मामले कतार'}
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                    {isEnglish ? 'PS-128 5-stage clinical referral workflow, doctor claims, and treatment updates' : isMarathi ? 'PS-128 5-टप्पे क्लिनिकल रेफरल वर्कफ्लो व उपचार अपडेट्स' : 'PS-128 5-चरणीय रेफरल वर्कफ़्लो और उपचार अपडेट'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-emerald-700 group-hover:translate-x-1 transition-transform">
+                  <span>{referralCases.filter(c => c.status === 'New' || c.status === 'OPEN').length} {isEnglish ? 'Pending Claim' : isMarathi ? 'प्रलंबित' : 'लंबित दावें'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('cases')}
-          className={`pb-3.5 px-3 border-b-2 transition shrink-0 cursor-pointer ${
-            activeTab === 'cases'
-              ? 'border-blue-700 text-blue-800 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          {t('vet_portal.tab_case_registry', { count: reports.length })}
-        </button>
+              {/* Card 2: Outbreaks */}
+              <Link
+                to="/vet/outbreaks"
+                className="p-5 rounded-2xl bg-white border border-stone-200 hover:border-orange-500 hover:shadow-md transition-all group relative flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-700 flex items-center justify-center font-bold">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-orange-100 text-orange-900 border border-orange-300">
+                      {spatialClusters.length} {isEnglish ? 'Clusters' : isMarathi ? 'क्लस्टर्स' : 'क्लस्टर'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-3 group-hover:text-orange-700 transition">
+                    {isEnglish ? 'Outbreaks & Containment Map' : isMarathi ? 'प्रकोप व नियंत्रण नकाशा' : 'प्रकोप और रोकथाम मानचित्र'}
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                    {isEnglish ? 'Geospatial disease clusters, containment perimeters, and active buffer zones' : isMarathi ? 'जिओस्पेशिअल क्लस्टर्स आणि नियंत्रण क्षेत्र' : 'भूस्थानिक क्लस्टर और रोकथाम परिधि'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-orange-700 group-hover:translate-x-1 transition-transform">
+                  <span>{containmentZones.filter(z => z.status === 'ACTIVE').length} {isEnglish ? 'Active Zones' : isMarathi ? 'सक्रिय झोन' : 'सक्रिय क्षेत्र'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('zoonotic')}
-          className={`pb-3.5 px-3 border-b-2 transition flex items-center gap-2 shrink-0 cursor-pointer ${
-            activeTab === 'zoonotic'
-              ? 'border-red-600 text-red-700 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-900 font-bold'
-          }`}
-        >
-          <Biohazard className="w-4 h-4" />
-          <span>{t('vet_portal.tab_zoonotic')}</span>
-        </button>
+              {/* Card 3: Active Surveillance */}
+              <Link
+                to="/vet/surveillance"
+                className="p-5 rounded-2xl bg-white border border-stone-200 hover:border-blue-500 hover:shadow-md transition-all group relative flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-blue-100 text-blue-900 border border-blue-300">
+                      {reports.length} {isEnglish ? 'Reports' : isMarathi ? 'अहवाल' : 'रिपोर्ट्स'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-3 group-hover:text-blue-700 transition">
+                    {isEnglish ? 'Active Case Surveillance' : isMarathi ? 'सक्रिय प्रकरणे पाळत नोंदवही' : 'सक्रिय मामला निगरानी'}
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                    {isEnglish ? 'District syndromic surveillance database, farmer field logs, and triage audits' : isMarathi ? 'जिल्हा सिंड्रोमिक पाळत डेटाबेस व क्षेत्रीय नोंदी' : 'जिला सिंड्रोमिक निगरानी डेटाबेस और फील्ड रिकॉर्ड'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-blue-700 group-hover:translate-x-1 transition-transform">
+                  <span>{isEnglish ? 'View Surveillance Log' : isMarathi ? 'पाळत नोंद पहा' : 'निगरानी लॉग देखें'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('laboratory')}
-          className={`pb-3 px-2 border-b-2 transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-            activeTab === 'laboratory'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <FlaskConical className="w-4 h-4" />
-          <span>{t('vet_portal.tab_laboratory', { count: labSamples.length })}</span>
-        </button>
-      </div>
+              {/* Card 4: Zoonotic Diseases */}
+              <Link
+                to="/vet/zoonotic-diseases"
+                className="p-5 rounded-2xl bg-white border border-stone-200 hover:border-red-500 hover:shadow-md transition-all group relative flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-bold">
+                      <Biohazard className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-red-100 text-red-900 border border-red-300">
+                      One-Health
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-3 group-hover:text-red-700 transition">
+                    {isEnglish ? 'Zoonotic Diseases Protocol' : isMarathi ? 'झुनोटिक आजार नियंत्रण प्रोटोकॉल' : 'जूनोटिक रोग नियंत्रण प्रोटोकॉल'}
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                    {isEnglish ? 'Rabies, Anthrax, Brucellosis, and Avian Flu cross-species transmission alerts' : isMarathi ? 'रेबीज, अँथ्रॅक्स, ब्रुसेलोसिस मानवी संसर्ग प्रतिबंध' : 'रेबीज, एंथ्रेक्स, ब्रुसेलोसिस संचरण रोकथाम'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-red-700 group-hover:translate-x-1 transition-transform">
+                  <span>{isEnglish ? 'Review Safety Directives' : isMarathi ? 'सुरक्षा निर्देश पहा' : 'सुरक्षा निर्देश देखें'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
+
+              {/* Card 5: Diagnostic Lab */}
+              <Link
+                to="/vet/diagnostic-lab"
+                className="p-5 rounded-2xl bg-white border border-stone-200 hover:border-indigo-500 hover:shadow-md transition-all group relative flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                      <FlaskConical className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-300">
+                      {labSamples.length} {isEnglish ? 'Samples' : isMarathi ? 'नमुने' : 'नमूने'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-3 group-hover:text-indigo-700 transition">
+                    {isEnglish ? 'Diagnostic Lab Workflow' : isMarathi ? 'निदान प्रयोगशाळा ट्रॅकर' : 'निदान प्रयोगशाला ट्रैकर'}
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                    {isEnglish ? 'Sample dispatch, 4-stage processing pipeline, and lab confirmation reports' : isMarathi ? 'नमुने पाठवणे आणि ४-टप्पे प्रयोगशाळा तपासणी अहवाल' : 'नमूना प्रेषण और 4-चरणीय परीक्षण परिणाम'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-indigo-700 group-hover:translate-x-1 transition-transform">
+                  <span>{isEnglish ? 'Track Laboratory Pipeline' : isMarathi ? 'प्रयोगशाळा ट्रॅकर उघडा' : 'प्रयोगशाला ट्रैकर खोलें'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
+
+              {/* Card 6: Containment & Ring Vaccination */}
+              <Link
+                to="/vet/containment-vaccination"
+                className="p-5 rounded-2xl bg-white border border-stone-200 hover:border-teal-500 hover:shadow-md transition-all group relative flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+                      <Syringe className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300">
+                      {containmentZones.length} {isEnglish ? 'Zones' : isMarathi ? 'झोन' : 'क्षेत्र'}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 mt-3 group-hover:text-teal-700 transition">
+                    {isEnglish ? 'Containment & Vaccination' : isMarathi ? 'नियंत्रण व लसीकरण मोहीम' : 'रोकथाम और टीकाकरण अभियान'}
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
+                    {isEnglish ? '1km Ring vaccination campaigns, 3km surveillance buffers, and containment zones' : isMarathi ? '१ किमी रिंग लसीकरण, ३ किमी पाळत बफर व नियंत्रण झोन' : '1 किमी रिंग टीकाकरण, 3 किमी बफर और नियंत्रण क्षेत्र'}
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs font-bold text-teal-700 group-hover:translate-x-1 transition-transform">
+                  <span>{isEnglish ? 'Manage Ring Drives' : isMarathi ? 'लसीकरण मोहीम पहा' : 'टीकाकरण अभियान देखें'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </Link>
+            </div>
+          </div>
+
+          {/* Priority Pending Referral Cases Preview */}
+          <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <div>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Radio className="w-5 h-5 text-emerald-700" />
+                  <span>{isEnglish ? 'Priority Cases Stream' : isMarathi ? 'प्राधान्य प्रकरणे प्रवाह' : 'प्राथमिकता मामले प्रवाह'}</span>
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                  {isEnglish ? 'Latest farmer referrals awaiting review or clinical advancement in your jurisdiction' : isMarathi ? 'आपल्या कार्यक्षेत्रातील नवीन शेतकरी रेफरल्स' : 'आपके क्षेत्राधिकार में नवीनतम किसान रेफरल'}
+                </p>
+              </div>
+              <Link
+                to="/vet/cases"
+                className="text-xs sm:text-sm font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 hover:underline"
+              >
+                <span>{isEnglish ? 'View All Cases' : isMarathi ? 'सर्व प्रकरणे पहा' : 'सभी मामले देखें'}</span>
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            {referralCases.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 font-medium text-sm">
+                {isEnglish ? 'No referral cases logged yet in this jurisdiction.' : isMarathi ? 'या कार्यक्षेत्रात अद्याप कोणतेही रेफरल प्रकरणे नाहीत.' : 'इस क्षेत्राधिकार में अभी तक कोई रेफरल मामला नहीं है।'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {referralCases.slice(0, 4).map((c) => {
+                  const isClaimedByMe = c.assignedVet?.id === user?._id || c.assignedVet?.name === user?.name;
+                  const isUnclaimed = !c.assignedVet || c.status === 'New' || c.status === 'OPEN';
+
+                  return (
+                    <div
+                      key={c._id}
+                      className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200 hover:border-stone-300 transition space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-black text-slate-900">{c.caseId}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-200/80 text-slate-800 uppercase">
+                              {c.species || 'Cattle'}
+                            </span>
+                          </div>
+                          <div className="text-sm font-black text-slate-900 mt-1">{c.disease}</div>
+                          <div className="text-xs text-slate-500 font-medium">
+                            {c.farmerContact?.village || c.location?.village || userDistrict}, {c.farmerContact?.district || userDistrict}
+                          </div>
+                        </div>
+                        <StatusBadge status={c.status} size="sm" />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-stone-200/60 text-xs">
+                        <span className="font-bold text-slate-700">
+                          👤 {c.farmerContact?.name || (isEnglish ? 'Farmer' : isMarathi ? 'शेतकरी' : 'किसान')}
+                        </span>
+                        {isUnclaimed ? (
+                          <button
+                            type="button"
+                            onClick={() => handleClaimCase(c._id)}
+                            disabled={claimingCaseId === c._id}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer"
+                          >
+                            {claimingCaseId === c._id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            <span>{t('vet_portal.claim_btn')}</span>
+                          </button>
+                        ) : (
+                          <Link
+                            to="/vet/cases"
+                            className="px-3 py-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 text-slate-800 font-bold text-xs transition"
+                          >
+                            {isEnglish ? 'Open Workflow ➔' : isMarathi ? 'वर्कफ्लो उघडा ➔' : 'वर्कफ़्लो खोलें ➔'}
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
-      {/* TAB 0: PS-128 5-STAGE CANONICAL CASE QUEUE                               */}
+      {/* MODULE 2: PS-128 5-STAGE CANONICAL CASE QUEUE                             */}
       {/* ========================================================================= */}
-      {activeTab === 'referrals' && (
+      {activeView === 'cases' && (
         <div className="space-y-4">
           {/* Header & Stage Filter Strip */}
           <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-sm space-y-4">
@@ -1021,9 +1250,9 @@ export default function FieldWorkerDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 1: DISTRICT OUTBREAK MAP & CONTAINMENT SURVEILLANCE                    */}
+      {/* MODULE 3: DISTRICT OUTBREAK MAP & CONTAINMENT SURVEILLANCE                */}
       {/* ========================================================================= */}
-      {activeTab === 'outbreaks' && (
+      {activeView === 'outbreaks' && (
         <div className="space-y-6">
           {/* Live District Map */}
           <div className="space-y-2">
@@ -1197,9 +1426,9 @@ export default function FieldWorkerDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: ACTIVE SURVEILLANCE QUEUE                                         */}
+      {/* MODULE 4: ACTIVE SURVEILLANCE QUEUE                                       */}
       {/* ========================================================================= */}
-      {activeTab === 'cases' && (
+      {activeView === 'surveillance' && (
         <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden space-y-4">
           <div className="px-6 py-4 border-b border-stone-100 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1287,9 +1516,9 @@ export default function FieldWorkerDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: ZOONOTIC RISK SURVEILLANCE PANEL                                   */}
+      {/* MODULE 5: ZOONOTIC RISK SURVEILLANCE PANEL                               */}
       {/* ========================================================================= */}
-      {activeTab === 'zoonotic' && (
+      {activeView === 'zoonotic' && (
         <div className="space-y-4">
           <div className="bg-red-50 border border-red-200 rounded-3xl p-5 text-xs text-red-900 leading-relaxed flex items-start gap-3">
             <Biohazard className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
@@ -1304,9 +1533,9 @@ export default function FieldWorkerDashboard() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 4: DIAGNOSTIC LABORATORY WORKFLOW                                     */}
+      {/* MODULE 6: DIAGNOSTIC LABORATORY WORKFLOW                                 */}
       {/* ========================================================================= */}
-      {activeTab === 'laboratory' && (
+      {activeView === 'laboratory' && (
         <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4">
             <div>
@@ -1317,6 +1546,157 @@ export default function FieldWorkerDashboard() {
                 {t('vet_portal.lab_tracker_sub')}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODULE 7: CONTAINMENT & RING VACCINATION OPERATIONS CENTER               */}
+      {/* ========================================================================= */}
+      {activeView === 'containment-vaccination' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+                  <Syringe className="w-6 h-6 text-teal-700" />
+                  <span>{isEnglish ? 'Containment & Ring Vaccination Operations' : isMarathi ? 'नियंत्रण क्षेत्र व रिंग लसीकरण कार्यप्रणाली' : 'रोकथाम क्षेत्र और रिंग टीकाकरण संचालन'}</span>
+                </h2>
+                <p className="text-sm text-slate-600 font-medium">
+                  {isEnglish ? 'Enforce geospatial containment barriers and coordinate rapid ring vaccination drives to halt disease spread' : isMarathi ? 'रोग प्रसार रोखण्यासाठी भौगोलिक नियंत्रण क्षेत्र व तातडीची रिंग लसीकरण मोहीम राबवा' : 'रोग प्रसार रोकने के लिए भूस्थानिक रोकथाम सीमाएं और त्वरित रिंग टीकाकरण अभियान संचालित करें'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetCaseForZoneOrRing(null);
+                    setShowContainmentModal(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>{t('vet_portal.declare_containment')}</span>
+                </button>
+                <Link
+                  to="/vaccination"
+                  className="px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs sm:text-sm transition flex items-center gap-1.5 shadow-xs"
+                >
+                  <Syringe className="w-4 h-4" />
+                  <span>{isEnglish ? 'Open Vaccination Portal' : isMarathi ? 'लसीकरण पोर्टल उघडा' : 'टीकाकरण पोर्टल खोलें'}</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Metric Strip */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+              <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                  {isEnglish ? 'Active Containment Zones' : isMarathi ? 'सक्रिय नियंत्रण क्षेत्रे' : 'सक्रिय रोकथाम क्षेत्र'}
+                </span>
+                <div className="text-2xl font-black text-slate-900 mt-1">
+                  {containmentZones.filter(z => z.status === 'ACTIVE').length}
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {containmentZones.length} {isEnglish ? 'Total historical zones' : isMarathi ? 'एकूण नोंदणीकृत झोन' : 'कुल पंजीकृत क्षेत्र'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200">
+                <span className="text-xs font-bold text-teal-800 uppercase tracking-wide">
+                  {isEnglish ? 'Ring Vaccination Standard' : isMarathi ? 'रिंग लसीकरण प्रमाणक' : 'रिंग टीकाकरण मानक'}
+                </span>
+                <div className="text-2xl font-black text-teal-700 mt-1">
+                  1 km Core Ring
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {isEnglish ? '3 km Surveillance Buffer • 100% Target' : isMarathi ? '३ किमी पाळत बफर • १००% उद्दिष्ट' : '3 किमी निगरानी बफर • 100% लक्ष्य'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200">
+                <span className="text-xs font-bold text-orange-800 uppercase tracking-wide">
+                  {isEnglish ? 'Priority Targeted Pathogens' : isMarathi ? 'प्राधान्य रोग' : 'प्राथमिकता रोग'}
+                </span>
+                <div className="text-2xl font-black text-orange-700 mt-1">
+                  FMD • Lumpy • Anthrax
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {isEnglish ? 'Cold chain & mobile teams dispatched' : isMarathi ? 'कोल्ड चेन व फिरती पथके सज्ज' : 'कोल्ड चेन और मोबाइल टीमें तैयार'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Containment Zones Table */}
+          <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
+            <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-red-600" />
+              <span>{isEnglish ? 'Registered Containment Perimeters' : isMarathi ? 'नोंदणीकृत नियंत्रण क्षेत्र सीमा' : 'पंजीकृत रोकथाम क्षेत्र सीमा'}</span>
+            </h3>
+
+            {containmentZones.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 font-medium text-sm">
+                {isEnglish ? 'No active containment zones currently declared in this district.' : isMarathi ? 'या जिल्ह्यात सध्या कोणतेही सक्रिय नियंत्रण क्षेत्र नाही.' : 'इस जिले में वर्तमान में कोई सक्रिय रोकथाम क्षेत्र घोषित नहीं है।'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-stone-50 text-slate-500 uppercase tracking-wider border-b border-stone-200 font-bold text-xs">
+                    <tr>
+                      <th className="px-4 py-3">{isEnglish ? 'Zone ID / Disease' : 'क्षेत्र / रोग'}</th>
+                      <th className="px-4 py-3">{isEnglish ? 'Location' : 'स्थान'}</th>
+                      <th className="px-4 py-3">{isEnglish ? 'Radius' : 'त्रिज्या'}</th>
+                      <th className="px-4 py-3">{isEnglish ? 'Status' : 'स्थिति'}</th>
+                      <th className="px-4 py-3">{isEnglish ? 'Declared Date' : 'दिनांक'}</th>
+                      <th className="px-4 py-3 text-right">{isEnglish ? 'Actions' : 'कार्रवाई'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 font-medium text-slate-700">
+                    {containmentZones.map((z, idx) => (
+                      <tr key={z.id || z._id || idx} className="hover:bg-stone-50/80 transition">
+                        <td className="px-4 py-3 font-bold text-slate-900">
+                          <div>{z.disease || 'High Risk Outbreak'}</div>
+                          <span className="text-[10px] font-mono text-slate-400">ID: {z.id || z._id || `CZ-${idx + 1}`}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {z.village || userBlock}, {z.district || userDistrict}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-slate-800">
+                          {z.radiusKm || z.radius || 1} km
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                            z.status === 'ACTIVE'
+                              ? 'bg-red-100 text-red-800 border border-red-200'
+                              : 'bg-stone-100 text-slate-600'
+                          }`}>
+                            {z.status || 'ACTIVE'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          {z.createdAt ? new Date(z.createdAt).toLocaleDateString() : 'Active'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetCaseForZoneOrRing(z);
+                              setShowRingVaccinationModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-xs border border-teal-200 transition inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Syringe className="w-3.5 h-3.5" />
+                            <span>{isEnglish ? 'Launch Ring Drive' : isMarathi ? 'रिंग मोहीम सुरू करा' : 'रिंग अभियान शुरू करें'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

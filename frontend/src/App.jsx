@@ -225,6 +225,72 @@ function AppContent() {
               }
             />
 
+            {/* Veterinarian Dedicated Unified Module Routes */}
+            <Route
+              path="/vet"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="command-center" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/command-center"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="command-center" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/cases"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="cases" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/outbreaks"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="outbreaks" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/surveillance"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="surveillance" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/zoonotic-diseases"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="zoonotic" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/diagnostic-lab"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="laboratory" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vet/containment-vaccination"
+              element={
+                <ProtectedRoute allowedRoles={['veterinarian', 'field_worker', 'admin']}>
+                  <Dashboard activeModule="containment-vaccination" />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -74,12 +74,37 @@ export default function Navbar() {
       { to: '/government-schemes', label: t('nav.government_schemes') }
     ];
   } else if (isVet) {
+    const isEn = i18n.language?.startsWith('en');
+    const isMr = i18n.language?.startsWith('mr');
     navLinks = [
-      { to: '/', label: t('nav.command_center') },
-      { to: '/reports', label: '🗺️ ' + (i18n.language?.startsWith('en') ? 'Outbreak Map' : i18n.language?.startsWith('mr') ? 'रोग प्रादुर्भाव नकाशा' : 'रोग प्रकोप मैप') },
-      { to: '/report-sick', label: t('nav.report_new') },
-      { to: '/veterinary-help', label: t('nav.veterinary_help') },
-      { to: '/vaccination', label: t('nav.vaccination') }
+      {
+        to: '/vet/command-center',
+        label: isEn ? 'Command Center' : isMr ? 'कमांड सेंटर' : 'कमांड सेंटर'
+      },
+      {
+        to: '/vet/cases',
+        label: isEn ? 'Cases' : isMr ? 'केसेस (Cases)' : 'मामले (Cases)'
+      },
+      {
+        to: '/vet/outbreaks',
+        label: isEn ? 'Outbreaks' : isMr ? 'प्रकोप (Outbreaks)' : 'प्रकोप (Outbreaks)'
+      },
+      {
+        to: '/vet/surveillance',
+        label: isEn ? 'Active Surveillance' : isMr ? 'सक्रिय पाळत' : 'सक्रिय निगरानी'
+      },
+      {
+        to: '/vet/zoonotic-diseases',
+        label: isEn ? 'Zoonotic Diseases' : isMr ? 'झुनोटिक आजार' : 'जूनोटिक रोग'
+      },
+      {
+        to: '/vet/diagnostic-lab',
+        label: isEn ? 'Diagnostic Lab' : isMr ? 'निदान प्रयोगशाळा' : 'निदान प्रयोगशाला'
+      },
+      {
+        to: '/vet/containment-vaccination',
+        label: isEn ? 'Containment & Vaccination' : isMr ? 'नियंत्रण व लसीकरण' : 'नियंत्रण व टीकाकरण'
+      }
     ];
   } else {
     navLinks = [
@@ -90,13 +115,28 @@ export default function Navbar() {
     ];
   }
 
+  const isLinkActive = (to) => {
+    if (isVet) {
+      if (to === '/vet/command-center') {
+        return (
+          location.pathname === '/vet/command-center' ||
+          location.pathname === '/vet' ||
+          location.pathname === '/dashboard' ||
+          location.pathname === '/'
+        );
+      }
+      return location.pathname === to || location.pathname.startsWith(to + '/');
+    }
+    return location.pathname === to;
+  };
+
   return (
     <nav className="bg-white/95 backdrop-blur-md border-b border-stone-200/90 sticky top-0 z-40 shadow-xs w-full">
       {/* Full-width responsive container with consistent 24-40px horizontal padding */}
-      <div className="w-full px-6 sm:px-8 lg:px-10">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10">
         <div className="flex justify-between h-[74px] sm:h-[78px] items-center gap-3 sm:gap-4">
           {/* 1. Brand Logo & Tagline (Anchored to Left with Consistent Padding) */}
-          <Link to="/" className="flex items-center group shrink-0">
+          <Link to={isVet ? "/vet/command-center" : "/"} className="flex items-center group shrink-0">
             <LivestockSaathiLogo
               variant="horizontal"
               size="md"
@@ -108,15 +148,15 @@ export default function Navbar() {
           </Link>
 
           {/* 2. Modern Desktop Navigation Links (Evenly distributed across available space) */}
-          <div className="hidden lg:flex flex-1 items-center justify-center gap-1 xl:gap-2.5 2xl:gap-3.5 mx-2 xl:mx-4">
+          <div className="hidden lg:flex flex-1 items-center justify-center gap-1 xl:gap-2 mx-1 xl:mx-2">
             {navLinks.map((link) => {
-              const isActive = location.pathname === link.to;
+              const isActive = isLinkActive(link.to);
 
               return (
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`px-3 xl:px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-150 whitespace-nowrap ${
+                  className={`px-2.5 xl:px-3 py-2 rounded-xl text-xs xl:text-sm font-bold transition-all duration-150 whitespace-nowrap ${
                     isActive
                       ? 'text-emerald-950 bg-emerald-100/90 font-black shadow-2xs border border-emerald-300/80 relative after:absolute after:bottom-1 after:left-3 after:right-3 after:h-0.5 after:bg-emerald-700 after:rounded-full'
                       : 'text-slate-700 hover:text-slate-950 hover:bg-stone-100 font-bold'
@@ -134,10 +174,10 @@ export default function Navbar() {
             <Link
               to="/emergency-sos"
               className="hidden sm:inline-flex items-center gap-1.5 px-3.5 xl:px-4 py-2 rounded-xl text-sm font-black text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-700 hover:to-rose-700 transition-all duration-200 shadow-xs hover:shadow-md border border-red-500/80 animate-pulse shrink-0"
-              title="24×7 Emergency Veterinary SOS"
+              title={isVet ? "24×7 Emergency Veterinary Helpline (Dial 1962)" : "24×7 Emergency Veterinary SOS"}
             >
               <AlertTriangle className="w-4 h-4" />
-              <span>{t('nav.emergency_sos')}</span>
+              <span>{isVet ? '🚨 Emergency 1962' : t('nav.emergency_sos')}</span>
             </Link>
 
             {/* Minimalist Online/Offline indicator */}
@@ -324,7 +364,7 @@ export default function Navbar() {
             onClick={() => setMobileMenuOpen(false)}
             className="block px-4 py-3 rounded-xl text-base font-black text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 border border-red-500 shadow-xs text-center animate-pulse"
           >
-            🚨 24×7 {t('nav.emergency_sos')}
+            {isVet ? '🚨 Emergency 1962' : `🚨 24×7 ${t('nav.emergency_sos')}`}
           </Link>
 
           {/* Mobile Language Selector */}
@@ -353,7 +393,7 @@ export default function Navbar() {
           {/* Mobile Navigation Links */}
           <div className="space-y-1 pt-1">
             {navLinks.map((link) => {
-              const isActive = location.pathname === link.to;
+              const isActive = isLinkActive(link.to);
 
               return (
                 <Link

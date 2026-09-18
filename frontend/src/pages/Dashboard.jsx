@@ -4,7 +4,7 @@ import FarmerDashboard from './FarmerDashboard';
 import FieldWorkerDashboard from './FieldWorkerDashboard';
 import AdminDashboard from './AdminDashboard';
 
-export default function Dashboard() {
+export default function Dashboard({ activeModule }) {
   const { user } = useAuth();
 
   // Role routing
@@ -13,7 +13,7 @@ export default function Dashboard() {
   }
 
   if (user?.role === 'field_worker' || user?.role === 'veterinarian') {
-    return <FieldWorkerDashboard />;
+    return <FieldWorkerDashboard initialModule={activeModule} />;
   }
 
   return <AdminDashboard />;
