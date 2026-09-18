@@ -148,6 +148,43 @@ export const extractReportCoords = (report) => {
   return null;
 };
 
+class MapErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('[MapErrorBoundary] Leaflet internal rendering error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full min-h-[350px] bg-stone-50 rounded-xl p-6 text-center text-slate-600 space-y-3 border border-stone-200">
+          <span className="text-3xl">🗺️</span>
+          <div className="font-bold text-sm text-slate-800">Map Interface Reloading</div>
+          <div className="text-xs text-slate-500 max-w-sm">
+            Live telemetry data is safely rendered in the district registries below.
+          </div>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="text-xs px-3 py-1.5 bg-emerald-700 text-white font-bold rounded-lg hover:bg-emerald-800 transition cursor-pointer shadow-xs"
+          >
+            Reload Map Canvas
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function LeafletMap({
   reports = [],
   cases = [],
@@ -173,69 +210,74 @@ export default function LeafletMap({
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
 
   // Live state merged with props
-  const [liveCases, setLiveCases] = useState(cases);
-  const [liveContainmentZones, setLiveContainmentZones] = useState(containmentZones);
-  const [liveClusters, setLiveClusters] = useState(clusters);
+  const [liveCases, setLiveCases] = useState(cases || []);
+  const [liveContainmentZones, setLiveContainmentZones] = useState(containmentZones || []);
+  const [liveClusters, setLiveClusters] = useState(clusters || []);
 
   // Synchronize when parent props change
   useEffect(() => {
-    setLiveCases(cases);
+    setLiveCases(cases || []);
   }, [cases]);
 
   useEffect(() => {
-    setLiveContainmentZones(containmentZones);
+    setLiveContainmentZones(containmentZones || []);
   }, [containmentZones]);
 
   useEffect(() => {
-    setLiveClusters(clusters);
+    setLiveClusters(clusters || []);
   }, [clusters]);
 
   // Supabase Realtime Subscription
   useEffect(() => {
     if (!enableRealtime) return;
 
-    setIsRealtimeConnected(true);
-    const unsubscribe = realtimeService.subscribeToDistrictCases(district, (event) => {
-      if (!event || !event.type) return;
+    let unsubscribe = null;
+    try {
+      setIsRealtimeConnected(true);
+      unsubscribe = realtimeService.subscribeToDistrictCases(district, (event) => {
+        if (!event || !event.type) return;
 
-      if (event.type === 'case:new') {
-        setLiveCases((prev) => {
-          const matchId = event._id || event.caseId;
-          if (prev.some((c) => (c._id || c.caseId) === matchId)) return prev;
-          return [event, ...prev];
-        });
-      } else if (event.type === 'case:status_changed') {
-        setLiveCases((prev) =>
-          prev.map((c) => {
+        if (event.type === 'case:new') {
+          setLiveCases((prev) => {
             const matchId = event._id || event.caseId;
-            if ((c._id || c.caseId) === matchId) {
-              return { ...c, ...event };
-            }
-            return c;
-          })
-        );
-      } else if (event.type === 'containment:new') {
-        setLiveContainmentZones((prev) => {
-          const matchId = event._id || event.zoneId;
-          if (prev.some((z) => (z._id || z.zoneId) === matchId)) return prev;
-          return [event, ...prev];
-        });
-      } else if (event.type === 'containment:status_changed') {
-        setLiveContainmentZones((prev) =>
-          prev.map((z) => {
+            if (prev.some((c) => (c._id || c.caseId) === matchId)) return prev;
+            return [event, ...prev];
+          });
+        } else if (event.type === 'case:status_changed') {
+          setLiveCases((prev) =>
+            prev.map((c) => {
+              const matchId = event._id || event.caseId;
+              if ((c._id || c.caseId) === matchId) {
+                return { ...c, ...event };
+              }
+              return c;
+            })
+          );
+        } else if (event.type === 'containment:new') {
+          setLiveContainmentZones((prev) => {
             const matchId = event._id || event.zoneId;
-            if ((z._id || z.zoneId) === matchId) {
-              return { ...z, ...event };
-            }
-            return z;
-          })
-        );
-      }
-    });
+            if (prev.some((z) => (z._id || z.zoneId) === matchId)) return prev;
+            return [event, ...prev];
+          });
+        } else if (event.type === 'containment:status_changed') {
+          setLiveContainmentZones((prev) =>
+            prev.map((z) => {
+              const matchId = event._id || event.zoneId;
+              if ((z._id || z.zoneId) === matchId) {
+                return { ...z, ...event };
+              }
+              return z;
+            })
+          );
+        }
+      });
+    } catch (err) {
+      console.warn('[LeafletMap] Realtime subscription init skipped:', err);
+    }
 
     return () => {
       if (typeof unsubscribe === 'function') {
-        unsubscribe();
+        try { unsubscribe(); } catch (e) {}
       }
       setIsRealtimeConnected(false);
     };
@@ -244,9 +286,9 @@ export default function LeafletMap({
   // Unique disease options for filter
   const diseaseOptions = useMemo(() => {
     const set = new Set();
-    liveCases.forEach((c) => { if (c.disease) set.add(c.disease); });
-    reports.forEach((r) => {
-      const d = r.triageResult?.suspectedDiseases?.[0]?.name;
+    (liveCases || []).forEach((c) => { if (c && c.disease) set.add(c.disease); });
+    (reports || []).forEach((r) => {
+      const d = r && r.triageResult?.suspectedDiseases?.[0]?.name;
       if (d) set.add(d);
     });
     return Array.from(set);
@@ -257,9 +299,18 @@ export default function LeafletMap({
   const isMarathi = lang === 'mr' || lang.startsWith('mr');
 
   // Center calculation with safe fallbacks
+  const validUserLocation =
+    userLocation &&
+    userLocation[0] !== undefined &&
+    userLocation[1] !== undefined &&
+    !isNaN(parseFloat(userLocation[0])) &&
+    !isNaN(parseFloat(userLocation[1]))
+      ? [parseFloat(userLocation[0]), parseFloat(userLocation[1])]
+      : null;
+
   let defaultCenter = [18.5204, 73.8567]; // Pune District Default
-  if (userLocation && userLocation[0] && userLocation[1]) {
-    defaultCenter = [userLocation[0], userLocation[1]];
+  if (validUserLocation) {
+    defaultCenter = validUserLocation;
   } else if (liveCases.length > 0) {
     const coords = extractCaseCoords(liveCases[0]);
     if (coords) defaultCenter = coords;
@@ -470,8 +521,9 @@ export default function LeafletMap({
 
       {/* Map Canvas */}
       <div style={{ height }}>
-        <MapContainer center={defaultCenter} zoom={isFarmerView ? 11 : 9} scrollWheelZoom={false} className="w-full h-full">
-          <TileLayer
+        <MapErrorBoundary>
+          <MapContainer center={defaultCenter} zoom={isFarmerView ? 11 : 9} scrollWheelZoom={false} className="w-full h-full">
+            <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
@@ -799,7 +851,8 @@ export default function LeafletMap({
               </Marker>
             );
           })}
-        </MapContainer>
+          </MapContainer>
+        </MapErrorBoundary>
       </div>
 
       {/* Map Footer Legend */}

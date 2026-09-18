@@ -74,24 +74,47 @@ class RealtimeService {
     }
 
     // 2. Secondary / Resilient Fallback: Connect via Server-Sent Events (SSE)
-    const sseCleanup = caseService.streamReferralEvents(
-      (event) => {
-        const callbacks = this.listeners.get(channelName);
-        if (callbacks) {
-          callbacks.forEach(cb => {
-            try { cb(event); } catch (e) {}
-          });
-        }
-      },
-      (err) => {
-        // Non-blocking
+    let sseCleanup = null;
+    try {
+      if (caseService && typeof caseService.subscribeToCaseStream === 'function') {
+        sseCleanup = caseService.subscribeToCaseStream(
+          (event) => {
+            const callbacks = this.listeners.get(channelName);
+            if (callbacks) {
+              callbacks.forEach(cb => {
+                try { cb(event); } catch (e) {}
+              });
+            }
+          },
+          (err) => {
+            // Non-blocking
+          }
+        );
+      } else if (caseService && typeof caseService.streamReferralEvents === 'function') {
+        sseCleanup = caseService.streamReferralEvents(
+          (event) => {
+            const callbacks = this.listeners.get(channelName);
+            if (callbacks) {
+              callbacks.forEach(cb => {
+                try { cb(event); } catch (e) {}
+              });
+            }
+          },
+          (err) => {
+            // Non-blocking
+          }
+        );
       }
-    );
+    } catch (sseErr) {
+      console.warn('[RealtimeService] Resilient SSE fallback initialization skipped:', sseErr);
+    }
 
     // Return idempotent cleanup function
     return () => {
       this.unsubscribeListener(channelName, onEvent);
-      if (typeof sseCleanup === 'function') sseCleanup();
+      if (typeof sseCleanup === 'function') {
+        try { sseCleanup(); } catch (e) {}
+      }
     };
   }
 

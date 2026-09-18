@@ -35,6 +35,11 @@ class AppErrorBoundary extends React.Component {
             <p className="text-sm text-slate-600 leading-relaxed">
               सॉफ़्टवेयर में अस्थायी समस्या के कारण यह पृष्ठ लोड नहीं हो सका। कृपया पुनः प्रयास करें।
             </p>
+            {this.state.error && (
+              <div className="text-left bg-red-50 text-red-700 p-3 rounded-xl border border-red-200 text-xs font-mono break-all max-h-32 overflow-auto">
+                {this.state.error.message || String(this.state.error)}
+              </div>
+            )}
             <div className="flex gap-3 justify-center pt-2">
               <button
                 type="button"

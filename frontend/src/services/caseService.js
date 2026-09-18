@@ -204,6 +204,13 @@ class CaseService {
       }
     };
   }
+
+  /**
+   * Alias for realtimeService backwards compatibility
+   */
+  streamReferralEvents(onEvent, onError) {
+    return this.subscribeToCaseStream(onEvent, onError);
+  }
 }
 
 export default new CaseService();
