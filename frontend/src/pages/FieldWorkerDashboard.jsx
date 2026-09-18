@@ -1315,60 +1315,64 @@ export default function FieldWorkerDashboard({ initialModule }) {
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {spatialClusters.map((cluster) => (
-                  <div
-                    key={cluster.clusterId}
-                    className={`p-4 rounded-2xl border space-y-3 ${
-                      cluster.isOutbreak
-                        ? 'bg-red-50/60 border-red-300'
-                        : 'bg-stone-50 border-stone-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="font-mono text-xs font-bold text-slate-400">
-                          {cluster.clusterId}
+                {spatialClusters.map((cluster) => {
+                  const risk = cluster.risk || cluster.riskTier || 'High';
+                  const clusterKey = cluster.clusterId || cluster.id || String(cluster.centroidLat) + String(cluster.centroidLng);
+                  return (
+                    <div
+                      key={clusterKey}
+                      className={`p-4 rounded-2xl border space-y-3 ${
+                        cluster.isOutbreak
+                          ? 'bg-red-50/60 border-red-300'
+                          : 'bg-stone-50 border-stone-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="font-mono text-xs font-bold text-slate-400">
+                            {cluster.clusterId || 'CLUSTER'}
+                          </span>
+                          <h4 className="font-black text-lg text-slate-900">
+                            {cluster.disease}
+                          </h4>
+                        </div>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            risk === 'Critical'
+                              ? 'bg-red-600 text-white'
+                              : risk === 'High'
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-emerald-600 text-white'
+                          }`}
+                        >
+                          {risk}
                         </span>
-                        <h4 className="font-black text-lg text-slate-900">
-                          {cluster.disease}
-                        </h4>
                       </div>
-                      <span
-                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                          cluster.risk === 'Critical'
-                            ? 'bg-red-600 text-white'
-                            : cluster.risk === 'High'
-                            ? 'bg-amber-600 text-white'
-                            : 'bg-emerald-600 text-white'
-                        }`}
-                      >
-                        {cluster.risk}
-                      </span>
-                    </div>
 
-                    <div className="text-xs text-slate-700 space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">{t('vet_portal.cluster_case_count')}:</span>
-                        <span className="font-bold">{cluster.caseCount} {isEnglish ? 'cases' : isMarathi ? 'केसेस' : 'मामले'}</span>
+                      <div className="text-xs text-slate-700 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">{t('vet_portal.cluster_case_count')}:</span>
+                          <span className="font-bold">{cluster.caseCount || 0} {isEnglish ? 'cases' : isMarathi ? 'केसेस' : 'मामले'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">{t('vet_portal.cluster_affected_count')}:</span>
+                          <span className="font-bold text-red-600">{cluster.totalAffected ?? cluster.caseCount ?? 0} {isEnglish ? 'animals' : isMarathi ? 'जनावरे' : 'पशु'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">{t('vet_portal.cluster_radius')}:</span>
+                          <span className="font-bold">{cluster.radiusKm || 5} km</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">{t('vet_portal.cluster_affected_count')}:</span>
-                        <span className="font-bold text-red-600">{cluster.totalAffected} {isEnglish ? 'animals' : isMarathi ? 'जनावरे' : 'पशु'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">{t('vet_portal.cluster_radius')}:</span>
-                        <span className="font-bold">{cluster.radiusKm} km</span>
-                      </div>
-                    </div>
 
-                    {cluster.isOutbreak && (
-                      <div className="text-[11px] font-bold text-red-700 bg-red-100 p-2 rounded-xl flex items-center gap-1.5">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>{t('vet_portal.outbreak_buffer_alert')}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      {cluster.isOutbreak && (
+                        <div className="text-[11px] font-bold text-red-700 bg-red-100 p-2 rounded-xl flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4 shrink-0" />
+                          <span>{t('vet_portal.outbreak_buffer_alert')}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1389,7 +1393,7 @@ export default function FieldWorkerDashboard({ initialModule }) {
                   </div>
                 </div>
                 <span className="text-[10px] font-mono bg-emerald-800 text-emerald-100 px-2 py-1 rounded-md">
-                  {new Date(advisoryData.generatedAt).toLocaleDateString()}
+                  {advisoryData.generatedAt ? new Date(advisoryData.generatedAt).toLocaleDateString() : 'Live'}
                 </span>
               </div>
 
@@ -1414,13 +1418,113 @@ export default function FieldWorkerDashboard({ initialModule }) {
             </div>
           )}
 
-          {/* Embedded Outbreak Alert Reports */}
+          {/* Regional Syndromic Alert Reports Register */}
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
-            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-blue-700" />
-              <span>{t('vet_portal.regional_reports_title')}</span>
-            </h3>
-            <ReportsList isEmbedded={true} />
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-blue-700" />
+                  <span>{t('vet_portal.regional_reports_title')}</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  {isEnglish
+                    ? `Live syndromic alert logs and community health notifications in ${userDistrict}`
+                    : isMarathi
+                    ? `${userDistrict} मधील थेट सिंड्रोमिक अलर्ट आणि समुदाय आरोग्य अहवाल`
+                    : `${userDistrict} में लाइव सिंड्रोमिक अलर्ट और सामुदायिक स्वास्थ्य रिपोर्ट`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-800 rounded-full border border-blue-200">
+                  {reports.length} {isEnglish ? 'Reports' : isMarathi ? 'अहवाल' : 'रिपोर्ट्स'}
+                </span>
+                <Link
+                  to="/reports"
+                  className="text-xs font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1"
+                >
+                  <span>{t('vet_portal.view_all_cases')}</span>
+                </Link>
+              </div>
+            </div>
+
+            {reports.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 text-xs italic">
+                {isEnglish
+                  ? 'No syndromic alert reports currently recorded for this district.'
+                  : isMarathi
+                  ? 'या जिल्ह्यासाठी सध्या कोणतेही सिंड्रोमिक अलर्ट अहवाल नोंदवलेले नाहीत.'
+                  : 'इस जिले के लिए वर्तमान में कोई सिंड्रोमिक अलर्ट रिपोर्ट दर्ज नहीं है।'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-stone-50 text-slate-500 uppercase tracking-wider border-b border-stone-200 font-bold">
+                    <tr>
+                      <th className="px-4 py-2.5">{t('vet_portal.th_case_id')}</th>
+                      <th className="px-3 py-2.5">{t('vet_portal.th_species')}</th>
+                      <th className="px-3 py-2.5">{t('vet_portal.th_location')}</th>
+                      <th className="px-3 py-2.5">{t('vet_portal.th_suspected_disease')}</th>
+                      <th className="px-3 py-2.5">{t('vet_portal.th_risk')}</th>
+                      <th className="px-3 py-2.5">{t('vet_portal.th_status')}</th>
+                      <th className="px-4 py-2.5 text-right">{t('vet_portal.th_actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100 font-medium text-slate-700">
+                    {reports.slice(0, 8).map((rep) => {
+                      const topDisease = rep.triageResult?.suspectedDiseases?.[0];
+                      const repId = rep._id || rep.id;
+                      const repRisk = rep.triageResult?.riskLevel || rep.risk || 'Low';
+                      return (
+                        <tr key={repId} className="hover:bg-stone-50/80 transition">
+                          <td className="px-4 py-3 font-mono font-bold text-slate-900">
+                            {rep.caseId || (repId ? String(repId).substring(0, 8) : 'CASE')}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="px-2 py-0.5 rounded-md bg-stone-100 text-slate-800 font-bold">
+                              {rep.animalId?.species || rep.species || 'Cattle'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-slate-600">
+                            {rep.location?.village || rep.village || ''}
+                            {rep.location?.block ? `, ${rep.location.block}` : rep.block ? `, ${rep.block}` : ''}
+                          </td>
+                          <td className="px-3 py-3">
+                            {topDisease ? (
+                              <div>
+                                <div className="font-bold text-slate-900">{topDisease.name}</div>
+                                {topDisease.confidenceScore && (
+                                  <span className="text-[10px] text-emerald-700 font-bold">
+                                    {t('vet_portal.match_score', { score: Math.round(topDisease.confidenceScore * 100) })}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic">
+                                {rep.disease || t('vet_portal.clinical_triage')}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            <RiskBadge riskLevel={repRisk} size="sm" />
+                          </td>
+                          <td className="px-3 py-3">
+                            <StatusBadge status={rep.status || 'SUBMITTED'} size="sm" />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Link
+                              to={`/reports/${repId}`}
+                              className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-[11px] inline-flex items-center gap-1 transition"
+                            >
+                              <Eye className="w-3 h-3" /> {t('vet_portal.details_btn')}
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1471,7 +1575,8 @@ export default function FieldWorkerDashboard({ initialModule }) {
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-slate-600">
-                        {r.location.village}, {r.location.block}
+                        {r.location?.village || r.village || ''}
+                        {r.location?.block ? `, ${r.location.block}` : r.block ? `, ${r.block}` : ''}
                       </td>
                       <td className="px-4 py-3.5">
                         {topDisease ? (

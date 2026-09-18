@@ -99,6 +99,55 @@ const createUserLocationIcon = () => {
   });
 };
 
+// Robust coordinate extractors supporting both Supabase and Mongo shapes
+export const extractCaseCoords = (c) => {
+  if (!c) return null;
+  const lat = c.coordinates?.lat ?? c.latitude ?? c.lat;
+  const lng = c.coordinates?.lng ?? c.longitude ?? c.lng;
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+  if (!isNaN(parsedLat) && !isNaN(parsedLng) && parsedLat !== 0 && parsedLng !== 0) {
+    return [parsedLat, parsedLng];
+  }
+  return null;
+};
+
+export const extractZoneCoords = (zone) => {
+  if (!zone) return null;
+  const lat = zone.center?.lat ?? zone.centerLat ?? zone.latitude ?? zone.lat;
+  const lng = zone.center?.lng ?? zone.centerLng ?? zone.longitude ?? zone.lng;
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+  if (!isNaN(parsedLat) && !isNaN(parsedLng) && parsedLat !== 0 && parsedLng !== 0) {
+    return [parsedLat, parsedLng];
+  }
+  return null;
+};
+
+export const extractClusterCoords = (cluster) => {
+  if (!cluster) return null;
+  const lat = cluster.center?.lat ?? cluster.centroidLat ?? cluster.latitude ?? cluster.lat;
+  const lng = cluster.center?.lng ?? cluster.centroidLng ?? cluster.longitude ?? cluster.lng;
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+  if (!isNaN(parsedLat) && !isNaN(parsedLng) && parsedLat !== 0 && parsedLng !== 0) {
+    return [parsedLat, parsedLng];
+  }
+  return null;
+};
+
+export const extractReportCoords = (report) => {
+  if (!report) return null;
+  const lat = report.location?.lat ?? report.latitude ?? report.lat;
+  const lng = report.location?.lng ?? report.longitude ?? report.lng;
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+  if (!isNaN(parsedLat) && !isNaN(parsedLng) && parsedLat !== 0 && parsedLng !== 0) {
+    return [parsedLat, parsedLng];
+  }
+  return null;
+};
+
 export default function LeafletMap({
   reports = [],
   cases = [],
@@ -207,14 +256,16 @@ export default function LeafletMap({
   const isEnglish = lang === 'en' || lang.startsWith('en');
   const isMarathi = lang === 'mr' || lang.startsWith('mr');
 
-  // Center calculation
+  // Center calculation with safe fallbacks
   let defaultCenter = [18.5204, 73.8567]; // Pune District Default
   if (userLocation && userLocation[0] && userLocation[1]) {
     defaultCenter = [userLocation[0], userLocation[1]];
-  } else if (liveCases.length > 0 && liveCases[0].coordinates?.lat) {
-    defaultCenter = [liveCases[0].coordinates.lat, liveCases[0].coordinates.lng];
-  } else if (reports.length > 0 && reports[0].location?.lat) {
-    defaultCenter = [reports[0].location.lat, reports[0].location.lng];
+  } else if (liveCases.length > 0) {
+    const coords = extractCaseCoords(liveCases[0]);
+    if (coords) defaultCenter = coords;
+  } else if (reports.length > 0) {
+    const coords = extractReportCoords(reports[0]);
+    if (coords) defaultCenter = coords;
   }
 
   const normalizeRisk = (level) => {
@@ -241,9 +292,10 @@ export default function LeafletMap({
     return true;
   };
 
-  // Filter cases by risk, time, and disease
+  // Filter cases by risk, time, and disease safely
   const filteredCases = liveCases.filter((c) => {
-    if (!c.coordinates || !c.coordinates.lat || !c.coordinates.lng) return false;
+    const coords = extractCaseCoords(c);
+    if (!coords) return false;
     if (selectedRiskFilter !== 'All') {
       const r = normalizeRisk(c.risk);
       if (r.toLowerCase() !== selectedRiskFilter.toLowerCase()) return false;
@@ -255,9 +307,10 @@ export default function LeafletMap({
     return true;
   });
 
-  // Filter reports by risk, time, and disease
+  // Filter reports by risk, time, and disease safely
   const filteredReports = reports.filter((r) => {
-    if (!r.location || !r.location.lat || !r.location.lng) return false;
+    const coords = extractReportCoords(r);
+    if (!coords) return false;
     if (selectedRiskFilter !== 'All') {
       const rRisk = normalizeRisk(r.triageResult?.riskLevel);
       if (rRisk.toLowerCase() !== selectedRiskFilter.toLowerCase()) return false;
@@ -457,14 +510,16 @@ export default function LeafletMap({
           {/* Active Containment Zones */}
           {showContainmentZones &&
             liveContainmentZones.map((zone) => {
+              const coords = extractZoneCoords(zone);
+              if (!coords) return null;
               const isActive = zone.status === 'ACTIVE';
               const isContained = zone.status === 'CONTAINED';
               const color = isActive ? '#dc2626' : isContained ? '#f59e0b' : '#64748b';
 
               return (
                 <Circle
-                  key={`zone-${zone._id || zone.zoneId}`}
-                  center={[zone.center.lat, zone.center.lng]}
+                  key={`zone-${zone._id || zone.zoneId || zone.id}`}
+                  center={coords}
                   radius={(zone.radiusKm || 5.0) * 1000}
                   pathOptions={{
                     color,
@@ -479,17 +534,17 @@ export default function LeafletMap({
                       <div className="flex items-center justify-between border-b pb-1.5">
                         <span className="font-extrabold text-red-700 text-sm flex items-center gap-1">
                           <ShieldAlert className="w-4 h-4" />
-                          {zone.zoneId}
+                          {zone.zoneId || 'ZONE-CONTAINMENT'}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           isActive ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-amber-100 text-amber-800'
                         }`}>
-                          {zone.status}
+                          {zone.status || 'ACTIVE'}
                         </span>
                       </div>
                       <div className="text-slate-700 space-y-1">
                         <div><strong>Target Disease:</strong> {zone.disease}</div>
-                        <div><strong>Radius:</strong> {zone.radiusKm} km containment buffer</div>
+                        <div><strong>Radius:</strong> {zone.radiusKm || 5} km containment buffer</div>
                         <div><strong>Location:</strong> {zone.village ? `${zone.village}, ` : ''}{zone.district}</div>
                         <div><strong>Declared By:</strong> Dr. {zone.creatorName || 'Veterinary Official'}</div>
                       </div>
@@ -523,49 +578,57 @@ export default function LeafletMap({
           {showClusterPerimeters &&
             liveClusters
               .filter((cl) => cl.isOutbreak)
-              .map((cluster) => (
-                <Circle
-                  key={`cluster-${cluster.clusterId}`}
-                  center={[cluster.center.lat, cluster.center.lng]}
-                  radius={cluster.radiusKm * 1000}
-                  pathOptions={{
-                    color: cluster.risk === 'Critical' ? '#b91c1c' : '#d97706',
-                    fillColor: cluster.risk === 'Critical' ? '#ef4444' : '#f59e0b',
-                    fillOpacity: 0.12,
-                    weight: 2,
-                    dashArray: '4, 4'
-                  }}
-                >
-                  <Popup className="custom-popup">
-                    <div className="p-2 min-w-[220px] text-xs font-sans space-y-1.5">
-                      <div className="flex items-center justify-between border-b pb-1 font-bold text-amber-900">
-                        <span className="flex items-center gap-1">
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          Outbreak Cluster (≤ 5km)
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-800 font-bold">
-                          {cluster.risk}
-                        </span>
+              .map((cluster) => {
+                const coords = extractClusterCoords(cluster);
+                if (!coords) return null;
+                const risk = cluster.risk || cluster.riskTier || 'High';
+
+                return (
+                  <Circle
+                    key={`cluster-${cluster.clusterId || cluster.id || Math.random()}`}
+                    center={coords}
+                    radius={(cluster.radiusKm || 5.0) * 1000}
+                    pathOptions={{
+                      color: risk === 'Critical' ? '#b91c1c' : '#d97706',
+                      fillColor: risk === 'Critical' ? '#ef4444' : '#f59e0b',
+                      fillOpacity: 0.12,
+                      weight: 2,
+                      dashArray: '4, 4'
+                    }}
+                  >
+                    <Popup className="custom-popup">
+                      <div className="p-2 min-w-[220px] text-xs font-sans space-y-1.5">
+                        <div className="flex items-center justify-between border-b pb-1 font-bold text-amber-900">
+                          <span className="flex items-center gap-1">
+                            <AlertTriangle className="w-4 h-4 text-amber-600" />
+                            Outbreak Cluster (≤ 5km)
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-800 font-bold">
+                            {risk}
+                          </span>
+                        </div>
+                        <div className="text-slate-700 text-[11px] space-y-0.5">
+                          <div><strong>Disease:</strong> {cluster.disease}</div>
+                          <div><strong>Total Cases:</strong> {cluster.caseCount} reports</div>
+                          <div><strong>Affected Animals:</strong> {cluster.totalAffected} livestock</div>
+                          <div><strong>Cluster Radius:</strong> {cluster.radiusKm || 5} km</div>
+                        </div>
                       </div>
-                      <div className="text-slate-700 text-[11px] space-y-0.5">
-                        <div><strong>Disease:</strong> {cluster.disease}</div>
-                        <div><strong>Total Cases:</strong> {cluster.caseCount} reports</div>
-                        <div><strong>Affected Animals:</strong> {cluster.totalAffected} livestock</div>
-                        <div><strong>Cluster Radius:</strong> {cluster.radiusKm} km</div>
-                      </div>
-                    </div>
-                  </Popup>
-                </Circle>
-              ))}
+                    </Popup>
+                  </Circle>
+                );
+              })}
 
           {/* DiseaseCase Markers (PS128 Referral Cases) */}
           {filteredCases.map((c) => {
             const riskLevel = normalizeRisk(c.risk);
             const isOutbreak = c.status === 'Containment' || riskLevel === 'Critical';
 
+            const coords = extractCaseCoords(c);
+            if (!coords) return null;
+            let [lat, lng] = coords;
+
             // Coordinate privacy for farmers: fuzz non-own case coordinates if not already fuzzed
-            let lat = c.coordinates.lat;
-            let lng = c.coordinates.lng;
             if (isFarmerView && !c.isOwnCase) {
               if (!c.fuzzed && lat && lng) {
                 const hash = Math.sin((lat * 1000) + (lng * 1000)) * 10000;
@@ -576,7 +639,7 @@ export default function LeafletMap({
 
             return (
               <Marker
-                key={`case-${c._id || c.caseId}`}
+                key={`case-${c._id || c.caseId || c.id}`}
                 position={[lat, lng]}
                 icon={createRiskIcon(riskLevel, isOutbreak, true)}
               >
@@ -672,18 +735,21 @@ export default function LeafletMap({
 
           {/* Standard Reports Markers (if reports passed) */}
           {filteredReports.map((report) => {
+            const coords = extractReportCoords(report);
+            if (!coords) return null;
+            const [lat, lng] = coords;
             const riskLevel = normalizeRisk(report.triageResult?.riskLevel);
             const isOutbreak = report.triageResult?.outbreakFlag || false;
             const topDisease = report.triageResult?.suspectedDiseases?.[0];
             const distance =
               userLocation && userLocation[0] && userLocation[1]
-                ? calculateDistance(userLocation[0], userLocation[1], report.location.lat, report.location.lng)
+                ? calculateDistance(userLocation[0], userLocation[1], lat, lng)
                 : null;
 
             return (
               <Marker
-                key={report._id}
-                position={[report.location.lat, report.location.lng]}
+                key={report._id || report.id}
+                position={[lat, lng]}
                 icon={createRiskIcon(riskLevel, isOutbreak, false)}
               >
                 <Popup className="custom-popup">
@@ -699,7 +765,7 @@ export default function LeafletMap({
                     <div className="space-y-1 text-slate-600 text-xs">
                       <div>
                         <span className="font-semibold text-slate-800">Location:</span>{' '}
-                        {report.location.village}, {report.location.block}
+                        {report.location?.village || ''}, {report.location?.block || ''}
                       </div>
                       {distance !== null && (
                         <div className="text-emerald-700 font-bold flex items-center gap-1">

@@ -257,11 +257,11 @@ export default function ReportsList({ isEmbedded = false }) {
 
   // Compute distances and augment reports
   const processedReports = reports.map((r) => {
-    const lat = r.location?.lat;
-    const lng = r.location?.lng;
+    const lat = r.location?.lat ?? r.latitude ?? r.lat;
+    const lng = r.location?.lng ?? r.longitude ?? r.lng;
     const distanceKm = calculateDistance(userCoords[0], userCoords[1], lat, lng);
-    const riskLevel = normalizeRisk(r.triageResult?.riskLevel);
-    const topDisease = r.triageResult?.suspectedDiseases?.[0]?.name || (isEnglish ? 'Unclassified Infection' : isMarathi ? 'अवर्गीकृत संसर्ग' : 'अवर्गीकृत संक्रमण');
+    const riskLevel = normalizeRisk(r.triageResult?.riskLevel || r.risk);
+    const topDisease = r.triageResult?.suspectedDiseases?.[0]?.name || r.disease || (isEnglish ? 'Unclassified Infection' : isMarathi ? 'अवर्गीकृत संसर्ग' : 'अवर्गीकृत संक्रमण');
 
     return {
       ...r,
@@ -402,153 +402,157 @@ export default function ReportsList({ isEmbedded = false }) {
       )}
 
       {/* 1. Page Header (Veterinary Command & Surveillance) */}
-      <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <LivestockSaathiEmblem size={56} className="shrink-0 drop-shadow-xs mt-1" />
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                <ShieldAlert className="w-4 h-4 text-emerald-700" />
-                <span>
+      {!isEmbedded && (
+        <div className="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <LivestockSaathiEmblem size={56} className="shrink-0 drop-shadow-xs mt-1" />
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                  <ShieldAlert className="w-4 h-4 text-emerald-700" />
+                  <span>
+                    {isVet
+                      ? (isEnglish ? `Veterinary Epidemiological Outbreak Surveillance • ${detectedDistrict} District` : isMarathi ? `जिल्हा पशुवैद्यकीय साथरोग पाळत व नियंत्रण • ${detectedDistrict}` : `जिला पशु चिकित्सा महामारी रोग निगरानी एवं नियंत्रण • ${detectedDistrict}`)
+                      : (isEnglish ? 'SIH PS-128 • Real-time Community Animal Health Surveillance' : isMarathi ? 'स्मार्ट इंडिया हॅकाथॉन PS-128 • थेट समुदाय पशु आरोग्य पाळत' : 'स्मार्ट इंडिया हैकाथॉन PS-128 • लाइव सामुदायिक पशु स्वास्थ्य निगरानी')}
+                  </span>
+                </div>
+
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
                   {isVet
-                    ? (isEnglish ? `Veterinary Epidemiological Outbreak Surveillance • ${detectedDistrict} District` : isMarathi ? `जिल्हा पशुवैद्यकीय साथरोग पाळत व नियंत्रण • ${detectedDistrict}` : `जिला पशु चिकित्सा महामारी रोग निगरानी एवं नियंत्रण • ${detectedDistrict}`)
-                    : (isEnglish ? 'SIH PS-128 • Real-time Community Animal Health Surveillance' : isMarathi ? 'स्मार्ट इंडिया हॅकाथॉन PS-128 • थेट समुदाय पशु आरोग्य पाळत' : 'स्मार्ट इंडिया हैकाथॉन PS-128 • लाइव सामुदायिक पशु स्वास्थ्य निगरानी')}
-                </span>
-              </div>
+                    ? (isEnglish ? 'District Outbreak & Containment Command' : isMarathi ? 'जिल्हा प्रादुर्भाव व नियंत्रण कमांड' : 'जिला रोग प्रकोप एवं नियंत्रण कमांड')
+                    : (isEnglish ? 'Nearby Disease Alerts' : isMarathi ? 'स्थानिक रोग प्रादुर्भाव अलर्ट' : 'स्थानीय रोग प्रकोप अलर्ट')}
+                </h1>
 
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
+              <p className="text-slate-600 text-sm max-w-2xl leading-relaxed">
                 {isVet
-                  ? (isEnglish ? 'District Outbreak & Containment Command' : isMarathi ? 'जिल्हा प्रादुर्भाव व नियंत्रण कमांड' : 'जिला रोग प्रकोप एवं नियंत्रण कमांड')
-                  : (isEnglish ? 'Nearby Disease Alerts' : isMarathi ? 'स्थानिक रोग प्रादुर्भाव अलर्ट' : 'स्थानीय रोग प्रकोप अलर्ट')}
-              </h1>
+                  ? (isEnglish
+                      ? `Live geospatial telemetry, ICAR-NIVEDI outbreak cluster monitoring, dynamic containment zones, and immediate ring vaccination control for ${detectedDistrict} district.`
+                      : isMarathi
+                      ? `${detectedDistrict} जिल्ह्यासाठी थेट भू-स्थानिक देखरेख, ICAR-NIVEDI रोग क्लस्टर मॉनिटरिंग, नियंत्रण क्षेत्र आणि रिंग लसीकरण व्यवस्थापन.`
+                      : `${detectedDistrict} जिले के लिए लाइव भू-स्थानिक निगरानी, ICAR-NIVEDI रोग क्लस्टर मॉनिटरिंग, नियंत्रण क्षेत्र और रिंग टीकाकरण प्रबंधन।`)
+                  : (isEnglish
+                      ? 'Active outbreak detection within your perimeter, color-coded containment maps, upcoming vaccination camps, and automated AI preventive protocols.'
+                      : isMarathi
+                      ? 'आपल्या परिसरातील सक्रिय रोगांचे अलर्ट, रंग-कोडेड नियंत्रण नकाशा, नजीकची लसीकरण शिबिरे आणि प्रतिबंधात्मक एआय सल्ला.'
+                      : 'आपके क्षेत्र में सक्रिय रोग प्रकोप सूचनाएं, रंग-कोडित नियंत्रण मैप, आगामी टीकाकरण शिविर एवं स्वचालित एआई निवारक प्रोटोकॉल।')}
+              </p>
+            </div>
+          </div>
 
-            <p className="text-slate-600 text-sm max-w-2xl leading-relaxed">
-              {isVet
-                ? (isEnglish
-                    ? `Live geospatial telemetry, ICAR-NIVEDI outbreak cluster monitoring, dynamic containment zones, and immediate ring vaccination control for ${detectedDistrict} district.`
-                    : isMarathi
-                    ? `${detectedDistrict} जिल्ह्यासाठी थेट भू-स्थानिक देखरेख, ICAR-NIVEDI रोग क्लस्टर मॉनिटरिंग, नियंत्रण क्षेत्र आणि रिंग लसीकरण व्यवस्थापन.`
-                    : `${detectedDistrict} जिले के लिए लाइव भू-स्थानिक निगरानी, ICAR-NIVEDI रोग क्लस्टर मॉनिटरिंग, नियंत्रण क्षेत्र और रिंग टीकाकरण प्रबंधन।`)
-                : (isEnglish
-                    ? 'Active outbreak detection within your perimeter, color-coded containment maps, upcoming vaccination camps, and automated AI preventive protocols.'
-                    : isMarathi
-                    ? 'आपल्या परिसरातील सक्रिय रोगांचे अलर्ट, रंग-कोडेड नियंत्रण नकाशा, नजीकची लसीकरण शिबिरे आणि प्रतिबंधात्मक एआय सल्ला.'
-                    : 'आपके क्षेत्र में सक्रिय रोग प्रकोप सूचनाएं, रंग-कोडित नियंत्रण मैप, आगामी टीकाकरण शिविर एवं स्वचालित एआई निवारक प्रोटोकॉल।')}
-            </p>
+            {/* Quick Actions */}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {isVet ? (
+                <>
+                  <Link
+                    to="/vaccination"
+                    className="px-5 py-3 rounded-2xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-indigo-700/20 active:scale-95 transition"
+                  >
+                    <Syringe className="w-4 h-4" />
+                    <span>
+                      {isEnglish ? 'Schedule Ring Vaccination' : isMarathi ? 'रिंग लसीकरण मोहीम' : 'रिंग टीकाकरण आयोजित करें'}
+                    </span>
+                  </Link>
+
+                  <Link
+                    to="/report-sick"
+                    className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>
+                      {isEnglish ? 'Log Field Case' : isMarathi ? 'फील्ड केस नोंदवा' : 'फील्ड केस दर्ज करें'}
+                    </span>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {/* Quick Contact Nearby Vet Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowVetModal(true)}
+                    className="px-5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-amber-600/20 active:scale-95 transition"
+                  >
+                    <PhoneCall className="w-4 h-4" />
+                    <span>
+                      {isEnglish
+                        ? 'Contact Nearby Vet'
+                        : isMarathi
+                        ? 'पशुवैद्यकांशी संपर्क साधा'
+                        : 'पशु चिकित्सक से संपर्क करें'}
+                    </span>
+                  </button>
+
+                  {/* Report Sick Animal */}
+                  <Link
+                    to="/report-sick"
+                    className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>
+                      {isEnglish
+                        ? 'Report Disease'
+                        : isMarathi
+                        ? 'रोग लक्षण नोंदवा'
+                        : 'रोग लक्षण दर्ज करें'}
+                    </span>
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
-
-          {/* Quick Actions */}
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            {isVet ? (
-              <>
-                <Link
-                  to="/vaccination"
-                  className="px-5 py-3 rounded-2xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-indigo-700/20 active:scale-95 transition"
-                >
-                  <Syringe className="w-4 h-4" />
-                  <span>
-                    {isEnglish ? 'Schedule Ring Vaccination' : isMarathi ? 'रिंग लसीकरण मोहीम' : 'रिंग टीकाकरण आयोजित करें'}
-                  </span>
-                </Link>
-
-                <Link
-                  to="/report-sick"
-                  className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>
-                    {isEnglish ? 'Log Field Case' : isMarathi ? 'फील्ड केस नोंदवा' : 'फील्ड केस दर्ज करें'}
-                  </span>
-                </Link>
-              </>
-            ) : (
-              <>
-                {/* Quick Contact Nearby Vet Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowVetModal(true)}
-                  className="px-5 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-amber-600/20 active:scale-95 transition"
-                >
-                  <PhoneCall className="w-4 h-4" />
-                  <span>
-                    {isEnglish
-                      ? 'Contact Nearby Vet'
-                      : isMarathi
-                      ? 'पशुवैद्यकांशी संपर्क साधा'
-                      : 'पशु चिकित्सक से संपर्क करें'}
-                  </span>
-                </button>
-
-                {/* Report Sick Animal */}
-                <Link
-                  to="/report-sick"
-                  className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-emerald-700/20 active:scale-95 transition"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>
-                    {isEnglish
-                      ? 'Report Disease'
-                      : isMarathi
-                      ? 'रोग लक्षण नोंदवा'
-                      : 'रोग लक्षण दर्ज करें'}
-                  </span>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* 2. Interactive Outbreak Map Section */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
-              <span>🗺️</span>
+      {!isEmbedded && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+                <span>🗺️</span>
+                <span>
+                  {isEnglish
+                    ? 'Live Outbreak Map'
+                    : isMarathi
+                    ? 'थेट रोग प्रादुर्भाव नकाशा'
+                    : 'लाइव रोग प्रकोप मैप'}
+                </span>
+              </h2>
+              <p className="text-sm text-slate-600 mt-0.5">
+                {isEnglish
+                  ? 'Interactive containment zones & color-coded risk markers (🟢 Safe, 🟡 Low, 🟠 Medium, 🔴 High)'
+                  : isMarathi
+                  ? 'परस्परसंवादी नियंत्रण क्षेत्र आणि रंग-कोडेड जोखीम मार्कर (🟢 सुरक्षित, 🟡 कमी, 🟠 मध्यम, 🔴 उच्च)'
+                  : 'इंटरैक्टिव नियंत्रण क्षेत्र एवं रंग-कोडित जोखिम मार्कर (🟢 सुरक्षित, 🟡 निम्न, 🟠 मध्यम, 🔴 उच्च)'}
+              </p>
+            </div>
+
+            <div className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-200">
+              <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
                 {isEnglish
-                  ? 'Live Outbreak Map'
+                  ? `Center: ${user?.block || user?.village || 'Command Center'}, ${detectedDistrict}`
                   : isMarathi
-                  ? 'थेट रोग प्रादुर्भाव नकाशा'
-                  : 'लाइव रोग प्रकोप मैप'}
+                  ? `स्थान: ${user?.block || user?.village || 'नियंत्रण केंद्र'}, ${detectedDistrict}`
+                  : `केंद्र: ${user?.block || user?.village || 'कमांड सेंटर'}, ${detectedDistrict}`}
               </span>
-            </h2>
-            <p className="text-sm text-slate-600 mt-0.5">
-              {isEnglish
-                ? 'Interactive containment zones & color-coded risk markers (🟢 Safe, 🟡 Low, 🟠 Medium, 🔴 High)'
-                : isMarathi
-                ? 'परस्परसंवादी नियंत्रण क्षेत्र आणि रंग-कोडेड जोखीम मार्कर (🟢 सुरक्षित, 🟡 कमी, 🟠 मध्यम, 🔴 उच्च)'
-                : 'इंटरैक्टिव नियंत्रण क्षेत्र एवं रंग-कोडित जोखिम मार्कर (🟢 सुरक्षित, 🟡 निम्न, 🟠 मध्यम, 🔴 उच्च)'}
-            </p>
+            </div>
           </div>
 
-          <div className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-200">
-            <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-            <span>
-              {isEnglish
-                ? `Center: ${user?.block || user?.village || 'Command Center'}, ${detectedDistrict}`
-                : isMarathi
-                ? `स्थान: ${user?.block || user?.village || 'नियंत्रण केंद्र'}, ${detectedDistrict}`
-                : `केंद्र: ${user?.block || user?.village || 'कमांड सेंटर'}, ${detectedDistrict}`}
-            </span>
-          </div>
+          {/* Map Canvas */}
+          <LeafletMap
+            reports={reports}
+            cases={districtCases}
+            clusters={districtClusters}
+            containmentZones={districtZones}
+            height="460px"
+            isFarmerView={!isVet}
+            userLocation={userCoords}
+            radiusKm={radiusFilter === 'all' ? 50 : Number(radiusFilter)}
+            lang={i18n.language}
+            onViewAdvisory={(alert) => setSelectedAdvisoryAlert(alert)}
+          />
         </div>
-
-        {/* Map Canvas */}
-        <LeafletMap
-          reports={reports}
-          cases={districtCases}
-          clusters={districtClusters}
-          containmentZones={districtZones}
-          height="460px"
-          isFarmerView={!isVet}
-          userLocation={userCoords}
-          radiusKm={radiusFilter === 'all' ? 50 : Number(radiusFilter)}
-          lang={i18n.language}
-          onViewAdvisory={(alert) => setSelectedAdvisoryAlert(alert)}
-        />
-      </div>
+      )}
 
       {/* 3. Nearby Disease Alerts Header & Filter Toolbar */}
       <div className="space-y-4">
