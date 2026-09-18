@@ -122,7 +122,17 @@ async function runCompleteVeterinaryWorkflowTests() {
     role: 'farmer',
     district: 'Nagpur'
   };
-  const farmerToken = createSupabaseToken(farmerData);
+  let farmerToken = createSupabaseToken(farmerData);
+  try {
+    const fLogin = await request(`${BASE_URL}/api/auth/login`, { method: 'POST' }, {
+      email: farmerData.email,
+      password: 'Farmer@123'
+    });
+    if (fLogin.body?.token) {
+      farmerToken = fLogin.body.token;
+      console.log('  Authenticated Farmer via API login.');
+    }
+  } catch (e) {}
 
   const vetData = {
     id: '00000000-0000-0000-0000-000000000007',
@@ -131,7 +141,17 @@ async function runCompleteVeterinaryWorkflowTests() {
     role: 'veterinarian',
     district: 'Nagpur'
   };
-  const vetToken = createSupabaseToken(vetData);
+  let vetToken = createSupabaseToken(vetData);
+  try {
+    const vLogin = await request(`${BASE_URL}/api/auth/login`, { method: 'POST' }, {
+      email: vetData.email,
+      password: 'VetPassword@123'
+    });
+    if (vLogin.body?.token) {
+      vetToken = vLogin.body.token;
+      console.log('  Authenticated Veterinarian Dr. Priya Joshi via API login.');
+    }
+  } catch (e) {}
 
   // Setup: Create test animal in Nagpur for farmer
   const testTagId = `VET-TEST-${Date.now()}`;
