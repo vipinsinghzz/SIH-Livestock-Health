@@ -36,6 +36,12 @@ export default function VetLayout() {
         }}
       />
       <Stack.Screen
+        name="referrals/[id]"
+        options={{
+          title: 'Referral Details',
+        }}
+      />
+      <Stack.Screen
         name="cases/index"
         options={{
           title: 'Clinical Cases',
