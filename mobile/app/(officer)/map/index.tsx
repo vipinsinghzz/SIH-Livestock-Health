@@ -43,7 +43,7 @@ export default function OfficerMapScreen() {
   const { user } = useAuth();
   const mapRef = useRef<MapView>(null);
 
-  const district = user?.district || 'Pune';
+  const district = user?.district;
 
   // Spatial datasets
   const [containmentZones, setContainmentZones] = useState<ContainmentZone[]>([]);
@@ -122,6 +122,13 @@ export default function OfficerMapScreen() {
   }, [params.focusLat, params.focusLng]);
 
   const loadAllSpatialData = useCallback(async () => {
+    if (!district) {
+      setError('Officer district jurisdiction is not configured on this account. Contact system administrator.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     try {
       setError(null);
       setRefreshing(true);
@@ -190,7 +197,9 @@ export default function OfficerMapScreen() {
           <View>
             <Text style={styles.screenTitle}>District GIS Surveillance</Text>
             <Text style={styles.screenSubtitle}>
-              {district} District • {validZones.length} Zone(s) • {validClusters.length} Cluster(s) • {validCases.length} Case(s)
+              {district
+                ? `${district} District • ${validZones.length} Zone(s) • ${validClusters.length} Cluster(s) • ${validCases.length} Case(s)`
+                : 'District Jurisdiction Unavailable'}
             </Text>
           </View>
           <View style={styles.topActions}>
@@ -449,6 +458,16 @@ export default function OfficerMapScreen() {
                       </Text>
                     </View>
                   )}
+
+                  <TouchableOpacity
+                    style={styles.cardActionBtn}
+                    onPress={() => {
+                      router.push('/(officer)/containment' as any);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.cardActionBtnText}>🛡️ Manage Containment Zone ➔</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -490,6 +509,42 @@ export default function OfficerMapScreen() {
                       {selectedEntity.data.riskTier || selectedEntity.data.risk || 'High'}
                     </Text>
                   </View>
+
+                  <View style={styles.cardBtnRow}>
+                    <TouchableOpacity
+                      style={[styles.cardActionBtn, { flex: 1 }]}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(officer)/containment',
+                          params: {
+                            disease: selectedEntity.data.disease,
+                            focusLat: String(selectedEntity.data.centroidLat || ''),
+                            focusLng: String(selectedEntity.data.centroidLng || ''),
+                          },
+                        } as any);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.cardActionBtnText}>🛡️ Declare Zone</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.cardActionBtn, styles.cardActionBtnRing, { flex: 1 }]}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(officer)/containment',
+                          params: {
+                            disease: selectedEntity.data.disease,
+                            focusLat: String(selectedEntity.data.centroidLat || ''),
+                            focusLng: String(selectedEntity.data.centroidLng || ''),
+                            mode: 'ring',
+                          },
+                        } as any);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.cardActionBtnTextRing}>💉 Ring Vaccine</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 
@@ -520,6 +575,25 @@ export default function OfficerMapScreen() {
                       {selectedEntity.data.distanceKm ? `${selectedEntity.data.distanceKm.toFixed(1)} km` : 'Local'}
                     </Text>
                   </View>
+
+                  <TouchableOpacity
+                    style={[styles.cardActionBtn, styles.cardActionBtnRing]}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/(officer)/containment',
+                        params: {
+                          mode: 'ring',
+                          caseId: selectedEntity.data.caseId,
+                          disease: selectedEntity.data.disease,
+                          village: selectedEntity.data.village,
+                          block: selectedEntity.data.block,
+                        },
+                      } as any);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.cardActionBtnTextRing}>💉 Schedule Ring Vaccination ➔</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -806,5 +880,34 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: typography.weights.medium,
     color: colors.light.textPrimary,
+  },
+  cardActionBtn: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingVertical: 7,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  cardActionBtnText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: colors.light.danger,
+  },
+  cardBtnRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  cardActionBtnRing: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  cardActionBtnTextRing: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: colors.light.primary,
   },
 });

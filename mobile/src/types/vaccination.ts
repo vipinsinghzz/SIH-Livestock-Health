@@ -186,3 +186,45 @@ export function calculateVaccinationMetrics(animals: Animal[] = []): Vaccination
     allRecords,
   };
 }
+
+// ============================================================================
+// Phase 10.3: Mass Vaccination Campaign Governance Types
+// ============================================================================
+
+export interface CreateVaccinationDrivePayload {
+  vaccine: string;
+  vaccineFullName?: string;
+  targetSpecies?: string;
+  village: string;
+  block: string;
+  district?: string;
+  state?: string;
+  venue?: string;
+  capacity?: number;
+  targetCount?: number;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  cost?: string;
+  notes?: string;
+}
+
+export interface CreateVaccinationDriveResponse {
+  success: boolean;
+  message: string;
+  drive: VaccinationDrive;
+}
+
+export interface UpdateVaccinationDrivePayload {
+  coveredCount?: number;
+  incrementCoveredBy?: number;
+  status?: 'Upcoming' | 'Ongoing' | 'Completed';
+}
+
+export interface UpdateVaccinationDriveResponse {
+  success: boolean;
+  message: string;
+  drive: VaccinationDrive;
+}
+

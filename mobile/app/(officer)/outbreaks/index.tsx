@@ -36,7 +36,7 @@ type RiskFilter = 'ALL' | 'CRITICAL' | 'HIGH' | 'MODERATE';
 export default function OfficerOutbreaksScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const district = user?.district || 'Pune';
+  const district = user?.district;
 
   // State
   const [clusters, setClusters] = useState<OutbreakCluster[]>([]);
@@ -48,6 +48,13 @@ export default function OfficerOutbreaksScreen() {
   const [activeFilter, setActiveFilter] = useState<RiskFilter>('ALL');
 
   const loadOutbreakData = useCallback(async () => {
+    if (!district) {
+      setError('Officer district jurisdiction is not configured on this account. Contact system administrator.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     try {
       setError(null);
       const [clustersRes, riskRes] = await Promise.allSettled([
@@ -156,7 +163,7 @@ export default function OfficerOutbreaksScreen() {
           <View>
             <Text style={styles.headerTitle}>Outbreak Surveillance</Text>
             <Text style={styles.headerSubtitle}>
-              {district} District • {clusters.length} Active Cluster(s)
+              {district ? `${district} District • ${clusters.length} Active Cluster(s)` : 'District Jurisdiction Unavailable'}
             </Text>
           </View>
           <TouchableOpacity
@@ -253,20 +260,33 @@ export default function OfficerOutbreaksScreen() {
               {/* Action Recommendations */}
               <View style={styles.recRow}>
                 {risk.containmentRecommendation?.recommended && (
-                  <View style={styles.recPill}>
+                  <TouchableOpacity
+                    style={styles.recPill}
+                    onPress={() => router.push('/(officer)/containment' as any)}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.recPillIcon}>🛡️</Text>
                     <Text style={styles.recPillText}>
-                      Containment ({risk.containmentRecommendation.suggestedRadiusKm}km advised)
+                      Containment ({risk.containmentRecommendation.suggestedRadiusKm}km advised) ➔
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
                 {risk.vaccinationRecommendation?.ringVaccinationAdvised && (
-                  <View style={[styles.recPill, styles.recPillVaccine]}>
+                  <TouchableOpacity
+                    style={[styles.recPill, styles.recPillVaccine]}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(officer)/containment',
+                        params: { mode: 'ring' },
+                      } as any)
+                    }
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.recPillIcon}>💉</Text>
                     <Text style={styles.recPillText}>
-                      Ring Vaccination ({risk.vaccinationRecommendation.targetRadiusKm}km)
+                      Ring Vaccination ({risk.vaccinationRecommendation.targetRadiusKm}km) ➔
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
@@ -389,7 +409,7 @@ export default function OfficerOutbreaksScreen() {
                     </View>
                   </View>
 
-                  {/* Centroid coordinates & Map Button */}
+                  {/* Centroid coordinates */}
                   <View style={styles.clusterFooter}>
                     <View style={styles.centroidInfo}>
                       <Text style={styles.centroidLabel}>GPS Centroid:</Text>
@@ -397,13 +417,51 @@ export default function OfficerOutbreaksScreen() {
                         {cluster.centroidLat?.toFixed(4)}, {cluster.centroidLng?.toFixed(4)}
                       </Text>
                     </View>
+                  </View>
+
+                  {/* Action Buttons: Containment, Ring Vaccine & Map */}
+                  <View style={styles.clusterActionRow}>
+                    <TouchableOpacity
+                      style={styles.actionPillContainment}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(officer)/containment',
+                          params: {
+                            disease: cluster.disease,
+                            focusLat: String(cluster.centroidLat || ''),
+                            focusLng: String(cluster.centroidLng || ''),
+                          },
+                        } as any);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.actionPillContainmentText}>🛡️ Containment</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionPillRing}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/(officer)/containment',
+                          params: {
+                            disease: cluster.disease,
+                            focusLat: String(cluster.centroidLat || ''),
+                            focusLng: String(cluster.centroidLng || ''),
+                            mode: 'ring',
+                          },
+                        } as any);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.actionPillRingText}>💉 Ring Vaccine</Text>
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.viewOnMapBtn}
                       onPress={() => navigateToMapWithCluster(cluster)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.viewOnMapBtnText}>View on Map ➔</Text>
+                      <Text style={styles.viewOnMapBtnText}>Map ➔</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -808,5 +866,41 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: typography.weights.semibold,
     color: colors.light.textInverse,
+  },
+  clusterActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  actionPillContainment: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+  },
+  actionPillContainmentText: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.light.danger,
+  },
+  actionPillRing: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+  },
+  actionPillRingText: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.light.primary,
   },
 });

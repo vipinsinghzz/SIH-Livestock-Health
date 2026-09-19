@@ -72,7 +72,10 @@ export const containmentService = {
   }): Promise<GetContainmentZonesResult> {
     const netState = await NetInfo.fetch();
     const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
-    const targetDistrict = params?.district || 'Pune';
+    const targetDistrict = params?.district;
+    if (!targetDistrict) {
+      return { zones: [], count: 0, fromCache: false };
+    }
 
     if (isOnline) {
       try {
@@ -168,10 +171,12 @@ export const containmentService = {
       }
 
       // Reconcile into SQLite cache
-      const dist = payload.district || zone.district || 'Pune';
-      const { zones: cached } = await getCachedContainmentZones(dist);
-      const updated = [zone, ...cached.filter((z) => (z.id || z.zoneId) !== (zone.id || zone.zoneId))];
-      await saveContainmentZonesCache(dist, updated);
+      const dist = payload.district || zone.district;
+      if (dist) {
+        const { zones: cached } = await getCachedContainmentZones(dist);
+        const updated = [zone, ...cached.filter((z) => (z.id || z.zoneId) !== (zone.id || zone.zoneId))];
+        await saveContainmentZonesCache(dist, updated);
+      }
 
       return {
         success: true,
@@ -239,15 +244,17 @@ export const containmentService = {
       }
 
       // Reconcile into SQLite cache
-      const dist = zone.district || 'Pune';
-      const { zones: cached } = await getCachedContainmentZones(dist);
-      const updated = cached.map((z) =>
-        (z.id || z.zoneId) === cleanId ? { ...z, ...zone } : z
-      );
-      if (!updated.some((z) => (z.id || z.zoneId) === cleanId)) {
-        updated.unshift(zone);
+      const dist = zone.district;
+      if (dist) {
+        const { zones: cached } = await getCachedContainmentZones(dist);
+        const updated = cached.map((z) =>
+          (z.id || z.zoneId) === cleanId ? { ...z, ...zone } : z
+        );
+        if (!updated.some((z) => (z.id || z.zoneId) === cleanId)) {
+          updated.unshift(zone);
+        }
+        await saveContainmentZonesCache(dist, updated);
       }
-      await saveContainmentZonesCache(dist, updated);
 
       return {
         success: true,
@@ -321,7 +328,10 @@ export const containmentService = {
   }): Promise<GetOutbreakClustersResult> {
     const netState = await NetInfo.fetch();
     const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
-    const targetDistrict = params?.district || 'Pune';
+    const targetDistrict = params?.district;
+    if (!targetDistrict) {
+      return { clusters: [], count: 0, district: '', fromCache: false };
+    }
 
     if (isOnline) {
       try {

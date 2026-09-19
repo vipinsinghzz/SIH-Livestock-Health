@@ -215,13 +215,22 @@ export default function OfficerHomeScreen() {
                 DBSCAN spatial clustering identified proximity outbreak clusters in {districtName}.
                 Immediate containment perimeters and emergency ring vaccination required.
               </Text>
-              <TouchableOpacity
-                style={styles.outbreakActionBtn}
-                onPress={() => router.push('/(officer)/outbreaks' as any)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.outbreakActionBtnText}>View Outbreak Clusters →</Text>
-              </TouchableOpacity>
+              <View style={styles.outbreakActionRow}>
+                <TouchableOpacity
+                  style={styles.outbreakActionBtn}
+                  onPress={() => router.push('/(officer)/outbreaks' as any)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.outbreakActionBtnText}>View Outbreak Clusters →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.outbreakActionBtn, styles.outbreakContainmentBtn]}
+                  onPress={() => router.push('/(officer)/containment' as any)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.outbreakActionBtnText}>Manage Containment →</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -625,12 +634,20 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: spacing.sm,
   },
+  outbreakActionRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+  },
   outbreakActionBtn: {
     alignSelf: 'flex-start',
     backgroundColor: colors.light.danger,
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
     borderRadius: radii.sm,
+  },
+  outbreakContainmentBtn: {
+    backgroundColor: colors.light.officerBadge,
   },
   outbreakActionBtnText: {
     color: colors.light.textInverse,

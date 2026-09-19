@@ -259,10 +259,13 @@ export const officerService = {
     affectedCount?: number;
     caseId?: string;
   }): Promise<OfficerRiskAnalysisResponse | null> {
+    if (!params?.district) {
+      return null;
+    }
     try {
       const response = await api.get<OfficerRiskAnalysisResponse>('/cases/risk-analysis', {
         params: {
-          district: params?.district || 'Pune',
+          district: params.district,
           lat: params?.lat,
           lng: params?.lng,
           disease: params?.disease,

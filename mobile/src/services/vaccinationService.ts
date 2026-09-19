@@ -13,6 +13,10 @@ import {
   VaccinationDrive,
   CampRegistration,
   PreventiveAdvisory,
+  CreateVaccinationDrivePayload,
+  CreateVaccinationDriveResponse,
+  UpdateVaccinationDrivePayload,
+  UpdateVaccinationDriveResponse,
 } from '../types/vaccination';
 import {
   saveVaccinationsCache,
@@ -149,6 +153,103 @@ export const vaccinationService = {
     const { advisories } = await getCachedAdvisories(params?.district);
     return advisories;
   },
+
+  /**
+   * Create a new government vaccination campaign/drive
+   * Backed by POST /api/vaccination-drives.
+   * STRICTLY ONLINE ONLY.
+   */
+  async createVaccinationDrive(
+    payload: CreateVaccinationDrivePayload
+  ): Promise<CreateVaccinationDriveResponse> {
+    if (!payload.vaccine?.trim()) {
+      throw new Error('Vaccine name is required.');
+    }
+    if (!payload.village?.trim() || !payload.block?.trim()) {
+      throw new Error('Target village and block are required.');
+    }
+
+    const netState = await NetInfo.fetch();
+    const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
+
+    if (!isOnline) {
+      throw new Error('Internet connection required for this action.');
+    }
+
+    try {
+      const response = await api.post<CreateVaccinationDriveResponse>(
+        '/vaccination-drives',
+        payload
+      );
+
+      if (!response.data?.success || !response.data?.drive) {
+        throw new Error(response.data?.message || 'Server returned an invalid campaign creation response.');
+      }
+
+      // Reconcile into local SQLite cache
+      const dist = payload.district || response.data.drive.district || 'All';
+      const { drives: cached } = await getCachedVaccinations(dist);
+      await saveVaccinationsCache(dist, [response.data.drive, ...cached]);
+
+      return response.data;
+    } catch (err: any) {
+      const responseData = err.data || err.response?.data;
+      const msg = responseData?.message || err.message || 'Failed to create vaccination campaign.';
+      throw new Error(msg);
+    }
+  },
+
+  /**
+   * Update vaccination campaign progress or status
+   * Backed by PATCH /api/vaccination-drives/:id.
+   * STRICTLY ONLINE ONLY.
+   */
+  async updateVaccinationDrive(
+    id: string,
+    payload: UpdateVaccinationDrivePayload
+  ): Promise<UpdateVaccinationDriveResponse> {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) {
+      throw new Error('Valid campaign ID is required.');
+    }
+
+    const netState = await NetInfo.fetch();
+    const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
+
+    if (!isOnline) {
+      throw new Error('Internet connection required for this action.');
+    }
+
+    try {
+      const response = await api.patch<UpdateVaccinationDriveResponse>(
+        `/vaccination-drives/${encodeURIComponent(cleanId)}`,
+        payload
+      );
+
+      if (!response.data?.success || !response.data?.drive) {
+        throw new Error(response.data?.message || 'Server returned an invalid campaign update response.');
+      }
+
+      // Reconcile into local SQLite cache
+      const updatedDrive = response.data.drive;
+      const dist = updatedDrive.district || 'All';
+      const { drives: cached } = await getCachedVaccinations(dist);
+      const updated = cached.map((d) =>
+        (d._id || (d as any).id) === cleanId ? { ...d, ...updatedDrive } : d
+      );
+      if (!updated.some((d) => (d._id || (d as any).id) === cleanId)) {
+        updated.unshift(updatedDrive);
+      }
+      await saveVaccinationsCache(dist, updated);
+
+      return response.data;
+    } catch (err: any) {
+      const responseData = err.data || err.response?.data;
+      const msg = responseData?.message || err.message || 'Failed to update vaccination campaign.';
+      throw new Error(msg);
+    }
+  },
 };
+
 
 export default vaccinationService;
