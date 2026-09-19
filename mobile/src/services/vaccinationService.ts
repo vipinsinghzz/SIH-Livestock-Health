@@ -151,7 +151,7 @@ export const vaccinationService = {
 
     // Offline cache fallback
     const { advisories } = await getCachedAdvisories(params?.district);
-    return advisories;
+    return advisories as unknown as PreventiveAdvisory[];
   },
 
   /**

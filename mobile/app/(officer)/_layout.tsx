@@ -59,6 +59,24 @@ export default function OfficerLayout() {
           title: 'District GIS Surveillance Map',
         }}
       />
+      <Stack.Screen
+        name="advisories/index"
+        options={{
+          title: 'Official Advisories',
+        }}
+      />
+      <Stack.Screen
+        name="advisories/[id]"
+        options={{
+          title: 'Advisory Detail',
+        }}
+      />
+      <Stack.Screen
+        name="forewarning/index"
+        options={{
+          title: 'NADRES Forewarning & Alerts',
+        }}
+      />
     </Stack>
   );
 }

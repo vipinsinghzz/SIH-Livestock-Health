@@ -16,6 +16,7 @@ import { AppNotification } from '../types/notification';
 import { LabReferral } from '../types/lab';
 import { ContainmentZone, OutbreakCluster } from '../types/containment';
 import { DashboardSummary, TrendPoint } from '../types/officer';
+import { OfficialAdvisory, NadresAlert } from '../types/advisory';
 
 export type SyncStatus = 'PENDING' | 'SYNCING' | 'FAILED' | 'COMPLETED';
 
@@ -133,6 +134,23 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           updated_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_officer_trends_user ON officer_trends_cache(user_id);
+
+        CREATE TABLE IF NOT EXISTS nadres_alerts_cache (
+          id TEXT PRIMARY KEY,
+          district TEXT NOT NULL,
+          data TEXT NOT NULL,
+          weather TEXT,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_nadres_alerts_dist ON nadres_alerts_cache(district);
+
+        CREATE TABLE IF NOT EXISTS nadres_forewarning_cache (
+          id TEXT PRIMARY KEY,
+          district TEXT NOT NULL,
+          data TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_nadres_fw_dist ON nadres_forewarning_cache(district);
 
         CREATE TABLE IF NOT EXISTS sync_queue (
           id TEXT PRIMARY KEY,
@@ -400,14 +418,17 @@ export async function getCachedVaccinations(
   }
 }
 
-export async function saveAdvisoriesCache(district: string, advisories: PreventiveAdvisory[]): Promise<void> {
+export async function saveAdvisoriesCache(
+  district: string,
+  advisories: (OfficialAdvisory | PreventiveAdvisory)[]
+): Promise<void> {
   try {
     const db = await getDatabase();
     const targetDist = district || 'All';
     const now = Date.now();
 
     for (const a of advisories) {
-      const id = String(a._id || (a as any).id);
+      const id = String((a as any).id || a._id);
       if (!id) continue;
       await db.runAsync(
         `INSERT OR REPLACE INTO advisories_cache (id, district, data, updated_at)
@@ -422,7 +443,7 @@ export async function saveAdvisoriesCache(district: string, advisories: Preventi
 
 export async function getCachedAdvisories(
   district?: string
-): Promise<{ advisories: PreventiveAdvisory[]; lastUpdated: number | null }> {
+): Promise<{ advisories: OfficialAdvisory[]; lastUpdated: number | null }> {
   try {
     const db = await getDatabase();
     const query = district
@@ -434,10 +455,29 @@ export async function getCachedAdvisories(
     if (!rows || rows.length === 0) return { advisories: [], lastUpdated: null };
 
     let latestUpdated = 0;
-    const advisories: PreventiveAdvisory[] = [];
+    const advisories: OfficialAdvisory[] = [];
     for (const r of rows) {
       try {
-        advisories.push(JSON.parse(r.data));
+        const item = JSON.parse(r.data);
+        advisories.push({
+          _id: item._id || item.id,
+          id: String(item.id || item._id || ''),
+          title: item.title,
+          titleEn: typeof item.title === 'object' ? item.title?.en : item.titleEn || item.title,
+          titleHi: typeof item.title === 'object' ? item.title?.hi : item.titleHi,
+          message: item.message,
+          messageEn: typeof item.message === 'object' ? item.message?.en : item.messageEn || item.message,
+          messageHi: typeof item.message === 'object' ? item.message?.hi : item.messageHi,
+          severity: item.severity || 'Moderate',
+          disease: item.disease || 'General Health',
+          targetVillage: item.targetVillage || 'All',
+          targetBlock: item.targetBlock || 'All',
+          targetDistrict: item.targetDistrict || district || 'All',
+          issuedBy: item.issuedBy || 'District Animal Husbandry Department',
+          reportId: item.reportId || null,
+          createdAt: item.createdAt || new Date(r.updated_at).toISOString(),
+          updatedAt: item.updatedAt,
+        });
         if (r.updated_at > latestUpdated) latestUpdated = r.updated_at;
       } catch (e) {}
     }
@@ -633,6 +673,109 @@ export async function getCachedOutbreakClusters(
     return { clusters, lastUpdated: latestUpdated > 0 ? latestUpdated : null };
   } catch (err) {
     return { clusters: [], lastUpdated: null };
+  }
+}
+
+// ============================================================================
+// 3.7. NADRES CACHE (District-Scoped)
+// ============================================================================
+
+export async function saveNadresAlertsCache(
+  district: string,
+  alertsList: NadresAlert[],
+  weatherContext?: any
+): Promise<void> {
+  if (!district || !Array.isArray(alertsList)) return;
+  try {
+    const db = await getDatabase();
+    const now = Date.now();
+    const weatherJson = weatherContext ? JSON.stringify(weatherContext) : null;
+    for (const a of alertsList) {
+      const id = String(a.id);
+      if (!id) continue;
+      await db.runAsync(
+        `INSERT OR REPLACE INTO nadres_alerts_cache (id, district, data, weather, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [id, district, JSON.stringify(a), weatherJson, now]
+      );
+    }
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving NADRES alerts cache:', err);
+  }
+}
+
+export async function getCachedNadresAlerts(
+  district?: string
+): Promise<{ alerts: NadresAlert[]; weatherContext?: any; lastUpdated: number | null }> {
+  try {
+    const db = await getDatabase();
+    const query = district
+      ? `SELECT data, weather, updated_at FROM nadres_alerts_cache WHERE district = ? OR district = 'All' ORDER BY updated_at DESC`
+      : `SELECT data, weather, updated_at FROM nadres_alerts_cache ORDER BY updated_at DESC`;
+    const params = district ? [district] : [];
+
+    const rows = await db.getAllAsync<{ data: string; weather: string | null; updated_at: number }>(query, params);
+    if (!rows || rows.length === 0) return { alerts: [], lastUpdated: null };
+
+    let latestUpdated = 0;
+    let savedWeather = null;
+    const alertsList: NadresAlert[] = [];
+    for (const r of rows) {
+      try {
+        alertsList.push(JSON.parse(r.data));
+        if (r.weather && !savedWeather) {
+          savedWeather = JSON.parse(r.weather);
+        }
+        if (r.updated_at > latestUpdated) latestUpdated = r.updated_at;
+      } catch (e) {}
+    }
+    return {
+      alerts: alertsList,
+      weatherContext: savedWeather,
+      lastUpdated: latestUpdated > 0 ? latestUpdated : null,
+    };
+  } catch (err) {
+    return { alerts: [], lastUpdated: null };
+  }
+}
+
+export async function saveNadresForewarningCache(
+  district: string,
+  data: any
+): Promise<void> {
+  if (!district || !data) return;
+  try {
+    const db = await getDatabase();
+    const now = Date.now();
+    const id = `fw_${district}`;
+    await db.runAsync(
+      `INSERT OR REPLACE INTO nadres_forewarning_cache (id, district, data, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [id, district, JSON.stringify(data), now]
+    );
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving NADRES forewarning cache:', err);
+  }
+}
+
+export async function getCachedNadresForewarning(
+  district?: string
+): Promise<{ forewarning: any; lastUpdated: number | null }> {
+  if (!district) return { forewarning: null, lastUpdated: null };
+  try {
+    const db = await getDatabase();
+    const id = `fw_${district}`;
+    const row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+      `SELECT data, updated_at FROM nadres_forewarning_cache WHERE id = ?`,
+      [id]
+    );
+    if (!row) return { forewarning: null, lastUpdated: null };
+    return {
+      forewarning: JSON.parse(row.data),
+      lastUpdated: row.updated_at,
+    };
+  } catch (err) {
+    return { forewarning: null, lastUpdated: null };
   }
 }
 

@@ -417,6 +417,26 @@ export default function OfficerHomeScreen() {
               <Text style={styles.navTitle}>District GIS Map</Text>
               <Text style={styles.navDesc}>High-density outbreak heatmaps and zone boundaries</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.navCard}
+              onPress={() => router.push('/(officer)/advisories' as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.navIcon}>📢</Text>
+              <Text style={styles.navTitle}>Official Advisories</Text>
+              <Text style={styles.navDesc}>Biosecurity bulletins, emergency directives, and broadcasts</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.navCard}
+              onPress={() => router.push('/(officer)/forewarning' as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.navIcon}>📡</Text>
+              <Text style={styles.navTitle}>NADRES Forewarning</Text>
+              <Text style={styles.navDesc}>ICAR-NIVEDI early warnings, meteorological risk, and alerts</Text>
+            </TouchableOpacity>
           </View>
         </>
       )}
