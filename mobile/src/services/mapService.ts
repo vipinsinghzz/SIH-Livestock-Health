@@ -126,7 +126,7 @@ export const mapService = {
             id: String(z.id || z.zoneId),
             zoneId: z.zoneId || 'ZONE',
             disease: z.disease || 'Livestock Outbreak',
-            district: z.district || 'Pune',
+            district: z.district ? String(z.district) : undefined,
             block: z.block,
             village: z.village,
             center: { lat, lng },

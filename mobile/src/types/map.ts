@@ -45,7 +45,7 @@ export interface ContainmentZoneOverlay {
   id: string;
   zoneId: string;
   disease: string;
-  district: string;
+  district?: string;
   block?: string;
   village?: string;
   center: {

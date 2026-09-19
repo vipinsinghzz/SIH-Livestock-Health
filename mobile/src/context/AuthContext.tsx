@@ -17,7 +17,7 @@ import {
   getSavedUserProfile,
   clearAllSecureAuthData,
 } from '../services/secureStorage';
-import { clearFarmerCache } from '../services/localDatabase';
+import { clearFarmerCache, clearOfficerCache } from '../services/localDatabase';
 import syncService from '../services/syncService';
 
 export type UserRole = 'farmer' | 'veterinarian' | 'field_worker' | 'officer' | 'admin';
@@ -82,8 +82,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore signOut network errors during local logout
     }
 
-    if (user?.id) {
-      await clearFarmerCache(user.id);
+    const userId = user?.id || user?._id;
+    if (userId) {
+      try {
+        await clearFarmerCache(userId);
+      } catch (err) {
+        console.warn('[AuthContext] Error clearing farmer cache on logout:', err);
+      }
+      try {
+        await clearOfficerCache(userId);
+      } catch (err) {
+        console.warn('[AuthContext] Error clearing officer cache on logout:', err);
+      }
     }
     syncService.setActiveFarmer(null);
 
