@@ -110,3 +110,85 @@ export interface GetDashboardTrendsResult {
   fromCache: boolean;
   lastUpdated: number | null;
 }
+
+// ============================================================================
+// Phase 10.2: Spatial Outbreak Surveillance & GIS Types
+// ============================================================================
+
+export interface OfficerRiskFactor {
+  factor: string;
+  points: number;
+  rationale: string;
+}
+
+export interface OfficerRiskRecommendation {
+  recommended?: boolean;
+  suggestedRadiusKm?: number;
+  quarantineAdvised?: boolean;
+  movementRestriction?: string;
+  ringVaccinationAdvised?: boolean;
+  targetRadiusKm?: number;
+  priority?: string;
+}
+
+export interface OfficerRiskAnalysis {
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  riskScore: number;
+  factors: OfficerRiskFactor[];
+  containmentRecommendation: {
+    recommended: boolean;
+    suggestedRadiusKm: number;
+    quarantineAdvised: boolean;
+    movementRestriction: string;
+  };
+  vaccinationRecommendation: {
+    ringVaccinationAdvised: boolean;
+    targetRadiusKm: number;
+    priority: string;
+  };
+  disclaimer: string;
+}
+
+export interface OfficerNearbyCasesSummary {
+  totalInRadius: number;
+  insideContainment: boolean;
+  vaccinationCoveragePct: number | null;
+}
+
+export interface OfficerRiskAnalysisResponse {
+  success: boolean;
+  district: string;
+  coordinates: { lat: number; lng: number };
+  riskAnalysis: OfficerRiskAnalysis;
+  nearbyCasesSummary: OfficerNearbyCasesSummary;
+}
+
+export interface OfficerNearbyCase {
+  id: string;
+  caseId: string;
+  disease: string;
+  species: string;
+  risk: string;
+  status: string;
+  affectedCount: number;
+  latitude: number;
+  longitude: number;
+  district: string;
+  village: string;
+  block?: string;
+  confidence?: number;
+  distanceKm: number;
+  createdAt: string;
+  isFuzzed?: boolean;
+}
+
+export interface OfficerNearbyCasesResponse {
+  success: boolean;
+  count: number;
+  radiusKm: number;
+  days: number;
+  cases: OfficerNearbyCase[];
+}
+
+export type OfficerMapLayer = 'containment' | 'clusters' | 'cases';
+
