@@ -26,6 +26,7 @@ import { VetDashboardMetrics } from '../../src/types/vet';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../src/types/case';
 import { isCaseClaimable, isCaseAssignedToVet } from '../../src/types/referral';
 import { OfflineNotice } from '../../src/components/OfflineNotice';
+import notificationService from '../../src/services/notificationService';
 
 export default function VetHomeScreen() {
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function VetHomeScreen() {
 
   const [metrics, setMetrics] = useState<VetDashboardMetrics | null>(null);
   const [recentCases, setRecentCases] = useState<DiseaseCase[]>([]);
+  const [unreadAlertsCount, setUnreadAlertsCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [isFromCache, setIsFromCache] = useState<boolean>(false);
@@ -45,18 +47,34 @@ export default function VetHomeScreen() {
   const loadDashboardData = useCallback(async () => {
     try {
       setError(null);
-      const result = await veterinarianService.getDashboardMetrics(user?.district);
-      setMetrics(result.metrics);
-      setRecentCases(result.recentCases);
-      setIsFromCache(result.fromCache);
+      const [result, notifs] = await Promise.allSettled([
+        veterinarianService.getDashboardMetrics(user?.district),
+        notificationService.getVeterinarianNotifications({
+          userId: user?.id || user?._id,
+          district: user?.district,
+        }),
+      ]);
+
+      if (result.status === 'fulfilled') {
+        setMetrics(result.value.metrics);
+        setRecentCases(result.value.recentCases);
+        setIsFromCache(result.value.fromCache);
+      } else {
+        console.warn('[VetDashboard] Error loading metrics:', result.reason?.message);
+        setError(result.reason?.message || 'Failed to load clinical dashboard.');
+      }
+
+      if (notifs.status === 'fulfilled') {
+        setUnreadAlertsCount(notificationService.getUnreadCount(notifs.value));
+      }
     } catch (err: any) {
-      console.warn('[VetDashboard] Error loading metrics:', err?.message);
+      console.warn('[VetDashboard] Error loading dashboard data:', err?.message);
       setError(err?.message || 'Failed to load clinical dashboard.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.district]);
+  }, [user?.district, user?.id, user?._id]);
 
   useEffect(() => {
     loadDashboardData();
@@ -135,9 +153,26 @@ export default function VetHomeScreen() {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>VETERINARY CLINICAL PORTAL</Text>
             </View>
-            <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton} activeOpacity={0.7}>
-              <Text style={styles.logoutButtonText}>Sign Out</Text>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={() => router.push('/(vet)/notifications')}
+                style={styles.notificationBellBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Clinical Alerts"
+              >
+                <Text style={styles.bellIcon}>🔔</Text>
+                {unreadAlertsCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>
+                      {unreadAlertsCount > 99 ? '99+' : unreadAlertsCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton} activeOpacity={0.7}>
+                <Text style={styles.logoutButtonText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.title}>Dr. {vetName}</Text>
@@ -354,6 +389,26 @@ export default function VetHomeScreen() {
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
+
+              {/* Phase 9.5: Clinical Alerts & Notifications Shortcut */}
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
+                onPress={() => router.push('/(vet)/notifications')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.primaryActionLeft}>
+                  <Text style={styles.primaryActionIcon}>🚨</Text>
+                  <View>
+                    <Text style={styles.primaryActionTitle}>Clinical Alerts & Triage Pings</Text>
+                    <Text style={styles.primaryActionDesc}>
+                      {unreadAlertsCount > 0
+                        ? `${unreadAlertsCount} unread alert${unreadAlertsCount > 1 ? 's' : ''} awaiting triage`
+                        : 'Urgent referrals, cluster detections & containment updates'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.arrowIcon}>➔</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Recent District Referrals Section */}
@@ -479,6 +534,37 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     color: colors.light.vetBadge,
     letterSpacing: 0.5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  notificationBellBtn: {
+    position: 'relative',
+    padding: 6,
+    borderRadius: radii.sm,
+    backgroundColor: colors.light.surfaceAlt,
+  },
+  bellIcon: {
+    fontSize: 16,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#DC2626',
+    borderRadius: radii.round,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
   logoutButton: {
     backgroundColor: colors.light.dangerBg,

@@ -117,3 +117,73 @@ export function resolveNotificationNavigation(
 
   return { type: 'none' };
 }
+
+/**
+ * Veterinarian notification categories for inbox filtering
+ */
+export type VetNotificationCategory = 'All' | 'Unread' | 'Cases' | 'Outbreaks' | 'Containment';
+
+/**
+ * Determine navigation target for a veterinarian notification
+ */
+export type VetNotificationNavigationTarget =
+  | { type: 'referral'; route: `/(vet)/referrals/${string}` }
+  | { type: 'map'; route: '/(vet)/map' }
+  | { type: 'containment'; route: '/(vet)/containment' }
+  | { type: 'none'; reason?: string };
+
+/**
+ * Resolve deep link for veterinarian notifications based on event type and linked records
+ */
+export function resolveVetNotificationNavigation(
+  notification: AppNotification
+): VetNotificationNavigationTarget {
+  const caseId = notification.caseId || notification.metadata?.caseId;
+
+  // Case Alerts: NEW_CASE_ALERT, CASE_STATUS_UPDATE, CASE_CLAIMED, CASE_ASSIGNED
+  if (
+    notification.type === 'NEW_CASE_ALERT' ||
+    notification.type === 'CASE_STATUS_UPDATE' ||
+    notification.type === 'CASE_CLAIMED' ||
+    notification.type === 'CASE_ASSIGNED'
+  ) {
+    if (caseId && String(caseId).trim()) {
+      return {
+        type: 'referral',
+        route: `/(vet)/referrals/${String(caseId).trim()}`,
+      };
+    }
+    return { type: 'none', reason: 'Linked referral ID unavailable' };
+  }
+
+  // Outbreak Cluster alerts -> /(vet)/map
+  if (notification.type === 'OUTBREAK_CLUSTER_ALERT') {
+    return {
+      type: 'map',
+      route: '/(vet)/map',
+    };
+  }
+
+  // Containment & Ring Vaccination alerts -> /(vet)/containment
+  if (
+    notification.type === 'CONTAINMENT_ZONE_CREATED' ||
+    notification.type === 'CONTAINMENT_ZONE_UPDATED' ||
+    notification.type === 'RING_VACCINATION_SCHEDULED'
+  ) {
+    return {
+      type: 'containment',
+      route: '/(vet)/containment',
+    };
+  }
+
+  // Fallback: If any notification has an associated case ID, link to the referral details
+  if (caseId && String(caseId).trim()) {
+    return {
+      type: 'referral',
+      route: `/(vet)/referrals/${String(caseId).trim()}`,
+    };
+  }
+
+  return { type: 'none' };
+}
+

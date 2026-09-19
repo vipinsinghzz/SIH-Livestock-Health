@@ -210,6 +210,107 @@ export const notificationService = {
   },
 
   /**
+   * Fetch authenticated clinical notifications for the veterinarian
+   * Queries Supabase PostgreSQL `public.notifications` table directly under authenticated RLS,
+   * merges with live government district advisories from `/api/advisories`,
+   * and checks `/api/notifications` if available.
+   * 
+   * Strict Zero-Mock Policy: Zero simulated, dummy, or fabricated notifications.
+   * RLS strictly enforces recipient_id = auth.uid() on Supabase.
+   */
+  async getVeterinarianNotifications(params: {
+    userId?: string;
+    district?: string;
+  }): Promise<AppNotification[]> {
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      const { notifications } = await getCachedNotifications(params.userId || 'vet');
+      return notifications;
+    }
+
+    const results: AppNotification[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Try Express `/api/notifications` if it exists (handles 404 cleanly)
+    try {
+      const apiRes = await api.get<{ notifications?: any[]; data?: any[] }>('/notifications');
+      const apiNotifs = apiRes.data?.notifications || apiRes.data?.data;
+      if (Array.isArray(apiNotifs)) {
+        for (const item of apiNotifs) {
+          const norm = normalizeNotificationRecord(item, 'api');
+          if (norm.id && !seenIds.has(norm.id)) {
+            seenIds.add(norm.id);
+            results.push(norm);
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.status !== 404 && err.status !== 0) {
+        console.warn('[NotificationService] Express /notifications check returned:', err.status);
+      }
+    }
+
+    // 2. Query persistent Supabase notifications if authenticated client is available
+    if (params.userId && isLiveSupabase && supabase?.from) {
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('recipient_id', params.userId)
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          for (const item of data) {
+            const norm = normalizeNotificationRecord(item, 'supabase');
+            if (norm.id && !seenIds.has(norm.id)) {
+              seenIds.add(norm.id);
+              results.push(norm);
+            }
+          }
+        } else if (error) {
+          console.warn('[NotificationService] Supabase notifications notice:', error.message);
+        }
+      } catch (sbErr: any) {
+        console.warn('[NotificationService] Supabase query exception:', sbErr.message);
+      }
+    }
+
+    // 3. Fetch real district advisories from backend `/api/advisories`
+    try {
+      const advRes = await api.get<{ advisories?: any[] }>('/advisories', {
+        params: params.district ? { district: params.district } : undefined,
+      });
+      const advisories = advRes.data?.advisories;
+      if (Array.isArray(advisories)) {
+        for (const adv of advisories) {
+          const norm = normalizeNotificationRecord(adv, 'advisory');
+          if (norm.id && !seenIds.has(norm.id)) {
+            seenIds.add(norm.id);
+            results.push(norm);
+          }
+        }
+      }
+    } catch (advErr: any) {
+      console.warn('[NotificationService] Advisories fetch notice:', advErr.message);
+    }
+
+    // Sort combined real notifications chronologically descending (newest first)
+    const sorted = results.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    if (sorted.length > 0) {
+      await saveNotificationsCache(params.userId || 'vet', sorted);
+    } else if (params.userId) {
+      // If network calls returned empty due to connection drop, fallback to cache
+      const { notifications: cached } = await getCachedNotifications(params.userId);
+      if (cached.length > 0) return cached;
+    }
+
+    return sorted;
+  },
+
+  /**
    * Mark a specific notification as read in Supabase and update local presentation state
    */
   async markAsRead(notification: AppNotification): Promise<boolean> {
@@ -238,7 +339,7 @@ export const notificationService = {
   },
 
   /**
-   * Mark all unread notifications as read for the authenticated farmer
+   * Mark all unread notifications as read for the authenticated user
    */
   async markAllAsRead(userId?: string, notifications?: AppNotification[]): Promise<boolean> {
     if (notifications) {
@@ -251,7 +352,7 @@ export const notificationService = {
           .from('notifications')
           .update({ status: 'READ' })
           .eq('recipient_id', userId)
-          .eq('status', 'DELIVERED');
+          .neq('status', 'READ');
 
         if (error) {
           console.warn('[NotificationService] Supabase markAllAsRead notice:', error.message);
@@ -274,5 +375,6 @@ export const notificationService = {
     return notifications.filter((n) => !n.isRead && !localReadIds.has(n.id)).length;
   },
 };
+
 
 export default notificationService;
