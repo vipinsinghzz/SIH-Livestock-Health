@@ -283,6 +283,46 @@ The following screens remain placeholders as designated by the project scope:
 
 ## 20. Commit Readiness
 
-- **Status**: COMPLETE & VERIFIED
-- **Commit Boundary**: Strictly mobile changes only.
-- **Recommendation**: READY FOR REVIEW. DO NOT COMMIT OR PUSH YET per project instructions.
+- **Status**: COMMITTED & PUSHED TO MAIN
+- **Commit Boundary**: Strictly mobile changes and Phase 9.1 documentation only.
+
+---
+
+## 21. Final Commit & Push
+
+### A. Commit Details
+- **Commit SHA**: `b2398dbefa8bb2b20b190240c6308a342366aa97` (Short: `b2398dbe`)
+- **Commit Message**: `feat: add veterinarian dashboard and referral workflow`
+- **Remote Branch**: `origin/main`
+- **Push Result**: `ceed4503..b2398dbe main -> main` (Successfully synchronized)
+- **HEAD / origin/main Match**: Verified identical (`b2398dbefa8bb2b20b190240c6308a342366aa97`)
+
+### B. Exact Files Committed (10 Files)
+1. `mobile/src/types/vet.ts` (NEW — Veterinarian profile & dashboard types)
+2. `mobile/src/types/referral.ts` (NEW — Referral queue types & claim helpers)
+3. `mobile/src/services/veterinarianService.ts` (NEW — API service with SQLite caching)
+4. `mobile/app/(vet)/index.tsx` (MODIFIED — Production clinical dashboard)
+5. `mobile/app/(vet)/referrals/index.tsx` (MODIFIED — Production referral queue)
+6. `mobile/app/(vet)/referrals/[id].tsx` (NEW — Referral detail & examination screen)
+7. `mobile/app/(vet)/_layout.tsx` (MODIFIED — Registered referrals/[id] route)
+8. `tests/test_mobile_vet_phase9_1.js` (NEW — Automated unit/integration test suite)
+9. `PHASE9_1_CORRECTIVE_AUDIT.md` (NEW — Documents pre-commit role & status audit decisions)
+10. `PHASE9_1_VETERINARIAN_ANDROID_IMPLEMENTATION_REPORT.md` (NEW — Implementation report)
+
+### C. Role Boundary Decision
+- **Decision**: Intentionally retained `role === 'veterinarian' || role === 'field_worker'` synonym.
+- **Rationale**: Existing backend middleware, database seed accounts (e.g. `vet@pashurakshak.in`), and frontend web portal treat `veterinarian` and `field_worker` as identical staff synonyms. Restricting to veterinarian-only would lock legitimate staff accounts out of the mobile portal. Detailed in [`PHASE9_1_CORRECTIVE_AUDIT.md`](./PHASE9_1_CORRECTIVE_AUDIT.md).
+
+### D. Protected Directory Verification
+- `git diff -- frontend/ backend/ ml/ supabase/` is **100% EMPTY**.
+- Zero modifications across protected production directories.
+
+### E. Preserved Uncommitted Files
+The following previous-phase documentation files remain untracked and preserved in the working tree:
+- `PHASE8_0_FARMER_APP_AUDIT_REPORT.md`
+- `PHASE8_5_FINAL_FARMER_INTEGRATION_AUDIT.md`
+- `PHASE8_6_FARMER_FEATURE_COMMIT_REPORT.md`
+- `PHASE9_0_VETERINARIAN_ANDROID_AUDIT.md`
+
+No unrelated work or uncommitted files were discarded, stashed, or reset.
+
