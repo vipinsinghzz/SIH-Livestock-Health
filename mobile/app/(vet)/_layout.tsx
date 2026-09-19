@@ -54,6 +54,12 @@ export default function VetLayout() {
         }}
       />
       <Stack.Screen
+        name="labs/[id]"
+        options={{
+          title: 'Diagnostic Lab Referral',
+        }}
+      />
+      <Stack.Screen
         name="map/index"
         options={{
           title: 'Field Cases GIS Map',

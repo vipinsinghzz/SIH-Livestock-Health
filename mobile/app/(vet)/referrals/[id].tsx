@@ -20,14 +20,17 @@ import {
   Alert,
   Image,
   Linking,
-  RefreshControl
+  RefreshControl,
+  Modal
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import { veterinarianService } from '../../../src/services/veterinarianService';
+import { labService } from '../../../src/services/labService';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../../src/types/case';
 import { ClinicalStage } from '../../../src/types/vet';
+import { SAMPLE_TYPES, DESTINATION_LABS, LabSampleType } from '../../../src/types/lab';
 import { isCaseClaimable, isCaseAssignedToVet } from '../../../src/types/referral';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
 
@@ -60,6 +63,13 @@ export default function VetReferralDetailScreen() {
   const [prescriptionInput, setPrescriptionInput] = useState<string>('');
   const [customNotesInput, setCustomNotesInput] = useState<string>('');
   const [savingStatus, setSavingStatus] = useState<boolean>(false);
+
+  // Lab Referral State (Phase 9.3)
+  const [showLabModal, setShowLabModal] = useState<boolean>(false);
+  const [labSampleType, setLabSampleType] = useState<LabSampleType>('Blood / Serum');
+  const [labDestination, setLabDestination] = useState<string>(DESTINATION_LABS[0]);
+  const [labNotes, setLabNotes] = useState<string>('');
+  const [submittingLab, setSubmittingLab] = useState<boolean>(false);
 
   const vetId = user?.id || user?._id;
   const isAdmin = user?.role === 'admin';
@@ -206,6 +216,35 @@ export default function VetReferralDetailScreen() {
       );
     } else {
       doSubmit();
+    }
+  };
+
+  // Order Lab Sample (Phase 9.3)
+  const handleOrderLabSample = async () => {
+    if (!caseItem) return;
+    const targetCaseId = caseItem.id || caseItem._id || caseItem.caseId;
+
+    try {
+      setSubmittingLab(true);
+      const res = await labService.createLabReferral({
+        caseId: targetCaseId,
+        sampleType: labSampleType,
+        referredLab: labDestination,
+        notes: labNotes.trim() || undefined,
+      });
+
+      Alert.alert(
+        'Diagnostic Sample Logged',
+        res.message || 'Lab referral generated and audit milestone logged to case timeline.'
+      );
+      setShowLabModal(false);
+      setLabNotes('');
+      // Reload case to display newly recorded diagnostic sample milestone on timeline
+      loadCaseDetail();
+    } catch (labErr: any) {
+      Alert.alert('Unable to Order Lab Test', labErr.message || 'Failed to generate laboratory referral.');
+    } finally {
+      setSubmittingLab(false);
     }
   };
 
@@ -708,14 +747,25 @@ export default function VetReferralDetailScreen() {
             )}
           </TouchableOpacity>
         ) : canPerformClinicalAction && !showActionForm ? (
-          <TouchableOpacity
-            style={styles.primaryClaimBtn}
-            onPress={() => handleOpenActionForm()}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryClaimBtnIcon}>📋</Text>
-            <Text style={styles.primaryClaimBtnText}>Update Clinical Case & Advance Status</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButtonsCol}>
+            <TouchableOpacity
+              style={styles.primaryClaimBtn}
+              onPress={() => handleOpenActionForm()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryClaimBtnIcon}>📋</Text>
+              <Text style={styles.primaryClaimBtnText}>Update Clinical Case & Advance Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryLabBtn}
+              onPress={() => setShowLabModal(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryLabBtnIcon}>🔬</Text>
+              <Text style={styles.secondaryLabBtnText}>Order Diagnostic Lab Test</Text>
+            </TouchableOpacity>
+          </View>
         ) : !canPerformClinicalAction && assignedDoctorName ? (
           <View style={styles.unauthorizedBox}>
             <Text style={styles.unauthorizedText}>
@@ -724,6 +774,108 @@ export default function VetReferralDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Order Lab Test Modal (Phase 9.3) */}
+      <Modal
+        visible={showLabModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLabModal(false)}
+      >
+        <View style={styles.labModalOverlay}>
+          <View style={styles.labModalContent}>
+            <View style={styles.labModalHeader}>
+              <View>
+                <Text style={styles.labModalBadge}>DIAGNOSTIC LABORATORY REFERRAL</Text>
+                <Text style={styles.labModalTitle}>Order Specimen Collection</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowLabModal(false)}>
+                <Text style={styles.labModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.labModalScroll}>
+              <Text style={styles.labInputLabel}>Target Case</Text>
+              <Text style={styles.labCaseSummary}>
+                Case {caseItem.caseId} • {caseItem.species || 'Livestock'} ({caseItem.disease})
+              </Text>
+
+              <Text style={styles.labInputLabel}>Diagnostic Sample Type *</Text>
+              <View style={styles.labOptionsWrap}>
+                {SAMPLE_TYPES.map((t) => {
+                  const isSelected = labSampleType === t;
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.labOptionChip, isSelected && styles.labOptionChipActive]}
+                      onPress={() => setLabSampleType(t)}
+                    >
+                      <Text style={[styles.labOptionChipText, isSelected && styles.labOptionChipTextActive]}>
+                        {t}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.labInputLabel}>Destination Laboratory *</Text>
+              <View style={styles.labOptionsWrap}>
+                {DESTINATION_LABS.map((lab) => {
+                  const isSelected = labDestination === lab;
+                  return (
+                    <TouchableOpacity
+                      key={lab}
+                      style={[styles.labOptionChip, isSelected && styles.labOptionChipActive]}
+                      onPress={() => setLabDestination(lab)}
+                    >
+                      <Text style={[styles.labOptionChipText, isSelected && styles.labOptionChipTextActive]}>
+                        {lab}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.labInputLabel}>Field Sampling & Cold Chain Notes</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Aseptic sampling notes, transport temperature, ice pack status..."
+                placeholderTextColor={colors.light.textSecondary}
+                value={labNotes}
+                onChangeText={setLabNotes}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={styles.labNoticeBox}>
+                <Text style={styles.labNoticeText}>
+                  ℹ️ Ordering a lab test creates a diagnostic sample record and adds an official milestone to this case's audit timeline. Requires active internet.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.formActionRow}>
+              <TouchableOpacity
+                style={styles.formCancelBtn}
+                onPress={() => setShowLabModal(false)}
+              >
+                <Text style={styles.formCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.labSubmitBtn}
+                onPress={handleOrderLabSample}
+                disabled={submittingLab}
+              >
+                {submittingLab ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.formSubmitBtnText}>Submit Lab Referral</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1364,5 +1516,131 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
     textAlign: 'center',
+  },
+  actionButtonsCol: {
+    gap: spacing.sm,
+  },
+  secondaryLabBtn: {
+    backgroundColor: '#0369A1',
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.base,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    ...shadows.sm,
+  },
+  secondaryLabBtnIcon: {
+    fontSize: 18,
+  },
+  secondaryLabBtnText: {
+    color: '#FFFFFF',
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+  },
+  labModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  labModalContent: {
+    backgroundColor: colors.light.surface,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    padding: spacing.base,
+    maxHeight: '90%',
+  },
+  labModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.light.border,
+    paddingBottom: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  labModalBadge: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#0369A1',
+  },
+  labModalTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+    marginTop: 1,
+  },
+  labModalCloseText: {
+    fontSize: 18,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textSecondary,
+    padding: 4,
+  },
+  labModalScroll: {
+    marginBottom: spacing.sm,
+  },
+  labInputLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+    marginTop: spacing.xs,
+    marginBottom: 4,
+  },
+  labCaseSummary: {
+    fontSize: typography.sizes.xs,
+    color: colors.light.textSecondary,
+    backgroundColor: colors.light.surfaceAlt,
+    padding: spacing.xs,
+    borderRadius: radii.sm,
+    marginBottom: spacing.xs,
+  },
+  labOptionsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  labOptionChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+    backgroundColor: colors.light.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+  },
+  labOptionChipActive: {
+    backgroundColor: '#0369A1',
+    borderColor: '#0369A1',
+  },
+  labOptionChipText: {
+    fontSize: 11,
+    fontWeight: typography.weights.medium,
+    color: colors.light.textPrimary,
+  },
+  labOptionChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: typography.weights.bold,
+  },
+  labNoticeBox: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    padding: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  labNoticeText: {
+    fontSize: 11,
+    color: '#1E40AF',
+    lineHeight: 15,
+  },
+  labSubmitBtn: {
+    backgroundColor: '#0369A1',
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    minWidth: 150,
+    alignItems: 'center',
   },
 });

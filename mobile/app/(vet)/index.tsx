@@ -301,6 +301,23 @@ export default function VetHomeScreen() {
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
+                onPress={() => router.push('/(vet)/labs')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.primaryActionLeft}>
+                  <Text style={styles.primaryActionIcon}>🔬</Text>
+                  <View>
+                    <Text style={styles.primaryActionTitle}>Diagnostic Lab Tests</Text>
+                    <Text style={styles.primaryActionDesc}>
+                      Sample chain-of-custody, lab testing & confirmation
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.arrowIcon}>➔</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Recent District Referrals Section */}

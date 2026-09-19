@@ -13,6 +13,7 @@ import { Animal } from '../types/animal';
 import { DiseaseCase } from '../types/case';
 import { VaccinationDrive, PreventiveAdvisory } from '../types/vaccination';
 import { AppNotification } from '../types/notification';
+import { LabReferral } from '../types/lab';
 
 export type SyncStatus = 'PENDING' | 'SYNCING' | 'FAILED' | 'COMPLETED';
 
@@ -86,6 +87,14 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           updated_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_advisories_dist ON advisories_cache(district);
+
+        CREATE TABLE IF NOT EXISTS lab_referrals_cache (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          data TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_lab_referrals_user ON lab_referrals_cache(user_id);
 
         CREATE TABLE IF NOT EXISTS sync_queue (
           id TEXT PRIMARY KEY,
@@ -440,6 +449,54 @@ export async function getCachedNotifications(
     return { notifications, lastUpdated: latestUpdated > 0 ? latestUpdated : null };
   } catch (err) {
     return { notifications: [], lastUpdated: null };
+  }
+}
+
+// ============================================================================
+// 3.5. LAB REFERRALS CACHE
+// ============================================================================
+
+export async function saveLabReferralsCache(userId: string, referrals: LabReferral[]): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const targetUser = userId || 'all';
+    const now = Date.now();
+
+    for (const r of referrals) {
+      const id = String(r.id || r._id);
+      if (!id) continue;
+      await db.runAsync(
+        `INSERT OR REPLACE INTO lab_referrals_cache (id, user_id, data, updated_at)
+         VALUES (?, ?, ?, ?)`,
+        [id, targetUser, JSON.stringify(r), now]
+      );
+    }
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving lab referrals cache:', err);
+  }
+}
+
+export async function getCachedLabReferrals(
+  userId?: string
+): Promise<{ referrals: LabReferral[]; lastUpdated: number | null }> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ data: string; updated_at: number }>(
+      `SELECT data, updated_at FROM lab_referrals_cache ORDER BY updated_at DESC`
+    );
+    if (!rows || rows.length === 0) return { referrals: [], lastUpdated: null };
+
+    let latestUpdated = 0;
+    const referrals: LabReferral[] = [];
+    for (const r of rows) {
+      try {
+        referrals.push(JSON.parse(r.data));
+        if (r.updated_at > latestUpdated) latestUpdated = r.updated_at;
+      } catch (e) {}
+    }
+    return { referrals, lastUpdated: latestUpdated > 0 ? latestUpdated : null };
+  } catch (err) {
+    return { referrals: [], lastUpdated: null };
   }
 }
 
