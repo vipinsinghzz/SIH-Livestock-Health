@@ -318,6 +318,42 @@ export default function VetHomeScreen() {
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
+
+              {/* Phase 9.4: Outbreak GIS Map & Surveillance */}
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
+                onPress={() => router.push('/(vet)/map')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.primaryActionLeft}>
+                  <Text style={styles.primaryActionIcon}>🗺️</Text>
+                  <View>
+                    <Text style={styles.primaryActionTitle}>Outbreak GIS Surveillance</Text>
+                    <Text style={styles.primaryActionDesc}>
+                      DBSCAN spatial clusters, risk heatmaps & perimeters
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.arrowIcon}>➔</Text>
+              </TouchableOpacity>
+
+              {/* Phase 9.4: Containment & Ring Vaccination Drives */}
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
+                onPress={() => router.push('/(vet)/containment')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.primaryActionLeft}>
+                  <Text style={styles.primaryActionIcon}>🛡️</Text>
+                  <View>
+                    <Text style={styles.primaryActionTitle}>Containment & Ring Drives</Text>
+                    <Text style={styles.primaryActionDesc}>
+                      Active quarantine perimeters & emergency vaccination
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.arrowIcon}>➔</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Recent District Referrals Section */}

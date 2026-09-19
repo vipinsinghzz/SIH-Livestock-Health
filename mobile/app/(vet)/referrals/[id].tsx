@@ -28,9 +28,11 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import { veterinarianService } from '../../../src/services/veterinarianService';
 import { labService } from '../../../src/services/labService';
+import { containmentService } from '../../../src/services/containmentService';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../../src/types/case';
 import { ClinicalStage } from '../../../src/types/vet';
 import { SAMPLE_TYPES, DESTINATION_LABS, LabSampleType } from '../../../src/types/lab';
+import { DEFAULT_CONTAINMENT_RULES } from '../../../src/types/containment';
 import { isCaseClaimable, isCaseAssignedToVet } from '../../../src/types/referral';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
 
@@ -70,6 +72,24 @@ export default function VetReferralDetailScreen() {
   const [labDestination, setLabDestination] = useState<string>(DESTINATION_LABS[0]);
   const [labNotes, setLabNotes] = useState<string>('');
   const [submittingLab, setSubmittingLab] = useState<boolean>(false);
+
+  // Containment & Ring Vaccination State (Phase 9.4)
+  const [showContainmentModal, setShowContainmentModal] = useState<boolean>(false);
+  const [containmentRadius, setContainmentRadius] = useState<string>('5');
+  const [containmentNotes, setContainmentNotes] = useState<string>('');
+  const [selectedRules, setSelectedRules] = useState<string[]>(DEFAULT_CONTAINMENT_RULES);
+  const [declaringContainment, setDeclaringContainment] = useState<boolean>(false);
+
+  const [showRingModal, setShowRingModal] = useState<boolean>(false);
+  const [ringDate, setRingDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [ringVenue, setRingVenue] = useState<string>('');
+  const [ringCapacity, setRingCapacity] = useState<string>('100');
+  const [ringNotes, setRingNotes] = useState<string>('');
+  const [schedulingRing, setSchedulingRing] = useState<boolean>(false);
 
   const vetId = user?.id || user?._id;
   const isAdmin = user?.role === 'admin';
@@ -245,6 +265,113 @@ export default function VetReferralDetailScreen() {
       Alert.alert('Unable to Order Lab Test', labErr.message || 'Failed to generate laboratory referral.');
     } finally {
       setSubmittingLab(false);
+    }
+  };
+
+  // Containment & Ring Vaccination Handlers (Phase 9.4)
+  const handleOpenContainmentModal = () => {
+    if (!caseItem) return;
+    setContainmentRadius('5');
+    setContainmentNotes('');
+    setSelectedRules([...DEFAULT_CONTAINMENT_RULES]);
+    setShowContainmentModal(true);
+  };
+
+  const handleToggleRule = (rule: string) => {
+    setSelectedRules(prev =>
+      prev.includes(rule) ? prev.filter(r => r !== rule) : [...prev, rule]
+    );
+  };
+
+  const handleDeclareContainment = async () => {
+    if (!caseItem) return;
+    const rad = parseFloat(containmentRadius);
+    if (isNaN(rad) || rad <= 0) {
+      Alert.alert('Invalid Radius', 'Please enter a valid containment radius in kilometers (e.g. 5).');
+      return;
+    }
+
+    const lat = caseItem.coordinates?.lat ?? (caseItem as any).latitude ?? 18.5204;
+    const lng = caseItem.coordinates?.lng ?? (caseItem as any).longitude ?? 73.8567;
+    const targetCaseId = caseItem.id || caseItem._id || caseItem.caseId;
+
+    try {
+      setDeclaringContainment(true);
+      const res = await containmentService.declareContainmentZone({
+        disease: caseItem.disease,
+        center: { lat: Number(lat), lng: Number(lng) },
+        radiusKm: rad,
+        caseId: targetCaseId,
+        district: caseItem.farmerLocation?.district || caseItem.districtId || 'Pune',
+        block: caseItem.farmerLocation?.block || undefined,
+        village: caseItem.farmerLocation?.village || undefined,
+        enforcedRules: selectedRules,
+        notes: containmentNotes.trim() || undefined,
+      });
+
+      Alert.alert(
+        'Containment Zone Declared',
+        res.message || `Containment perimeter successfully established for ${caseItem.disease}.`
+      );
+      setShowContainmentModal(false);
+      loadCaseDetail();
+    } catch (err: any) {
+      Alert.alert('Unable to Declare Containment Zone', err.message || 'Failed to establish containment zone.');
+    } finally {
+      setDeclaringContainment(false);
+    }
+  };
+
+  const handleOpenRingModal = () => {
+    if (!caseItem) return;
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    setRingDate(d.toISOString().split('T')[0]);
+    const defaultVenue = [
+      caseItem.farmerLocation?.village,
+      caseItem.farmerLocation?.block,
+      'Gram Panchayat / Veterinary Center'
+    ].filter(Boolean).join(', ');
+    setRingVenue(defaultVenue);
+    setRingCapacity('100');
+    setRingNotes('');
+    setShowRingModal(true);
+  };
+
+  const handleScheduleRingVaccination = async () => {
+    if (!caseItem) return;
+    if (!ringDate.trim()) {
+      Alert.alert('Camp Date Required', 'Please enter a valid vaccination drive date (YYYY-MM-DD).');
+      return;
+    }
+    if (!ringVenue.trim()) {
+      Alert.alert('Venue Required', 'Please specify a venue or staging location.');
+      return;
+    }
+
+    const cap = parseInt(ringCapacity, 10);
+    const targetCaseId = caseItem.id || caseItem._id || caseItem.caseId;
+
+    try {
+      setSchedulingRing(true);
+      const res = await containmentService.scheduleRingVaccination(targetCaseId, {
+        campDate: ringDate.trim(),
+        venue: ringVenue.trim(),
+        capacity: isNaN(cap) ? 100 : cap,
+        notes: ringNotes.trim() || undefined,
+      });
+
+      const driveMsg = res.drive ? `Drive ID: ${res.drive._id || res.drive.id || 'Scheduled'}` : '';
+      Alert.alert(
+        'Ring Vaccination Scheduled',
+        `${res.message || 'Emergency ring vaccination drive successfully activated.'}\n${driveMsg}`.trim()
+      );
+      setShowRingModal(false);
+      loadCaseDetail();
+    } catch (err: any) {
+      Alert.alert('Unable to Schedule Ring Vaccination', err.message || 'Failed to schedule vaccination drive.');
+    } finally {
+      setSchedulingRing(false);
     }
   };
 
@@ -765,6 +892,29 @@ export default function VetReferralDetailScreen() {
               <Text style={styles.secondaryLabBtnIcon}>🔬</Text>
               <Text style={styles.secondaryLabBtnText}>Order Diagnostic Lab Test</Text>
             </TouchableOpacity>
+
+            {/* Phase 9.4: Containment & Ring Vaccination (Eligible for Confirmed / Containment cases) */}
+            {(caseItem.status === 'Confirmed' || caseItem.status === 'Containment') && (
+              <View style={styles.outbreakActionRow}>
+                <TouchableOpacity
+                  style={styles.containmentActionBtn}
+                  onPress={handleOpenContainmentModal}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.containmentActionBtnIcon}>🛡️</Text>
+                  <Text style={styles.containmentActionBtnText}>Declare Containment Zone</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.ringActionBtn}
+                  onPress={handleOpenRingModal}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.ringActionBtnIcon}>💉</Text>
+                  <Text style={styles.ringActionBtnText}>Schedule Ring Vaccination</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         ) : !canPerformClinicalAction && assignedDoctorName ? (
           <View style={styles.unauthorizedBox}>
@@ -870,6 +1020,194 @@ export default function VetReferralDetailScreen() {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.formSubmitBtnText}>Submit Lab Referral</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Declare Containment Zone Modal (Phase 9.4) */}
+      <Modal
+        visible={showContainmentModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowContainmentModal(false)}
+      >
+        <View style={styles.labModalOverlay}>
+          <View style={styles.labModalContent}>
+            <View style={styles.labModalHeader}>
+              <View>
+                <Text style={[styles.labModalBadge, { color: '#7C3AED' }]}>BIOSECURITY PROTOCOL</Text>
+                <Text style={styles.labModalTitle}>Declare Containment Zone</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowContainmentModal(false)}>
+                <Text style={styles.labModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.labModalScroll}>
+              <Text style={styles.labInputLabel}>Target Case & Outbreak Disease</Text>
+              <Text style={styles.labCaseSummary}>
+                Case {caseItem?.caseId} • {caseItem?.disease} ({caseItem?.species || 'Livestock'})
+              </Text>
+
+              <Text style={styles.labInputLabel}>Containment Radius (km) *</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                value={containmentRadius}
+                onChangeText={setContainmentRadius}
+                placeholder="e.g. 5"
+                placeholderTextColor={colors.light.textSecondary}
+              />
+
+              <Text style={styles.labInputLabel}>Enforced Biosecurity Measures</Text>
+              <View style={styles.rulesWrap}>
+                {DEFAULT_CONTAINMENT_RULES.map((rule) => {
+                  const isSelected = selectedRules.includes(rule);
+                  return (
+                    <TouchableOpacity
+                      key={rule}
+                      style={[styles.ruleChip, isSelected && styles.ruleChipActive]}
+                      onPress={() => handleToggleRule(rule)}
+                    >
+                      <Text style={[styles.ruleChipText, isSelected && styles.ruleChipTextActive]}>
+                        {isSelected ? '✓ ' : '+ '}{rule}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.labInputLabel}>Official Clinical Justification / Notes</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Clinical observations, buffer radius assessment, police check-post coordination..."
+                placeholderTextColor={colors.light.textSecondary}
+                value={containmentNotes}
+                onChangeText={setContainmentNotes}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={[styles.labNoticeBox, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
+                <Text style={[styles.labNoticeText, { color: '#5B21B6' }]}>
+                  🛡️ Establishing a containment zone enforces movement control and alerts district veterinary teams. Online only action.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.formActionRow}>
+              <TouchableOpacity
+                style={styles.formCancelBtn}
+                onPress={() => setShowContainmentModal(false)}
+              >
+                <Text style={styles.formCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.containmentSubmitBtn}
+                onPress={handleDeclareContainment}
+                disabled={declaringContainment}
+              >
+                {declaringContainment ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.formSubmitBtnText}>Declare Perimeter</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Schedule Ring Vaccination Modal (Phase 9.4) */}
+      <Modal
+        visible={showRingModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRingModal(false)}
+      >
+        <View style={styles.labModalOverlay}>
+          <View style={styles.labModalContent}>
+            <View style={styles.labModalHeader}>
+              <View>
+                <Text style={[styles.labModalBadge, { color: '#2563EB' }]}>EMERGENCY PROPHYLAXIS</Text>
+                <Text style={styles.labModalTitle}>Schedule Ring Vaccination</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowRingModal(false)}>
+                <Text style={styles.labModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.labModalScroll}>
+              <Text style={styles.labInputLabel}>Target Case & Outbreak Disease</Text>
+              <Text style={styles.labCaseSummary}>
+                Case {caseItem?.caseId} • {caseItem?.disease} ({caseItem?.species || 'Livestock'})
+              </Text>
+
+              <Text style={styles.labInputLabel}>Drive Date (YYYY-MM-DD) *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={ringDate}
+                onChangeText={setRingDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.light.textSecondary}
+              />
+
+              <Text style={styles.labInputLabel}>Vaccination Venue / Staging Site *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={ringVenue}
+                onChangeText={setRingVenue}
+                placeholder="Village center, dairy cooperative, cattle shed..."
+                placeholderTextColor={colors.light.textSecondary}
+              />
+
+              <Text style={styles.labInputLabel}>Target Herd Capacity (Doses) *</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                value={ringCapacity}
+                onChangeText={setRingCapacity}
+                placeholder="100"
+                placeholderTextColor={colors.light.textSecondary}
+              />
+
+              <Text style={styles.labInputLabel}>Cold Chain & Logistics Notes</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Vaccine vial batch, cold box requirement, ice packs, mobilization team..."
+                placeholderTextColor={colors.light.textSecondary}
+                value={ringNotes}
+                onChangeText={setRingNotes}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={[styles.labNoticeBox, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                <Text style={[styles.labNoticeText, { color: '#1E40AF' }]}>
+                  💉 Emergency ring vaccination protects susceptible herds within the outbreak containment radius. Online only action.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.formActionRow}>
+              <TouchableOpacity
+                style={styles.formCancelBtn}
+                onPress={() => setShowRingModal(false)}
+              >
+                <Text style={styles.formCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.ringSubmitBtn}
+                onPress={handleScheduleRingVaccination}
+                disabled={schedulingRing}
+              >
+                {schedulingRing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.formSubmitBtnText}>Activate Ring Drive</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1637,6 +1975,98 @@ const styles = StyleSheet.create({
   },
   labSubmitBtn: {
     backgroundColor: '#0369A1',
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    minWidth: 150,
+    alignItems: 'center',
+  },
+  outbreakActionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  containmentActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FAF5FF',
+    borderColor: '#C084FC',
+    borderWidth: 1.5,
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
+    gap: 6,
+    ...shadows.sm,
+  },
+  containmentActionBtnIcon: {
+    fontSize: 16,
+  },
+  containmentActionBtnText: {
+    fontSize: 12,
+    fontWeight: typography.weights.bold,
+    color: '#7E22CE',
+    textAlign: 'center',
+  },
+  ringActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    borderColor: '#60A5FA',
+    borderWidth: 1.5,
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
+    gap: 6,
+    ...shadows.sm,
+  },
+  ringActionBtnIcon: {
+    fontSize: 16,
+  },
+  ringActionBtnText: {
+    fontSize: 12,
+    fontWeight: typography.weights.bold,
+    color: '#1D4ED8',
+    textAlign: 'center',
+  },
+  rulesWrap: {
+    gap: 6,
+    marginBottom: spacing.xs,
+  },
+  ruleChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    borderRadius: radii.sm,
+    backgroundColor: colors.light.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+  },
+  ruleChipActive: {
+    backgroundColor: '#FAF5FF',
+    borderColor: '#A855F7',
+  },
+  ruleChipText: {
+    fontSize: 11,
+    fontWeight: typography.weights.medium,
+    color: colors.light.textPrimary,
+  },
+  ruleChipTextActive: {
+    color: '#7E22CE',
+    fontWeight: typography.weights.bold,
+  },
+  containmentSubmitBtn: {
+    backgroundColor: '#7E22CE',
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    minWidth: 150,
+    alignItems: 'center',
+  },
+  ringSubmitBtn: {
+    backgroundColor: '#2563EB',
     paddingHorizontal: spacing.base,
     paddingVertical: 8,
     borderRadius: radii.sm,

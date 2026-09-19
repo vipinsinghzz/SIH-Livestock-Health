@@ -14,6 +14,7 @@ import { DiseaseCase } from '../types/case';
 import { VaccinationDrive, PreventiveAdvisory } from '../types/vaccination';
 import { AppNotification } from '../types/notification';
 import { LabReferral } from '../types/lab';
+import { ContainmentZone, OutbreakCluster } from '../types/containment';
 
 export type SyncStatus = 'PENDING' | 'SYNCING' | 'FAILED' | 'COMPLETED';
 
@@ -95,6 +96,22 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           updated_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_lab_referrals_user ON lab_referrals_cache(user_id);
+
+        CREATE TABLE IF NOT EXISTS containment_zones_cache (
+          id TEXT PRIMARY KEY,
+          district TEXT NOT NULL,
+          data TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_containment_zones_dist ON containment_zones_cache(district);
+
+        CREATE TABLE IF NOT EXISTS outbreak_clusters_cache (
+          id TEXT PRIMARY KEY,
+          district TEXT NOT NULL,
+          data TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_outbreak_clusters_dist ON outbreak_clusters_cache(district);
 
         CREATE TABLE IF NOT EXISTS sync_queue (
           id TEXT PRIMARY KEY,
@@ -497,6 +514,104 @@ export async function getCachedLabReferrals(
     return { referrals, lastUpdated: latestUpdated > 0 ? latestUpdated : null };
   } catch (err) {
     return { referrals: [], lastUpdated: null };
+  }
+}
+
+// ============================================================================
+// 3.6. CONTAINMENT ZONES & OUTBREAK CLUSTERS CACHE
+// ============================================================================
+
+export async function saveContainmentZonesCache(district: string, zones: ContainmentZone[]): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const targetDist = district || 'All';
+    const now = Date.now();
+
+    for (const z of zones) {
+      const id = String(z.id || z._id || z.zoneId);
+      if (!id) continue;
+      await db.runAsync(
+        `INSERT OR REPLACE INTO containment_zones_cache (id, district, data, updated_at)
+         VALUES (?, ?, ?, ?)`,
+        [id, targetDist, JSON.stringify(z), now]
+      );
+    }
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving containment zones cache:', err);
+  }
+}
+
+export async function getCachedContainmentZones(
+  district?: string
+): Promise<{ zones: ContainmentZone[]; lastUpdated: number | null }> {
+  try {
+    const db = await getDatabase();
+    const query = district
+      ? `SELECT data, updated_at FROM containment_zones_cache WHERE district = ? OR district = 'All' ORDER BY updated_at DESC`
+      : `SELECT data, updated_at FROM containment_zones_cache ORDER BY updated_at DESC`;
+    const params = district ? [district] : [];
+
+    const rows = await db.getAllAsync<{ data: string; updated_at: number }>(query, params);
+    if (!rows || rows.length === 0) return { zones: [], lastUpdated: null };
+
+    let latestUpdated = 0;
+    const zones: ContainmentZone[] = [];
+    for (const r of rows) {
+      try {
+        zones.push(JSON.parse(r.data));
+        if (r.updated_at > latestUpdated) latestUpdated = r.updated_at;
+      } catch (e) {}
+    }
+    return { zones, lastUpdated: latestUpdated > 0 ? latestUpdated : null };
+  } catch (err) {
+    return { zones: [], lastUpdated: null };
+  }
+}
+
+export async function saveOutbreakClustersCache(district: string, clusters: OutbreakCluster[]): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const targetDist = district || 'All';
+    const now = Date.now();
+
+    for (const c of clusters) {
+      const id = String(c.clusterId || c.id || `${targetDist}_${c.disease}_${c.centroidLat}_${c.centroidLng}`);
+      if (!id) continue;
+      await db.runAsync(
+        `INSERT OR REPLACE INTO outbreak_clusters_cache (id, district, data, updated_at)
+         VALUES (?, ?, ?, ?)`,
+        [id, targetDist, JSON.stringify(c), now]
+      );
+    }
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving outbreak clusters cache:', err);
+  }
+}
+
+export async function getCachedOutbreakClusters(
+  district?: string
+): Promise<{ clusters: OutbreakCluster[]; lastUpdated: number | null }> {
+  try {
+    const db = await getDatabase();
+    const query = district
+      ? `SELECT data, updated_at FROM outbreak_clusters_cache WHERE district = ? OR district = 'All' ORDER BY updated_at DESC`
+      : `SELECT data, updated_at FROM outbreak_clusters_cache ORDER BY updated_at DESC`;
+    const params = district ? [district] : [];
+
+    const rows = await db.getAllAsync<{ data: string; updated_at: number }>(query, params);
+    if (!rows || rows.length === 0) return { clusters: [], lastUpdated: null };
+
+    let latestUpdated = 0;
+    const clusters: OutbreakCluster[] = [];
+    for (const r of rows) {
+      try {
+        clusters.push(JSON.parse(r.data));
+        if (r.updated_at > latestUpdated) latestUpdated = r.updated_at;
+      } catch (e) {}
+    }
+    return { clusters, lastUpdated: latestUpdated > 0 ? latestUpdated : null };
+  } catch (err) {
+    return { clusters: [], lastUpdated: null };
   }
 }
 

@@ -66,6 +66,12 @@ export default function VetLayout() {
         }}
       />
       <Stack.Screen
+        name="containment/index"
+        options={{
+          title: 'Containment & Ring Drives',
+        }}
+      />
+      <Stack.Screen
         name="notifications/index"
         options={{
           title: 'Clinical Alerts',
