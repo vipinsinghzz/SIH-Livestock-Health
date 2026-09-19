@@ -6,6 +6,9 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { colors } from '../../src/theme';
+import { RouteErrorBoundary } from '../../src/components/RouteErrorBoundary';
+
+export const ErrorBoundary = RouteErrorBoundary;
 
 export default function OfficerLayout() {
   return (
@@ -20,6 +23,7 @@ export default function OfficerLayout() {
         },
         contentStyle: {
           backgroundColor: colors.light.background,
+          flex: 1,
         },
       }}
     >

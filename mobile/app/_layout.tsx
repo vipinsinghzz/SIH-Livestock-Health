@@ -12,6 +12,10 @@ import { AuthProvider, useAuth, UserRole } from '../src/context/AuthContext';
 import { OfflineNotice } from '../src/components/OfflineNotice';
 import { colors, typography, spacing, radii, shadows } from '../src/theme';
 
+import { RouteErrorBoundary } from '../src/components/RouteErrorBoundary';
+
+export const ErrorBoundary = RouteErrorBoundary;
+
 const VALID_ROLES = ['farmer', 'veterinarian', 'field_worker', 'officer', 'admin'] as const;
 
 function NavigationGuard() {
@@ -70,95 +74,94 @@ function NavigationGuard() {
         else if (isVet) router.replace('/(vet)');
       }
     }
-  }, [user, token, loading, segments, router, isRoleValid, rawRole]);
-
-  // Loading state with zero-flicker splash
-  if (loading) {
-    return (
-      <View style={styles.splashContainer}>
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoIcon}>🐄</Text>
-        </View>
-        <Text style={styles.splashTitle}>Livestock Saathi</Text>
-        <Text style={styles.splashSubtitle}>Restoring Secure Session...</Text>
-        <ActivityIndicator size="large" color={colors.light.textInverse} style={styles.splashSpinner} />
-      </View>
-    );
-  }
-
-  // Safe error state when role cannot be resolved (Do NOT guess role)
-  if (token && user && !isRoleValid) {
-    return (
-      <View style={styles.errorContainer}>
-        <View style={styles.errorCard}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Unresolved Account Role</Text>
-          <Text style={styles.errorMessage}>
-            The system cannot resolve access permissions for role "{String(user.role)}".
-            Please contact your system administrator or sign in with an authorized account.
-          </Text>
-          <TouchableOpacity
-            style={styles.errorLogoutBtn}
-            onPress={async () => {
-              await logout();
-              router.replace('/(auth)/login');
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.errorLogoutBtnText}>Sign Out & Switch Account</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  }, [user, token, loading, segments, isRoleValid, rawRole]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.light.primary,
-        },
-        headerTintColor: colors.light.textInverse,
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
-        contentStyle: {
-          backgroundColor: colors.light.background,
-        },
-      }}
-    >
-      <Stack.Screen
-        name="index"
-        options={{
-          title: 'Livestock Saathi',
-          headerShown: false,
+    <View style={styles.rootContainer}>
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: colors.light.primary,
+          },
+          headerTintColor: colors.light.textInverse,
+          headerTitleStyle: {
+            fontWeight: '600',
+          },
+          contentStyle: {
+            backgroundColor: colors.light.background,
+            flex: 1,
+          },
         }}
-      />
-      <Stack.Screen
-        name="(auth)"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="(farmer)"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="(vet)"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="(officer)"
-        options={{
-          headerShown: false,
-        }}
-      />
-    </Stack>
+      >
+        <Stack.Screen
+          name="index"
+          options={{
+            title: 'Livestock Saathi',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(auth)"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(farmer)"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(vet)"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(officer)"
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack>
+
+      {/* Loading state: Rendered as absolute overlay over mounted Navigator to prevent navigation errors */}
+      {loading && (
+        <View style={[StyleSheet.absoluteFillObject, styles.splashContainer]}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoIcon}>🐄</Text>
+          </View>
+          <Text style={styles.splashTitle}>Livestock Saathi</Text>
+          <Text style={styles.splashSubtitle}>Restoring Secure Session...</Text>
+          <ActivityIndicator size="large" color={colors.light.textInverse} style={styles.splashSpinner} />
+        </View>
+      )}
+
+      {/* Safe error state when role cannot be resolved */}
+      {!loading && token && user && !isRoleValid && (
+        <View style={[StyleSheet.absoluteFillObject, styles.errorContainer]}>
+          <View style={styles.errorCard}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorTitle}>Unresolved Account Role</Text>
+            <Text style={styles.errorMessage}>
+              The system cannot resolve access permissions for role "{String(user.role)}".
+              Please contact your system administrator or sign in with an authorized account.
+            </Text>
+            <TouchableOpacity
+              style={styles.errorLogoutBtn}
+              onPress={async () => {
+                await logout();
+                router.replace('/(auth)/login');
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.errorLogoutBtnText}>Sign Out & Switch Account</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -175,6 +178,10 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  rootContainer: {
+    flex: 1,
+    backgroundColor: colors.light.background,
+  },
   splashContainer: {
     flex: 1,
     backgroundColor: colors.light.primary,

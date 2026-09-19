@@ -104,7 +104,14 @@ class SyncService {
    * Broadcast state changes to all subscribers
    */
   private async notifyState() {
-    const pendingCount = await getPendingSyncCount(this.activeFarmerId || undefined);
+    let pendingCount = 0;
+    if (this.activeFarmerId) {
+      try {
+        pendingCount = await getPendingSyncCount(this.activeFarmerId);
+      } catch (err) {
+        console.warn('[SyncService] Error reading pending sync count:', err);
+      }
+    }
     const state: SyncState = {
       status: this.isSyncing ? 'SYNCING' : this.currentStatus,
       pendingCount,

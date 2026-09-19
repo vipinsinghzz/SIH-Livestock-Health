@@ -73,6 +73,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Keep a stable ref to user for callbacks without re-creating functions
+  const userRef = React.useRef<AuthUser | null>(null);
+  userRef.current = user;
+
   const handleLogout = useCallback(async () => {
     try {
       if (isLiveSupabase && supabase?.auth?.signOut) {
@@ -82,15 +86,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore signOut network errors during local logout
     }
 
-    const userId = user?.id || user?._id;
-    if (userId) {
+    const currentUserId = userRef.current?.id || userRef.current?._id;
+    if (currentUserId) {
       try {
-        await clearFarmerCache(userId);
+        await clearFarmerCache(currentUserId);
       } catch (err) {
         console.warn('[AuthContext] Error clearing farmer cache on logout:', err);
       }
       try {
-        await clearOfficerCache(userId);
+        await clearOfficerCache(currentUserId);
       } catch (err) {
         console.warn('[AuthContext] Error clearing officer cache on logout:', err);
       }
@@ -101,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthToken(null);
     setToken(null);
     setUser(null);
-  }, [user]);
+  }, []);
 
   // Initialize Auth & restore persisted session from Android Keystore
   useEffect(() => {
@@ -114,32 +118,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    // Hard failsafe timeout: Guarantee the splash/restoring state clears within 3.5s
+    const failsafeTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading((prev) => {
+          if (prev) {
+            console.warn('[AuthContext] Session restoration reached failsafe timeout, unlocking UI');
+            return false;
+          }
+          return false;
+        });
+      }
+    }, 3500);
+
     const initAuth = async () => {
       try {
-        const storedToken = await getSavedAuthToken();
-        const storedUser = await getSavedUserProfile<AuthUser>();
+        const [storedToken, storedUser] = await Promise.all([
+          getSavedAuthToken(),
+          getSavedUserProfile<AuthUser>(),
+        ]);
 
         if (storedToken && storedUser) {
           if (isMounted) {
             setAuthToken(storedToken);
             setToken(storedToken);
             setUser(storedUser);
-            syncService.setActiveFarmer(storedUser.id || storedUser._id || null);
+            // Instant session restoration from hardware-backed Keystore
+            setLoading(false);
           }
 
-          // Verify session in background with existing backend
-          try {
-            const res = await api.get<{ success: boolean; user: AuthUser }>('/auth/me');
-            if (res.data?.user && isMounted) {
-              setUser(res.data.user);
-              await saveUserProfile(res.data.user);
-            }
-          } catch (e) {
-            console.warn('[AuthContext] Background token verification failed:', e);
-            if (isMounted) {
-              await handleLogout();
-            }
+          // Defer sync service to prevent startup contention
+          if (storedUser.role === 'farmer') {
+            setTimeout(() => {
+              if (isMounted) {
+                syncService.setActiveFarmer(storedUser.id || storedUser._id || null);
+              }
+            }, 300);
           }
+
+          // Verify session in background without blocking initial render
+          api.get<{ success: boolean; user: AuthUser }>('/auth/me')
+            .then(async (res) => {
+              if (res.data?.user && isMounted) {
+                setUser(res.data.user);
+                await saveUserProfile(res.data.user);
+              }
+            })
+            .catch(async (err: any) => {
+              // ONLY log out if the backend definitively rejected the token (401)
+              if (err?.status === 401) {
+                console.warn('[AuthContext] Stored session revoked by server (401)');
+                if (isMounted) {
+                  await handleLogout();
+                }
+              } else {
+                // Offline mode, cold start, or network timeout: preserve authenticated session
+                console.log('[AuthContext] Background verification offline/deferred:', err?.message || err);
+              }
+            });
         } else if (isLiveSupabase && supabase?.auth) {
           // Check for active Supabase session
           try {
@@ -149,19 +185,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setToken(session.access_token);
               await saveAuthTokens(session.access_token, session.refresh_token);
 
-              const res = await api.get<{ success: boolean; user: AuthUser }>('/auth/me');
-              if (res.data?.user && isMounted) {
-                setUser(res.data.user);
-                await saveUserProfile(res.data.user);
-              }
+              // Background fetch user profile
+              api.get<{ success: boolean; user: AuthUser }>('/auth/me')
+                .then(async (res) => {
+                  if (res.data?.user && isMounted) {
+                    setUser(res.data.user);
+                    await saveUserProfile(res.data.user);
+                  }
+                })
+                .catch(() => {});
             }
           } catch (err) {
             console.warn('[AuthContext] Supabase session check error:', err);
+          } finally {
+            if (isMounted) {
+              setLoading(false);
+            }
+          }
+        } else {
+          if (isMounted) {
+            setLoading(false);
           }
         }
       } catch (err) {
         console.warn('[AuthContext] Initialization error:', err);
       } finally {
+        clearTimeout(failsafeTimeout);
         if (isMounted) {
           setLoading(false);
         }
@@ -172,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       isMounted = false;
+      clearTimeout(failsafeTimeout);
       setOnUnauthorizedCallback(null);
     };
   }, [handleLogout]);
