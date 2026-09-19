@@ -15,6 +15,7 @@ import { VaccinationDrive, PreventiveAdvisory } from '../types/vaccination';
 import { AppNotification } from '../types/notification';
 import { LabReferral } from '../types/lab';
 import { ContainmentZone, OutbreakCluster } from '../types/containment';
+import { DashboardSummary, TrendPoint } from '../types/officer';
 
 export type SyncStatus = 'PENDING' | 'SYNCING' | 'FAILED' | 'COMPLETED';
 
@@ -112,6 +113,26 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           updated_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_outbreak_clusters_dist ON outbreak_clusters_cache(district);
+
+        CREATE TABLE IF NOT EXISTS officer_dashboard_cache (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          district TEXT NOT NULL,
+          block TEXT NOT NULL,
+          data TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_officer_dash_user ON officer_dashboard_cache(user_id);
+
+        CREATE TABLE IF NOT EXISTS officer_trends_cache (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          district TEXT NOT NULL,
+          block TEXT NOT NULL,
+          data TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_officer_trends_user ON officer_trends_cache(user_id);
 
         CREATE TABLE IF NOT EXISTS sync_queue (
           id TEXT PRIMARY KEY,
@@ -737,5 +758,158 @@ export async function clearFarmerCache(farmerId: string): Promise<void> {
     await db.runAsync(`DELETE FROM sync_queue WHERE farmer_id = ?`, [farmerId]);
   } catch (err) {
     console.warn('[LocalDatabase] Error clearing farmer cache on logout:', err);
+  }
+}
+
+// ============================================================================
+// 6. OFFICER DASHBOARD & TRENDS CACHE (User-Isolated)
+// ============================================================================
+
+export async function saveOfficerDashboardCache(
+  userId: string,
+  district: string,
+  block: string,
+  summary: DashboardSummary
+): Promise<void> {
+  if (!userId || !summary) return;
+  try {
+    const db = await getDatabase();
+    const now = Date.now();
+    const targetDistrict = district || 'All';
+    const targetBlock = block || 'All';
+    const cacheId = `${userId}_${targetDistrict}_${targetBlock}`;
+
+    await db.runAsync(
+      `INSERT OR REPLACE INTO officer_dashboard_cache (id, user_id, district, block, data, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [cacheId, userId, targetDistrict, targetBlock, JSON.stringify(summary), now]
+    );
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving officer dashboard cache:', err);
+  }
+}
+
+export async function getCachedOfficerDashboard(
+  userId: string,
+  district?: string,
+  block?: string
+): Promise<{ summary: DashboardSummary | null; lastUpdated: number | null }> {
+  if (!userId) return { summary: null, lastUpdated: null };
+  try {
+    const db = await getDatabase();
+    const targetDistrict = district || 'All';
+    const targetBlock = block || 'All';
+    const cacheId = `${userId}_${targetDistrict}_${targetBlock}`;
+
+    // First try exact district + block match
+    let row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+      `SELECT data, updated_at FROM officer_dashboard_cache WHERE id = ?`,
+      [cacheId]
+    );
+
+    // If not found and a block was requested, try district-level fallback for this user
+    if (!row && targetBlock !== 'All') {
+      const fallbackId = `${userId}_${targetDistrict}_All`;
+      row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+        `SELECT data, updated_at FROM officer_dashboard_cache WHERE id = ?`,
+        [fallbackId]
+      );
+    }
+
+    // If still not found, try any cached summary for this user
+    if (!row) {
+      row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+        `SELECT data, updated_at FROM officer_dashboard_cache WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1`,
+        [userId]
+      );
+    }
+
+    if (!row) return { summary: null, lastUpdated: null };
+
+    const parsed = JSON.parse(row.data) as DashboardSummary;
+    return { summary: parsed, lastUpdated: row.updated_at };
+  } catch (err) {
+    console.warn('[LocalDatabase] Error reading officer dashboard cache:', err);
+    return { summary: null, lastUpdated: null };
+  }
+}
+
+export async function saveOfficerTrendsCache(
+  userId: string,
+  district: string,
+  block: string,
+  trends: TrendPoint[]
+): Promise<void> {
+  if (!userId || !trends || !Array.isArray(trends)) return;
+  try {
+    const db = await getDatabase();
+    const now = Date.now();
+    const targetDistrict = district || 'All';
+    const targetBlock = block || 'All';
+    const cacheId = `${userId}_${targetDistrict}_${targetBlock}`;
+
+    await db.runAsync(
+      `INSERT OR REPLACE INTO officer_trends_cache (id, user_id, district, block, data, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [cacheId, userId, targetDistrict, targetBlock, JSON.stringify(trends), now]
+    );
+  } catch (err) {
+    console.warn('[LocalDatabase] Error saving officer trends cache:', err);
+  }
+}
+
+export async function getCachedOfficerTrends(
+  userId: string,
+  district?: string,
+  block?: string
+): Promise<{ trends: TrendPoint[]; lastUpdated: number | null }> {
+  if (!userId) return { trends: [], lastUpdated: null };
+  try {
+    const db = await getDatabase();
+    const targetDistrict = district || 'All';
+    const targetBlock = block || 'All';
+    const cacheId = `${userId}_${targetDistrict}_${targetBlock}`;
+
+    // First try exact district + block match
+    let row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+      `SELECT data, updated_at FROM officer_trends_cache WHERE id = ?`,
+      [cacheId]
+    );
+
+    // If not found and a block was requested, try district-level fallback for this user
+    if (!row && targetBlock !== 'All') {
+      const fallbackId = `${userId}_${targetDistrict}_All`;
+      row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+        `SELECT data, updated_at FROM officer_trends_cache WHERE id = ?`,
+        [fallbackId]
+      );
+    }
+
+    // Fallback to any trends for this user
+    if (!row) {
+      row = await db.getFirstAsync<{ data: string; updated_at: number }>(
+        `SELECT data, updated_at FROM officer_trends_cache WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1`,
+        [userId]
+      );
+    }
+
+    if (!row) return { trends: [], lastUpdated: null };
+
+    const parsed = JSON.parse(row.data) as TrendPoint[];
+    return { trends: Array.isArray(parsed) ? parsed : [], lastUpdated: row.updated_at };
+  } catch (err) {
+    console.warn('[LocalDatabase] Error reading officer trends cache:', err);
+    return { trends: [], lastUpdated: null };
+  }
+}
+
+export async function clearOfficerCache(userId: string): Promise<void> {
+  if (!userId) return;
+  try {
+    const db = await getDatabase();
+    await db.runAsync(`DELETE FROM officer_dashboard_cache WHERE user_id = ?`, [userId]);
+    await db.runAsync(`DELETE FROM officer_trends_cache WHERE user_id = ?`, [userId]);
+  } catch (err) {
+    console.warn('[LocalDatabase] Error clearing officer cache on logout:', err);
   }
 }
