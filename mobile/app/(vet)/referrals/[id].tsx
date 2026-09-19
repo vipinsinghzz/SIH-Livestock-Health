@@ -1,10 +1,11 @@
 /**
- * Livestock Saathi - Veterinarian Referral Detail & Clinical Examination
+ * Livestock Saathi - Veterinarian Referral Detail & Clinical Workflow
  * File: mobile/app/(vet)/referrals/[id].tsx
  * 
- * Production referral detail screen backed by GET /api/cases/:id.
- * Displays full patient animal profile, reported symptoms, farmer contact,
- * clinical findings, audit timeline, and atomic case claim workflow.
+ * Phase 9.2: Complete clinical case workflow implementation.
+ * Displays patient livestock profile, reported symptoms, farmer contact,
+ * AI screening disclaimer, attending clinical record, audit timeline,
+ * atomic case claim, and 5-stage clinical case update / status advancement.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,6 +15,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   ActivityIndicator,
   Alert,
   Image,
@@ -25,8 +27,16 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import { veterinarianService } from '../../../src/services/veterinarianService';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../../src/types/case';
+import { ClinicalStage } from '../../../src/types/vet';
 import { isCaseClaimable, isCaseAssignedToVet } from '../../../src/types/referral';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
+
+const CLINICAL_STAGES: Array<{ id: ClinicalStage; label: string; desc: string }> = [
+  { id: 'Investigating', label: 'Investigating', desc: 'Active clinical examination & diagnostic workup' },
+  { id: 'Confirmed', label: 'Confirmed', desc: 'Positive diagnosis established by attending veterinarian' },
+  { id: 'Containment', label: 'Containment', desc: 'Biosecurity quarantine & active treatment protocol' },
+  { id: 'Resolved', label: 'Resolved', desc: 'Clinical recovery achieved; animal marked Recovered' },
+];
 
 export default function VetReferralDetailScreen() {
   const router = useRouter();
@@ -40,7 +50,19 @@ export default function VetReferralDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [claiming, setClaiming] = useState<boolean>(false);
 
+  // Clinical Action State
+  const [showActionForm, setShowActionForm] = useState<boolean>(false);
+  const [actionTargetStatus, setActionTargetStatus] = useState<ClinicalStage>('Investigating');
+  const [clinicalDiagnosisInput, setClinicalDiagnosisInput] = useState<string>('');
+  const [affectedCountInput, setAffectedCountInput] = useState<string>('1');
+  const [investigationNotesInput, setInvestigationNotesInput] = useState<string>('');
+  const [treatmentNotesInput, setTreatmentNotesInput] = useState<string>('');
+  const [prescriptionInput, setPrescriptionInput] = useState<string>('');
+  const [customNotesInput, setCustomNotesInput] = useState<string>('');
+  const [savingStatus, setSavingStatus] = useState<boolean>(false);
+
   const vetId = user?.id || user?._id;
+  const isAdmin = user?.role === 'admin';
 
   const loadCaseDetail = useCallback(async () => {
     if (!id) return;
@@ -67,6 +89,7 @@ export default function VetReferralDetailScreen() {
     loadCaseDetail();
   }, [loadCaseDetail]);
 
+  // Atomic Case Claiming (New / OPEN -> Investigating)
   const handleClaim = () => {
     if (!caseItem) return;
     const targetId = caseItem.id || caseItem._id || caseItem.caseId;
@@ -98,6 +121,92 @@ export default function VetReferralDetailScreen() {
         }
       ]
     );
+  };
+
+  // Open Clinical Action Form
+  const handleOpenActionForm = (defaultStatus?: ClinicalStage) => {
+    if (!caseItem) return;
+    const currentStatus = String(caseItem.status || 'New').toUpperCase();
+
+    let nextStatus: ClinicalStage = 'Investigating';
+    if (defaultStatus) {
+      nextStatus = defaultStatus;
+    } else if (currentStatus === 'NEW' || currentStatus === 'OPEN') {
+      nextStatus = 'Investigating';
+    } else if (currentStatus === 'INVESTIGATING' || currentStatus === 'ACCEPTED') {
+      nextStatus = 'Confirmed';
+    } else if (currentStatus === 'CONFIRMED') {
+      nextStatus = 'Containment';
+    } else {
+      nextStatus = 'Resolved';
+    }
+
+    setActionTargetStatus(nextStatus);
+    setClinicalDiagnosisInput(caseItem.clinicalDiagnosis || '');
+    setAffectedCountInput(String(caseItem.affectedCount || 1));
+    setInvestigationNotesInput(caseItem.investigationNotes || '');
+    setTreatmentNotesInput(caseItem.treatmentNotes || '');
+    setPrescriptionInput(caseItem.prescription || '');
+    setCustomNotesInput('');
+    setShowActionForm(true);
+  };
+
+  // Save 5-Stage Clinical Advancement
+  const handleSaveClinicalAction = async () => {
+    if (!caseItem) return;
+    const targetCaseId = caseItem.id || caseItem._id || caseItem.caseId;
+
+    // Validation
+    if (actionTargetStatus === 'Confirmed' && !clinicalDiagnosisInput.trim()) {
+      Alert.alert(
+        'Clinical Diagnosis Required',
+        'Please enter a confirmed clinical diagnosis before advancing the case to Confirmed status.'
+      );
+      return;
+    }
+
+    const doSubmit = async () => {
+      try {
+        setSavingStatus(true);
+        const res = await veterinarianService.updateCaseStatus(targetCaseId, {
+          status: actionTargetStatus,
+          clinicalDiagnosis: clinicalDiagnosisInput.trim() || undefined,
+          affectedCount: parseInt(affectedCountInput, 10) || 1,
+          investigationNotes: investigationNotesInput.trim() || undefined,
+          treatmentNotes: treatmentNotesInput.trim() || undefined,
+          prescription: prescriptionInput.trim() || undefined,
+          notes: customNotesInput.trim() || undefined,
+        });
+
+        Alert.alert(
+          'Clinical Records Updated',
+          res.message || `Case ${caseItem.caseId} transitioned to ${actionTargetStatus}.`
+        );
+        setShowActionForm(false);
+        if (res.case) {
+          setCaseItem(res.case);
+        } else {
+          loadCaseDetail();
+        }
+      } catch (err: any) {
+        Alert.alert('Unable to Update Case', err.message || 'Failed to save clinical records.');
+      } finally {
+        setSavingStatus(false);
+      }
+    };
+
+    if (actionTargetStatus === 'Resolved') {
+      Alert.alert(
+        'Confirm Case Resolution',
+        `Confirm that livestock patient has fully recovered and biosecurity criteria are met?\n\nThis will update the animal health status to "Recovered".`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Confirm Resolution', style: 'default', onPress: doSubmit }
+        ]
+      );
+    } else {
+      doSubmit();
+    }
   };
 
   const handleCallFarmer = (phone?: string) => {
@@ -144,6 +253,7 @@ export default function VetReferralDetailScreen() {
   const riskTheme = getRiskTheme(caseItem.risk);
   const isClaimable = isCaseClaimable(caseItem);
   const isMine = isCaseAssignedToVet(caseItem, vetId);
+  const canPerformClinicalAction = isMine || isAdmin;
 
   // Attending vet name resolution
   let assignedDoctorName = '';
@@ -200,14 +310,35 @@ export default function VetReferralDetailScreen() {
             </View>
           </View>
 
-          <Text style={styles.diseaseHeadline}>{caseItem.disease}</Text>
-          {caseItem.confidence ? (
-            <Text style={styles.confidenceHeadline}>AI Confidence: {caseItem.confidence}%</Text>
-          ) : null}
+          <Text style={styles.diseaseHeadline}>
+            {caseItem.clinicalDiagnosis ? caseItem.clinicalDiagnosis : caseItem.disease}
+          </Text>
 
           <Text style={styles.dateText}>
-            Reported on: {new Date(caseItem.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            Reported: {new Date(caseItem.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
           </Text>
+        </View>
+
+        {/* AI Screening Card with Strict Medical Disclaimer */}
+        <View style={styles.card}>
+          <View style={styles.aiHeaderRow}>
+            <View style={styles.aiBadge}>
+              <Text style={styles.aiBadgeText}>AI PRELIMINARY SCREENING</Text>
+            </View>
+            {caseItem.confidence ? (
+              <Text style={styles.confidenceText}>{caseItem.confidence}% model match</Text>
+            ) : null}
+          </View>
+
+          <Text style={styles.aiObservedDisease}>
+            Screening Indication: <Text style={styles.aiDiseaseBold}>{caseItem.disease}</Text>
+          </Text>
+
+          <View style={styles.disclaimerBox}>
+            <Text style={styles.disclaimerText}>
+              ⚠️ AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis.
+            </Text>
+          </View>
         </View>
 
         {/* Lesion / Screening Image if present */}
@@ -284,7 +415,7 @@ export default function VetReferralDetailScreen() {
           ) : null}
         </View>
 
-        {/* Farmer Contact & Location Card */}
+        {/* Farmer Contact & Farm Location Card */}
         <View style={styles.card}>
           <Text style={styles.sectionHeader}>Farmer Contact & Farm Location</Text>
 
@@ -317,7 +448,18 @@ export default function VetReferralDetailScreen() {
 
         {/* Attending Veterinarian Clinical Record */}
         <View style={[styles.card, styles.clinicalCard]}>
-          <Text style={styles.sectionHeader}>Attending Clinical Record</Text>
+          <View style={styles.cardHeaderWithAction}>
+            <Text style={styles.sectionHeaderNoMargin}>Attending Clinical Record</Text>
+            {canPerformClinicalAction && !showActionForm && (
+              <TouchableOpacity
+                style={styles.editActionBtn}
+                onPress={() => handleOpenActionForm()}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.editActionBtnText}>✏️ Record Updates</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <View style={styles.doctorHeader}>
             <Text style={styles.doctorLabel}>Assigned Doctor:</Text>
@@ -338,6 +480,18 @@ export default function VetReferralDetailScreen() {
             <View style={styles.clinicalField}>
               <Text style={styles.fieldLabel}>Confirmed Diagnosis</Text>
               <Text style={styles.fieldValueBold}>{caseItem.clinicalDiagnosis}</Text>
+            </View>
+          ) : (
+            <View style={styles.clinicalField}>
+              <Text style={styles.fieldLabel}>Confirmed Diagnosis</Text>
+              <Text style={styles.fieldValuePending}>Pending clinical diagnosis by attending veterinarian</Text>
+            </View>
+          )}
+
+          {caseItem.affectedCount ? (
+            <View style={styles.clinicalField}>
+              <Text style={styles.fieldLabel}>Affected Herd Count</Text>
+              <Text style={styles.fieldValue}>{caseItem.affectedCount} animal(s)</Text>
             </View>
           ) : null}
 
@@ -361,13 +515,151 @@ export default function VetReferralDetailScreen() {
               <Text style={styles.rxContent}>{caseItem.prescription}</Text>
             </View>
           ) : null}
-
-          {!caseItem.clinicalDiagnosis && !caseItem.prescription && (
-            <Text style={styles.emptyClinicalNote}>
-              No clinical diagnosis or prescription recorded yet. Clinical advancement workflow will be accessible in Phase 9.2.
-            </Text>
-          )}
         </View>
+
+        {/* CLINICAL ACTION FORM / ADVANCEMENT WORKFLOW (Phase 9.2) */}
+        {canPerformClinicalAction && showActionForm && (
+          <View style={[styles.card, styles.actionCard]}>
+            <View style={styles.actionFormHeader}>
+              <View>
+                <Text style={styles.actionFormBadge}>VETERINARY CLINICAL WORKFLOW</Text>
+                <Text style={styles.actionFormTitle}>Update Clinical Case & Advance Status</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowActionForm(false)}
+                style={styles.actionFormClose}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.actionFormCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Stage Selector */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Target Case Status / Stage</Text>
+              <View style={styles.stageGrid}>
+                {CLINICAL_STAGES.map((st) => {
+                  const isSelected = actionTargetStatus === st.id;
+                  return (
+                    <TouchableOpacity
+                      key={st.id}
+                      style={[styles.stagePill, isSelected && styles.stagePillActive]}
+                      onPress={() => setActionTargetStatus(st.id)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.stagePillText, isSelected && styles.stagePillTextActive]}>
+                        {st.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Clinical Diagnosis Input */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Confirmed Clinical Diagnosis</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g., Lumpy Skin Disease (Clinical Confirmation)"
+                placeholderTextColor={colors.light.textSecondary}
+                value={clinicalDiagnosisInput}
+                onChangeText={setClinicalDiagnosisInput}
+              />
+            </View>
+
+            {/* Affected Animals Count */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Affected Livestock Count</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="1"
+                placeholderTextColor={colors.light.textSecondary}
+                value={affectedCountInput}
+                onChangeText={setAffectedCountInput}
+                keyboardType="numeric"
+              />
+            </View>
+
+            {/* Examination Findings / Investigation Notes */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Clinical Examination Findings / Notes</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Record clinical examination signs, body temperature, vitals, mucosal lesions, lymph node palpation..."
+                placeholderTextColor={colors.light.textSecondary}
+                value={investigationNotesInput}
+                onChangeText={setInvestigationNotesInput}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Treatment Plan & Interventions */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Treatment Plan & Supportive Therapy</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="Record clinical intervention, fluid therapy, antipyretics, isolation protocols..."
+                placeholderTextColor={colors.light.textSecondary}
+                value={treatmentNotesInput}
+                onChangeText={setTreatmentNotesInput}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Rx Prescription */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Rx Prescribed Medications & Dosage</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea, styles.rxInput]}
+                placeholder="e.g., Inj. Meloxicam 0.5 mg/kg IM OD x 3 days, Inj. Oxytetracycline 10 mg/kg..."
+                placeholderTextColor={colors.light.textSecondary}
+                value={prescriptionInput}
+                onChangeText={setPrescriptionInput}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Optional Custom Timeline Note */}
+            <View style={styles.formSection}>
+              <Text style={styles.formLabel}>Custom Timeline Audit Note (Optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g., Physical field checkup completed. Herd isolated."
+                placeholderTextColor={colors.light.textSecondary}
+                value={customNotesInput}
+                onChangeText={setCustomNotesInput}
+              />
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.formActionRow}>
+              <TouchableOpacity
+                style={styles.formCancelBtn}
+                onPress={() => setShowActionForm(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.formCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.formSubmitBtn}
+                onPress={handleSaveClinicalAction}
+                disabled={savingStatus}
+                activeOpacity={0.8}
+              >
+                {savingStatus ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.formSubmitBtnText}>Submit Clinical Update</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Case Audit Timeline */}
         <View style={styles.card}>
@@ -415,10 +707,19 @@ export default function VetReferralDetailScreen() {
               </>
             )}
           </TouchableOpacity>
-        ) : isMine ? (
-          <View style={styles.assignedAlertBox}>
-            <Text style={styles.assignedAlertText}>
-              ✓ You have claimed this case. Clinical examination & treatment updates will be enabled in Phase 9.2.
+        ) : canPerformClinicalAction && !showActionForm ? (
+          <TouchableOpacity
+            style={styles.primaryClaimBtn}
+            onPress={() => handleOpenActionForm()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryClaimBtnIcon}>📋</Text>
+            <Text style={styles.primaryClaimBtnText}>Update Clinical Case & Advance Status</Text>
+          </TouchableOpacity>
+        ) : !canPerformClinicalAction && assignedDoctorName ? (
+          <View style={styles.unauthorizedBox}>
+            <Text style={styles.unauthorizedText}>
+              🔒 Assigned to Dr. {assignedDoctorName}. Clinical updates and prescriptions can only be recorded by the attending veterinarian.
             </Text>
           </View>
         ) : null}
@@ -510,6 +811,152 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDF4',
     borderColor: '#BBF7D0',
   },
+  cardHeaderWithAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.light.border,
+    paddingBottom: 4,
+    marginBottom: spacing.sm,
+  },
+  sectionHeaderNoMargin: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+  },
+  editActionBtn: {
+    backgroundColor: '#065F46',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+  },
+  editActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+  },
+  actionCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#065F46',
+    borderWidth: 1.5,
+    ...shadows.md,
+  },
+  actionFormHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.light.border,
+    paddingBottom: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  actionFormBadge: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#065F46',
+    letterSpacing: 0.5,
+  },
+  actionFormTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+    marginTop: 1,
+  },
+  actionFormClose: {
+    padding: 4,
+  },
+  actionFormCloseText: {
+    fontSize: 16,
+    color: colors.light.textSecondary,
+    fontWeight: typography.weights.bold,
+  },
+  formSection: {
+    marginBottom: spacing.sm,
+  },
+  formLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+    marginBottom: 4,
+  },
+  stageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  stagePill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radii.sm,
+    backgroundColor: colors.light.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+  },
+  stagePillActive: {
+    backgroundColor: '#065F46',
+    borderColor: '#065F46',
+  },
+  stagePillText: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textSecondary,
+  },
+  stagePillTextActive: {
+    color: '#FFFFFF',
+  },
+  textInput: {
+    backgroundColor: colors.light.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.light.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    fontSize: typography.sizes.sm,
+    color: colors.light.textPrimary,
+  },
+  textArea: {
+    minHeight: 70,
+    textAlignVertical: 'top',
+  },
+  rxInput: {
+    fontFamily: 'monospace',
+    fontSize: 12,
+  },
+  formActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.light.border,
+  },
+  formCancelBtn: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    backgroundColor: colors.light.surfaceAlt,
+  },
+  formCancelBtnText: {
+    color: colors.light.textSecondary,
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+  },
+  formSubmitBtn: {
+    backgroundColor: '#065F46',
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    minWidth: 150,
+    alignItems: 'center',
+  },
+  formSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+  },
   headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -558,16 +1005,56 @@ const styles = StyleSheet.create({
     color: colors.light.textPrimary,
     marginTop: 2,
   },
-  confidenceHeadline: {
-    fontSize: typography.sizes.sm,
-    color: colors.light.primary,
-    fontWeight: typography.weights.medium,
-    marginTop: 2,
-  },
   dateText: {
     fontSize: typography.sizes.xs,
     color: colors.light.textSecondary,
     marginTop: spacing.xs,
+  },
+  aiHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  aiBadge: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radii.round,
+  },
+  aiBadgeText: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#1D4ED8',
+    letterSpacing: 0.5,
+  },
+  confidenceText: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.light.primary,
+  },
+  aiObservedDisease: {
+    fontSize: typography.sizes.sm,
+    color: colors.light.textPrimary,
+    marginTop: 2,
+  },
+  aiDiseaseBold: {
+    fontWeight: typography.weights.bold,
+  },
+  disclaimerBox: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    padding: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  disclaimerText: {
+    fontSize: 11,
+    color: '#92400E',
+    fontWeight: typography.weights.medium,
   },
   sectionHeader: {
     fontSize: typography.sizes.base,
@@ -767,6 +1254,12 @@ const styles = StyleSheet.create({
     color: colors.light.textPrimary,
     marginTop: 1,
   },
+  fieldValuePending: {
+    fontSize: typography.sizes.xs,
+    color: colors.light.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 1,
+  },
   fieldValueBold: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
@@ -791,12 +1284,6 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 11,
     color: colors.light.textPrimary,
-  },
-  emptyClinicalNote: {
-    fontSize: 11,
-    color: colors.light.textSecondary,
-    fontStyle: 'italic',
-    marginTop: spacing.xs,
   },
   timelineList: {
     paddingLeft: spacing.xs,
@@ -864,18 +1351,18 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.bold,
   },
-  assignedAlertBox: {
-    backgroundColor: '#ECFDF5',
+  unauthorizedBox: {
+    backgroundColor: colors.light.surfaceAlt,
     padding: spacing.base,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: colors.light.border,
     alignItems: 'center',
   },
-  assignedAlertText: {
-    color: '#065F46',
+  unauthorizedText: {
+    color: colors.light.textSecondary,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
+    fontWeight: typography.weights.medium,
     textAlign: 'center',
   },
 });

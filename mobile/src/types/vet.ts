@@ -53,3 +53,22 @@ export interface ClaimCaseResult {
   };
   status?: string;
 }
+
+export type ClinicalStage = 'Investigating' | 'Confirmed' | 'Containment' | 'Resolved';
+
+export interface UpdateCaseStatusPayload {
+  status: ClinicalStage | string;
+  clinicalDiagnosis?: string;
+  affectedCount?: number;
+  investigationNotes?: string;
+  treatmentNotes?: string;
+  prescription?: string;
+  notes?: string;
+}
+
+export interface UpdateCaseStatusResult {
+  success: boolean;
+  message: string;
+  case: DiseaseCase;
+}
+

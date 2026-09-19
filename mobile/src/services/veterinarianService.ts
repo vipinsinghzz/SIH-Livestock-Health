@@ -23,7 +23,9 @@ import {
 import {
   VeterinarianProfile,
   VetDashboardMetrics,
-  ClaimCaseResult
+  ClaimCaseResult,
+  UpdateCaseStatusPayload,
+  UpdateCaseStatusResult
 } from '../types/vet';
 import {
   ReferralFilterType,
@@ -222,6 +224,110 @@ export const veterinarianService = {
 
       const serverMessage = responseData?.message || err.message || 'Failed to claim case.';
       throw new Error(serverMessage);
+    }
+  },
+
+  /**
+   * Update clinical case details and advance status across 5-stage lifecycle.
+   * Backed by PATCH /api/cases/:id/status.
+   * 
+   * CRITICAL ARCHITECTURE RULE:
+   * Clinical updates and status advancements are strictly ONLINE ONLY.
+   * No fake local mutations. Reconciles updated case in SQLite cache on success.
+   */
+  async updateCaseStatus(
+    caseId: string,
+    payload: UpdateCaseStatusPayload
+  ): Promise<UpdateCaseStatusResult> {
+    const cleanId = String(caseId || '').trim();
+    if (!cleanId) {
+      throw new Error('Valid case ID is required for clinical updates.');
+    }
+
+    if (!payload?.status) {
+      throw new Error('Case status is required for clinical update.');
+    }
+
+    const netState = await NetInfo.fetch();
+    const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
+
+    if (!isOnline) {
+      throw new Error('Clinical updates require an active internet connection.');
+    }
+
+    // Build payload matching exact backend controller fields
+    const body: Record<string, any> = {
+      status: payload.status,
+    };
+
+    if (payload.clinicalDiagnosis !== undefined) {
+      body.clinicalDiagnosis = String(payload.clinicalDiagnosis).trim();
+    }
+    if (payload.affectedCount !== undefined && payload.affectedCount !== null) {
+      body.affectedCount = Number(payload.affectedCount);
+    }
+    if (payload.investigationNotes !== undefined) {
+      body.investigationNotes = String(payload.investigationNotes).trim();
+    }
+    if (payload.treatmentNotes !== undefined) {
+      body.treatmentNotes = String(payload.treatmentNotes).trim();
+    }
+    if (payload.prescription !== undefined) {
+      body.prescription = String(payload.prescription).trim();
+    }
+    if (payload.notes !== undefined && String(payload.notes).trim()) {
+      body.notes = String(payload.notes).trim();
+    }
+
+    try {
+      const response = await api.patch<{
+        success: boolean;
+        message: string;
+        case?: DiseaseCase;
+      }>(`/cases/${cleanId}/status`, body);
+
+      const updatedCase = response.data?.case;
+      if (!updatedCase) {
+        throw new Error('Server returned an empty case update response.');
+      }
+
+      // Reconcile updated case in SQLite local cache
+      const user = await getSavedUserProfile<VeterinarianProfile>();
+      const vetId = user?.id || user?._id || 'local_vet';
+      if (vetId) {
+        const { cases: cachedCases } = await getCachedCases(vetId);
+        const updated = cachedCases.map((c) =>
+          (c.id || c._id) === cleanId || c.caseId === cleanId ? updatedCase : c
+        );
+        if (!updated.some((c) => (c.id || c._id) === cleanId || c.caseId === cleanId)) {
+          updated.unshift(updatedCase);
+        }
+        await saveCasesCache(vetId, updated);
+      }
+
+      return {
+        success: true,
+        message: response.data?.message || `Case updated to ${payload.status}.`,
+        case: updatedCase,
+      };
+    } catch (err: any) {
+      const status = err.status || err.response?.status;
+      const responseData = err.data || err.response?.data;
+      const serverMessage = responseData?.message || err.message;
+
+      if (status === 403) {
+        throw new Error(
+          serverMessage || 'Only the assigned veterinarian can update case status and clinical records.'
+        );
+      } else if (status === 404) {
+        throw new Error('Case not found on server.');
+      } else if (status === 409) {
+        throw new Error('Case was updated by another user. Refreshing the latest case.');
+      } else if (status === 400) {
+        throw new Error(serverMessage || `Invalid clinical update submission.`);
+      }
+
+      throw new Error(serverMessage || 'Failed to update clinical case.');
     }
   },
 
