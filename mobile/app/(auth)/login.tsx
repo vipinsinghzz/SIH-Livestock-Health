@@ -43,20 +43,27 @@ export default function LoginScreen() {
     setError(null);
 
     try {
+      console.log('[DIAGNOSTIC] Login handleSubmit executing for identifier:', identifier.trim());
       const authUser = await login(identifier.trim(), password);
       const role = (authUser.role || 'farmer').toLowerCase();
+      console.log('[DIAGNOSTIC] Login succeeded, resolved role:', role);
 
       // Navigation is automatically handled by the NavigationGuard, but we can also direct immediately
       if (role === 'farmer') {
+        console.log('[DIAGNOSTIC] Login screen directly replacing route -> /(farmer)');
         router.replace('/(farmer)');
       } else if (role === 'veterinarian' || role === 'field_worker') {
+        console.log('[DIAGNOSTIC] Login screen directly replacing route -> /(vet)');
         router.replace('/(vet)');
       } else if (role === 'officer' || role === 'admin') {
+        console.log('[DIAGNOSTIC] Login screen directly replacing route -> /(officer)');
         router.replace('/(officer)');
       } else {
+        console.log('[DIAGNOSTIC] Login screen directly replacing route -> /');
         router.replace('/');
       }
     } catch (err: any) {
+      console.warn('[DIAGNOSTIC] Login handleSubmit failed:', err.message);
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);

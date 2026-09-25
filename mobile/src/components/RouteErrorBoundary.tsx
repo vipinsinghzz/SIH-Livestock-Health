@@ -17,10 +17,28 @@ interface RouteErrorBoundaryProps {
 }
 
 export function RouteErrorBoundary({ error, retry }: RouteErrorBoundaryProps) {
-  const router = useRouter();
+  let router: any = null;
+  try {
+    router = useRouter();
+  } catch (e) {
+    // Router context might be unmounted if exception occurred at root container level
+  }
 
   // Log error for forensic diagnostics
   console.error('[RouteErrorBoundary] Caught route crash:', error);
+
+  const handleReturnHome = () => {
+    try {
+      if (router && typeof router.replace === 'function') {
+        router.replace('/');
+      } else {
+        retry();
+      }
+    } catch (e) {
+      console.warn('[RouteErrorBoundary] Fallback to retry():', e);
+      retry();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -53,7 +71,7 @@ export function RouteErrorBoundary({ error, retry }: RouteErrorBoundaryProps) {
 
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
-            onPress={() => router.replace('/')}
+            onPress={handleReturnHome}
             activeOpacity={0.8}
           >
             <Text style={styles.secondaryButtonText}>Return to Home</Text>

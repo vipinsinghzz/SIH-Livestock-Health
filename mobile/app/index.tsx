@@ -18,15 +18,25 @@ export default function HomeScreen() {
   const [evalError, setEvalError] = useState<string | null>(null);
 
   const handleQuickEval = async (persona: 'farmer' | 'vet' | 'officer') => {
+    console.log('[DIAGNOSTIC] Quick persona switch initiated for persona:', persona);
     setEvalLoading(true);
     setEvalError(null);
     try {
       const loggedUser = await loginAsPersona(persona);
       const role = loggedUser.role.toLowerCase();
-      if (role === 'farmer') router.push('/(farmer)');
-      else if (role === 'veterinarian' || role === 'field_worker') router.push('/(vet)');
-      else if (role === 'officer' || role === 'admin') router.push('/(officer)');
+      console.log('[DIAGNOSTIC] Quick evaluation login completed. Role:', role);
+      if (role === 'farmer') {
+        console.log('[DIAGNOSTIC] QuickEval pushing destination: /(farmer)');
+        router.push('/(farmer)');
+      } else if (role === 'veterinarian' || role === 'field_worker') {
+        console.log('[DIAGNOSTIC] QuickEval pushing destination: /(vet)');
+        router.push('/(vet)');
+      } else if (role === 'officer' || role === 'admin') {
+        console.log('[DIAGNOSTIC] QuickEval pushing destination: /(officer)');
+        router.push('/(officer)');
+      }
     } catch (err: any) {
+      console.warn('[DIAGNOSTIC] Quick evaluation login failed:', err.message);
       setEvalError(err.message || 'Quick evaluation login failed');
     } finally {
       setEvalLoading(false);
@@ -36,9 +46,17 @@ export default function HomeScreen() {
   const navigateToRolePortal = () => {
     if (!user) return;
     const role = user.role.toLowerCase();
-    if (role === 'farmer') router.push('/(farmer)');
-    else if (role === 'veterinarian' || role === 'field_worker') router.push('/(vet)');
-    else if (role === 'officer' || role === 'admin') router.push('/(officer)');
+    console.log('[DIAGNOSTIC] navigateToRolePortal invoked. Selected role portal for:', role);
+    if (role === 'farmer') {
+      console.log('[DIAGNOSTIC] Role portal navigating to /(farmer)');
+      router.push('/(farmer)');
+    } else if (role === 'veterinarian' || role === 'field_worker') {
+      console.log('[DIAGNOSTIC] Role portal navigating to /(vet)');
+      router.push('/(vet)');
+    } else if (role === 'officer' || role === 'admin') {
+      console.log('[DIAGNOSTIC] Role portal navigating to /(officer)');
+      router.push('/(officer)');
+    }
   };
 
   return (
@@ -113,7 +131,10 @@ export default function HomeScreen() {
             <View style={styles.buttonRow}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.primaryButton]}
-                onPress={() => router.push('/(auth)/login')}
+                onPress={() => {
+                  console.log('[DIAGNOSTIC] Tapped "Sign In" button -> router.push("/(auth)/login")');
+                  router.push('/(auth)/login');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={styles.primaryButtonText}>Sign In</Text>
@@ -121,7 +142,10 @@ export default function HomeScreen() {
 
               <TouchableOpacity
                 style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => router.push('/(auth)/register')}
+                onPress={() => {
+                  console.log('[DIAGNOSTIC] Tapped "Create Account" button -> router.push("/(auth)/register")');
+                  router.push('/(auth)/register');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={styles.secondaryButtonText}>Create Account</Text>
@@ -169,7 +193,10 @@ export default function HomeScreen() {
           {/* Farmer Portal Card */}
           <TouchableOpacity
             style={styles.portalCard}
-            onPress={() => router.push('/(farmer)')}
+            onPress={() => {
+              console.log('[DIAGNOSTIC] Tapped "Farmer Portal" card -> router.push("/(farmer)")');
+              router.push('/(farmer)');
+            }}
             activeOpacity={0.8}
           >
             <Text style={styles.portalIcon}>🌾</Text>
@@ -183,7 +210,10 @@ export default function HomeScreen() {
           {/* Veterinarian Portal Card */}
           <TouchableOpacity
             style={styles.portalCard}
-            onPress={() => router.push('/(vet)')}
+            onPress={() => {
+              console.log('[DIAGNOSTIC] Tapped "Veterinarian Portal" card -> router.push("/(vet)")');
+              router.push('/(vet)');
+            }}
             activeOpacity={0.8}
           >
             <Text style={styles.portalIcon}>🩺</Text>
@@ -197,7 +227,10 @@ export default function HomeScreen() {
           {/* Officer Portal Card */}
           <TouchableOpacity
             style={styles.portalCard}
-            onPress={() => router.push('/(officer)')}
+            onPress={() => {
+              console.log('[DIAGNOSTIC] Tapped "Officer Portal" card -> router.push("/(officer)")');
+              router.push('/(officer)');
+            }}
             activeOpacity={0.8}
           >
             <Text style={styles.portalIcon}>🏛️</Text>

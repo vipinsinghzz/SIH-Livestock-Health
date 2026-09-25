@@ -78,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   userRef.current = user;
 
   const handleLogout = useCallback(async () => {
+    console.log('[DIAGNOSTIC] Logout initiated in AuthContext');
     try {
       if (isLiveSupabase && supabase?.auth?.signOut) {
         await supabase.auth.signOut();
@@ -105,15 +106,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthToken(null);
     setToken(null);
     setUser(null);
+    console.log('[DIAGNOSTIC] Logout completed, credentials wiped, user state cleared');
   }, []);
 
   // Initialize Auth & restore persisted session from Android Keystore
   useEffect(() => {
     let isMounted = true;
+    console.log('[DIAGNOSTIC] Auth initialization started');
 
     // Register 401 handler with API client to trigger automatic clean logout
     setOnUnauthorizedCallback(() => {
       if (isMounted) {
+        console.log('[DIAGNOSTIC] API client 401 interceptor triggered clean logout');
         handleLogout();
       }
     });
@@ -123,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isMounted) {
         setLoading((prev) => {
           if (prev) {
-            console.warn('[AuthContext] Session restoration reached failsafe timeout, unlocking UI');
+            console.warn('[DIAGNOSTIC] Session restoration reached failsafe timeout, unlocking UI');
             return false;
           }
           return false;
@@ -139,12 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ]);
 
         if (storedToken && storedUser) {
+          console.log('[DIAGNOSTIC] Stored credentials retrieved from SecureStore. Role:', storedUser.role);
           if (isMounted) {
             setAuthToken(storedToken);
             setToken(storedToken);
             setUser(storedUser);
             // Instant session restoration from hardware-backed Keystore
             setLoading(false);
+            console.log('[DIAGNOSTIC] Local session restored successfully. Loading set to false');
           }
 
           // Defer sync service to prevent startup contention

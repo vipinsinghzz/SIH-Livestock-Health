@@ -27,7 +27,11 @@ function NavigationGuard() {
   const isRoleValid = VALID_ROLES.includes(rawRole as any);
 
   useEffect(() => {
-    if (loading) return;
+    console.log('[DIAGNOSTIC] NavigationGuard mounted/evaluated. Segments:', JSON.stringify(segments), 'Loading:', loading, 'Auth:', Boolean(token && user), 'Role:', rawRole);
+    if (loading) {
+      console.log('[DIAGNOSTIC] Session restoration active, skipping redirect evaluation');
+      return;
+    }
 
     const rootSegment = segments[0] as string | undefined;
     const inAuthGroup = rootSegment === '(auth)';
@@ -37,10 +41,12 @@ function NavigationGuard() {
     const inProtectedPortal = inFarmerGroup || inVetGroup || inOfficerGroup;
 
     const isAuthenticated = Boolean(token && user);
+    console.log('[DIAGNOSTIC] Evaluating route guard. RootSegment:', rootSegment, 'inProtectedPortal:', inProtectedPortal, 'isAuthenticated:', isAuthenticated);
 
     if (!isAuthenticated) {
       // If unauthenticated user attempts to access any protected role portal, redirect to login
       if (inProtectedPortal) {
+        console.log('[DIAGNOSTIC] Unauthenticated access to protected portal intercepted -> Redirecting to /(auth)/login');
         router.replace('/(auth)/login');
       }
     } else if (user && isRoleValid) {
@@ -53,10 +59,13 @@ function NavigationGuard() {
       // If authenticated user is in auth screens, direct them to their designated role portal
       if (inAuthGroup) {
         if (isFarmer) {
+          console.log('[DIAGNOSTIC] Authenticated farmer in auth group -> Redirecting to /(farmer)');
           router.replace('/(farmer)');
         } else if (isVet) {
+          console.log('[DIAGNOSTIC] Authenticated vet in auth group -> Redirecting to /(vet)');
           router.replace('/(vet)');
         } else if (isOfficer) {
+          console.log('[DIAGNOSTIC] Authenticated officer in auth group -> Redirecting to /(officer)');
           router.replace('/(officer)');
         }
         return;
@@ -64,14 +73,29 @@ function NavigationGuard() {
 
       // Enforce strict role boundary (cross-role protection)
       if (inFarmerGroup && !isFarmer && !isAdmin) {
-        if (isVet) router.replace('/(vet)');
-        else if (isOfficer) router.replace('/(officer)');
+        if (isVet) {
+          console.log('[DIAGNOSTIC] Cross-role bounce: non-farmer in farmer group -> /(vet)');
+          router.replace('/(vet)');
+        } else if (isOfficer) {
+          console.log('[DIAGNOSTIC] Cross-role bounce: non-farmer in farmer group -> /(officer)');
+          router.replace('/(officer)');
+        }
       } else if (inVetGroup && !isVet && !isAdmin) {
-        if (isFarmer) router.replace('/(farmer)');
-        else if (isOfficer) router.replace('/(officer)');
+        if (isFarmer) {
+          console.log('[DIAGNOSTIC] Cross-role bounce: non-vet in vet group -> /(farmer)');
+          router.replace('/(farmer)');
+        } else if (isOfficer) {
+          console.log('[DIAGNOSTIC] Cross-role bounce: non-vet in vet group -> /(officer)');
+          router.replace('/(officer)');
+        }
       } else if (inOfficerGroup && !isOfficer && !isAdmin) {
-        if (isFarmer) router.replace('/(farmer)');
-        else if (isVet) router.replace('/(vet)');
+        if (isFarmer) {
+          console.log('[DIAGNOSTIC] Cross-role bounce: non-officer in officer group -> /(farmer)');
+          router.replace('/(farmer)');
+        } else if (isVet) {
+          console.log('[DIAGNOSTIC] Cross-role bounce: non-officer in officer group -> /(vet)');
+          router.replace('/(vet)');
+        }
       }
     }
   }, [user, token, loading, segments, isRoleValid, rawRole]);
@@ -166,6 +190,7 @@ function NavigationGuard() {
 }
 
 export default function RootLayout() {
+  console.log('[DIAGNOSTIC] RootLayout mounting tree with SafeAreaProvider, AuthProvider, NavigationGuard');
   return (
     <SafeAreaProvider>
       <AuthProvider>

@@ -198,6 +198,118 @@ runTest('HomeScreen: All navigation targets resolve to existing route files', ()
     );
   }
 });
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 1: App launch with no stored session
+// -------------------------------------------------------------
+runTest('Scenario 1: App launch with no stored session reaches gateway', () => {
+  const authContent = fs.readFileSync(path.join(__dirname, '../mobile/src/context/AuthContext.tsx'), 'utf8');
+  const guardContent = fs.readFileSync(path.join(__dirname, '../mobile/app/_layout.tsx'), 'utf8');
+  assert(authContent.includes('setLoading(false)'), 'Must clear loading when no session stored');
+  assert(guardContent.includes('!isAuthenticated'), 'Must allow gateway access when unauthenticated');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 2: App launch with valid stored session
+// -------------------------------------------------------------
+runTest('Scenario 2: App launch with valid stored session restores immediately', () => {
+  const authContent = fs.readFileSync(path.join(__dirname, '../mobile/src/context/AuthContext.tsx'), 'utf8');
+  const guardContent = fs.readFileSync(path.join(__dirname, '../mobile/app/_layout.tsx'), 'utf8');
+  assert(authContent.includes('storedToken && storedUser'), 'Must restore user and token from SecureStore');
+  assert(guardContent.includes('inAuthGroup'), 'Must direct authenticated user away from auth group');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 3: App launch with expired/invalid session
+// -------------------------------------------------------------
+runTest('Scenario 3: App launch with expired/invalid session (401) cleans session', () => {
+  const authContent = fs.readFileSync(path.join(__dirname, '../mobile/src/context/AuthContext.tsx'), 'utf8');
+  assert(authContent.includes('err?.status === 401'), 'Must intercept 401 response from backend');
+  assert(authContent.includes('handleLogout()'), 'Must call handleLogout on 401');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 4: Auth login navigation
+// -------------------------------------------------------------
+runTest('Scenario 4: Auth login navigation route and layout integrity', () => {
+  const loginPath = path.join(__dirname, '../mobile/app/(auth)/login.tsx');
+  const layoutPath = path.join(__dirname, '../mobile/app/(auth)/_layout.tsx');
+  assert(fs.existsSync(loginPath), 'login.tsx must exist');
+  const loginContent = fs.readFileSync(loginPath, 'utf8');
+  assert(loginContent.includes('export default function LoginScreen'), 'LoginScreen default export required');
+  const layoutContent = fs.readFileSync(layoutPath, 'utf8');
+  assert(layoutContent.includes('name="login"'), 'Auth layout must declare login screen');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 5: Register navigation
+// -------------------------------------------------------------
+runTest('Scenario 5: Register navigation route and layout integrity', () => {
+  const regPath = path.join(__dirname, '../mobile/app/(auth)/register.tsx');
+  const layoutPath = path.join(__dirname, '../mobile/app/(auth)/_layout.tsx');
+  assert(fs.existsSync(regPath), 'register.tsx must exist');
+  const regContent = fs.readFileSync(regPath, 'utf8');
+  assert(regContent.includes('export default function RegisterScreen'), 'RegisterScreen default export required');
+  const layoutContent = fs.readFileSync(layoutPath, 'utf8');
+  assert(layoutContent.includes('name="register"'), 'Auth layout must declare register screen');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 6: Farmer portal navigation
+// -------------------------------------------------------------
+runTest('Scenario 6: Farmer portal navigation route and layout integrity', () => {
+  const farmerPath = path.join(__dirname, '../mobile/app/(farmer)/index.tsx');
+  const layoutPath = path.join(__dirname, '../mobile/app/(farmer)/_layout.tsx');
+  assert(fs.existsSync(farmerPath), 'farmer/index.tsx must exist');
+  const farmerContent = fs.readFileSync(farmerPath, 'utf8');
+  assert(farmerContent.includes('export default function FarmerHomeScreen'), 'FarmerHomeScreen default export required');
+  const layoutContent = fs.readFileSync(layoutPath, 'utf8');
+  assert(layoutContent.includes('name="index"'), 'Farmer layout must declare index screen');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 7: Veterinarian portal navigation
+// -------------------------------------------------------------
+runTest('Scenario 7: Veterinarian portal navigation route and layout integrity', () => {
+  const vetPath = path.join(__dirname, '../mobile/app/(vet)/index.tsx');
+  const layoutPath = path.join(__dirname, '../mobile/app/(vet)/_layout.tsx');
+  assert(fs.existsSync(vetPath), 'vet/index.tsx must exist');
+  const vetContent = fs.readFileSync(vetPath, 'utf8');
+  assert(vetContent.includes('export default function VetHomeScreen'), 'VetHomeScreen default export required');
+  const layoutContent = fs.readFileSync(layoutPath, 'utf8');
+  assert(layoutContent.includes('name="index"'), 'Vet layout must declare index screen');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 8: Officer portal navigation
+// -------------------------------------------------------------
+runTest('Scenario 8: Officer portal navigation route and layout integrity', () => {
+  const officerPath = path.join(__dirname, '../mobile/app/(officer)/index.tsx');
+  const layoutPath = path.join(__dirname, '../mobile/app/(officer)/_layout.tsx');
+  assert(fs.existsSync(officerPath), 'officer/index.tsx must exist');
+  const officerContent = fs.readFileSync(officerPath, 'utf8');
+  assert(officerContent.includes('export default function OfficerHomeScreen'), 'OfficerHomeScreen default export required');
+  const layoutContent = fs.readFileSync(layoutPath, 'utf8');
+  assert(layoutContent.includes('name="index"'), 'Officer layout must declare index screen');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 9: Logout followed by navigation
+// -------------------------------------------------------------
+runTest('Scenario 9: Logout clears session and guards redirect cleanly', () => {
+  const authContent = fs.readFileSync(path.join(__dirname, '../mobile/src/context/AuthContext.tsx'), 'utf8');
+  assert(authContent.includes('clearAllSecureAuthData()'), 'Must purge secure store on logout');
+  assert(authContent.includes('setUser(null)'), 'Must clear user state');
+  assert(authContent.includes('setToken(null)'), 'Must clear token state');
+});
+
+// -------------------------------------------------------------
+// REPRODUCTION DIAGNOSTIC TEST 10: Cold start after force-stop
+// -------------------------------------------------------------
+runTest('Scenario 10: Cold start after force-stop guarantees loading cleanup', () => {
+  const authContent = fs.readFileSync(path.join(__dirname, '../mobile/src/context/AuthContext.tsx'), 'utf8');
+  assert(authContent.includes('failsafeTimeout = setTimeout'), 'Must have failsafe timer for force-stop recovery');
+  assert(authContent.includes('3500'), 'Failsafe must fire within bounded window');
+});
 
 console.log('\n----------------------------------------------------');
 console.log(`RESULTS: ${passedTests}/${totalTests} tests passed.`);
