@@ -79,8 +79,71 @@ export default function FarmerAiScanScreen() {
     fetchAnimals();
   }, [fetchAnimals]);
 
+  // Pure JS Uint8Array to base64 encoder without DOM or btoa dependencies
+  const uint8ArrayToBase64 = (bytes: Uint8Array): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let base64 = '';
+    const len = bytes.length;
+    for (let i = 0; i < len; i += 3) {
+      const b0 = bytes[i];
+      const b1 = i + 1 < len ? bytes[i + 1] : 0;
+      const b2 = i + 2 < len ? bytes[i + 2] : 0;
+      base64 += chars[b0 >> 2];
+      base64 += chars[((b0 & 3) << 4) | (b1 >> 4)];
+      base64 += i + 1 < len ? chars[((b1 & 15) << 2) | (b2 >> 6)] : '=';
+      base64 += i + 2 < len ? chars[b2 & 63] : '=';
+    }
+    return base64;
+  };
+
+  // Convert a local file URI to base64 data URI outside the picker
+  const uriToBase64 = async (uri: string): Promise<string> => {
+    console.log('[uriToBase64 START]', uri.substring(0, 80));
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Attempt 1: Native FileReader (supported via React Native's FileReaderModule)
+      if (typeof FileReader !== 'undefined') {
+        try {
+          const res = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === 'string') {
+                resolve(reader.result);
+              } else {
+                reject(new Error('FileReader did not return string'));
+              }
+            };
+            reader.onerror = (e) => reject(e);
+            reader.readAsDataURL(blob);
+          });
+          if (res && res.startsWith('data:')) {
+            console.log('[uriToBase64] Successfully converted via FileReader, length:', res.length);
+            return res;
+          }
+        } catch (frErr) {
+          console.warn('[uriToBase64] FileReader method notice, trying arrayBuffer:', frErr);
+        }
+      }
+
+      // Attempt 2: ArrayBuffer + pure JS Base64 converter
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const base64Str = uint8ArrayToBase64(uint8Array);
+      const mimeType = blob.type || (uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+      const dataUrl = `data:${mimeType};base64,${base64Str}`;
+      console.log('[uriToBase64] Successfully converted via arrayBuffer, length:', dataUrl.length);
+      return dataUrl;
+    } catch (err: any) {
+      console.error('[uriToBase64 error]', err);
+      throw new Error(`Failed to convert image URI to base64: ${err?.message || String(err)}`);
+    }
+  };
+
   // 2. Camera photo capture
   const handleTakePhoto = async () => {
+    console.log('[handleTakePhoto START]');
     try {
       setErrorMessage(null);
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -94,27 +157,36 @@ export default function FarmerAiScanScreen() {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-        base64: true,
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        base64: false,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
+        console.log('[IMAGE_SELECTED]', {
+          source: 'camera',
+          uriPresent: !!asset.uri,
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          fileSize: asset.fileSize,
+          mimeType: asset.mimeType,
+        });
         setImageUri(asset.uri);
-        if (asset.base64) {
-          setImageBase64(`data:image/jpeg;base64,${asset.base64}`);
-        }
       }
     } catch (err: any) {
-      setErrorMessage('Could not open camera. Please try selecting an image from your gallery.');
+      console.error('[handleTakePhoto error]', err);
+      console.error('[handleTakePhoto ERROR KEYS]', Object.keys(err || {}));
+      console.error('[handleTakePhoto NATIVE STACK]', err?.nativeStackAndroid);
+      console.error('[handleTakePhoto FULL]', JSON.stringify(err, Object.getOwnPropertyNames(err || {})));
+      setErrorMessage(`[Camera error] ${err?.message || String(err)}`);
     }
   };
 
   // 3. Gallery image picker
   const handlePickFromGallery = async () => {
+    console.log('[handlePickFromGallery START]');
     try {
       setErrorMessage(null);
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -128,22 +200,24 @@ export default function FarmerAiScanScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-        base64: true,
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        base64: false,
+        allowsMultipleSelection: false,
+        quality: 1,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        setImageUri(asset.uri);
-        if (asset.base64) {
-          setImageBase64(`data:image/jpeg;base64,${asset.base64}`);
-        }
+        const selectedUri = result.assets[0].uri;
+        console.log('[IMAGE_SELECTED]', { uri: selectedUri });
+        setImageUri(selectedUri);
       }
     } catch (err: any) {
-      setErrorMessage('Could not pick image from gallery.');
+      console.error('[handlePickFromGallery error]', err);
+      console.error('[handlePickFromGallery ERROR KEYS]', Object.keys(err || {}));
+      console.error('[handlePickFromGallery NATIVE STACK]', err?.nativeStackAndroid);
+      console.error('[handlePickFromGallery FULL]', JSON.stringify(err, Object.getOwnPropertyNames(err || {})));
+      setErrorMessage(`[Gallery error] ${err?.message || String(err)}`);
     }
   };
 
@@ -170,21 +244,42 @@ export default function FarmerAiScanScreen() {
       return;
     }
 
-    if (!imageBase64 && selectedSymptoms.length === 0 && !customNotes.trim()) {
+    if (!imageUri && selectedSymptoms.length === 0 && !customNotes.trim()) {
       setErrorMessage('Please capture a photo of the lesion or select at least one observed symptom.');
       return;
     }
 
     setIsAnalyzing(true);
-    setAnalysisStage('Analyzing livestock image...');
 
     try {
+      let finalBase64Image: string | null = null;
+      if (imageUri) {
+        setAnalysisStage('Processing lesion image...');
+        console.log('[handleSubmitScreening] Converting imageUri to base64 before submitting...');
+        try {
+          finalBase64Image = await uriToBase64(imageUri);
+          if (!finalBase64Image) {
+            throw new Error('Image base64 conversion returned empty');
+          }
+          setImageBase64(finalBase64Image);
+        } catch (convErr: any) {
+          console.error('[handleSubmitScreening] Image encoding failed:', convErr);
+          setIsAnalyzing(false);
+          // ZERO SILENT FALLBACK:
+          setErrorMessage('Could not process the selected image for AI screening. Please select or capture the photo again.');
+          return;
+        }
+      }
+
       // Stage 1: Image analysis
+      setAnalysisStage('Analyzing livestock image...');
       await new Promise((resolve) => setTimeout(resolve, 600));
-      setAnalysisStage('Assessing symptoms...');
 
       // Stage 2: Symptom evaluation
+      setAnalysisStage('Assessing symptoms...');
       await new Promise((resolve) => setTimeout(resolve, 600));
+
+      // Stage 3: Preparing screening result
       setAnalysisStage('Preparing screening result...');
 
       const payload = {
@@ -192,7 +287,7 @@ export default function FarmerAiScanScreen() {
         symptoms: selectedSymptoms,
         temperature: temperature.trim() ? parseFloat(temperature) : 0,
         duration: duration.trim() ? parseFloat(duration) : 0,
-        image: imageBase64 || null,
+        image: finalBase64Image || null,
         notes: customNotes.trim() || undefined,
         location: {
           village: selectedAnimal.village || undefined,
@@ -201,12 +296,19 @@ export default function FarmerAiScanScreen() {
         },
       };
 
+      console.log('[handleSubmitScreening] Submitting payload to AI triage:', {
+        species: payload.species,
+        symptomsCount: payload.symptoms.length,
+        hasImage: Boolean(payload.image),
+        imagePrefix: payload.image ? payload.image.substring(0, 30) + '...' : null,
+      });
+
       const result: AiScreeningResponse = await aiScreeningService.runTriageScreening(payload);
 
       // If user uploaded an image and screening produced a result, upload to storage
-      if (imageBase64 && result.success) {
+      if (finalBase64Image && result.success) {
         aiScreeningService
-          .uploadScanImage(imageBase64, {
+          .uploadScanImage(finalBase64Image, {
             animalId: selectedAnimal._id || selectedAnimal.id,
             disease: result.possibleCondition || undefined,
             riskLevel: result.riskLevel,
