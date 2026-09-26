@@ -284,11 +284,21 @@ router.post('/consult', optionalProtect, async (req, res, next) => {
     }
 
     // 7. Append intent-matched contextual action buttons (no helpline 1962 on jokes/milk production!)
-    const suggestedActions = getSuggestedActionsForIntent(
+    const suggestedActionsRaw = getSuggestedActionsForIntent(
       intentResult.intent,
       activeDistrict,
       language
     );
+
+    // Normalize suggestedActions: ensure all actions are strings for mobile client compatibility
+    // (Objects like { type: 'helpline', label: '1962 Helpline', tel: '1962' } must provide their label string)
+    const suggestedActions = (suggestedActionsRaw || []).map(act => {
+      if (typeof act === 'string') return act;
+      if (act && typeof act === 'object') {
+        return act.label || act.text || (act.tel ? `${act.tel} Helpline` : 'Action');
+      }
+      return String(act);
+    });
 
     res.status(200).json({
       success: true,

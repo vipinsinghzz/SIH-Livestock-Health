@@ -1505,7 +1505,13 @@ const diseaseCases = {
           .in('status', activeStatuses)
           .order('created_at', { ascending: false });
 
-        if (animalId) {
+        // BUG FIX (Phase 3A): When animalId is present, ALSO filter by disease.
+        // Previously, only animal_id was checked, causing an unrelated active case
+        // (e.g. existing FMD case) to block creation of a new referral for a different
+        // condition on the same animal. Now we match on both animal + disease.
+        if (animalId && disease) {
+          q = q.eq('animal_id', animalId).eq('disease', disease);
+        } else if (animalId) {
           q = q.eq('animal_id', animalId);
         } else if (farmerId && disease) {
           q = q.eq('farmer_id', farmerId).eq('disease', disease);
@@ -1525,7 +1531,9 @@ const diseaseCases = {
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         const query = { status: { $in: ['New', 'Investigating', 'Confirmed', 'Containment', 'OPEN', 'ACCEPTED', 'IN_TREATMENT'] } };
-        if (animalId) query.animalId = animalId;
+        // BUG FIX (Phase 3A): match both animalId + disease together
+        if (animalId && disease) { query.animalId = animalId; query.disease = disease; }
+        else if (animalId) query.animalId = animalId;
         else if (farmerId && disease) { query.farmerId = farmerId; query.disease = disease; }
         else if (farmerId) query.farmerId = farmerId;
 
