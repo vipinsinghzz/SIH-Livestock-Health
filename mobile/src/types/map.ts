@@ -32,6 +32,7 @@ export interface VeterinaryFacilityMarker {
   name: string;
   clinicName: string;
   phone: string;
+  email?: string;
   specialization: string;
   emergencyAvailable: boolean;
   latitude: number;
@@ -39,6 +40,15 @@ export interface VeterinaryFacilityMarker {
   distanceKm?: number;
   services?: string[];
   district?: string;
+  address?: string;
+  village?: string;
+  block?: string;
+  state?: string;
+  availability?: string;
+  isAvailable?: boolean;
+  rating?: number;
+  experience?: number;
+  registrationNo?: string;
 }
 
 export interface ContainmentZoneOverlay {

@@ -75,6 +75,7 @@ export const mapService = {
             name: v.name || 'Veterinarian',
             clinicName: v.clinicName || v.department || 'Veterinary Dispensary',
             phone: v.phone || '',
+            email: v.email,
             specialization: v.specialization || 'Clinical Triage & Diagnostics',
             emergencyAvailable: Boolean(v.emergencyAvailable),
             latitude: lat,
@@ -82,6 +83,15 @@ export const mapService = {
             distanceKm: typeof v.distanceKm === 'number' ? v.distanceKm : undefined,
             services: Array.isArray(v.services) ? v.services : [],
             district: v.district,
+            address: v.address || `${v.village ? v.village + ', ' : ''}${v.district || ''}, ${v.state || 'Maharashtra'}`,
+            village: v.village,
+            block: v.block,
+            state: v.state,
+            availability: v.availability || 'AVAILABLE',
+            isAvailable: v.isAvailable !== false,
+            rating: typeof v.rating === 'number' ? v.rating : 4.8,
+            experience: v.experience || 6,
+            registrationNo: v.registrationNo,
           });
         }
       }

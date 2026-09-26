@@ -102,7 +102,7 @@ export default function FarmerLayout() {
       <Stack.Screen
         name="map/index"
         options={{
-          title: 'Veterinary Centers Map',
+          title: 'Nearby Veterinarians',
         }}
       />
       <Stack.Screen

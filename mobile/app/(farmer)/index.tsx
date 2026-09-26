@@ -439,9 +439,9 @@ export default function FarmerHomeScreen() {
             style={styles.serviceTile}
             onPress={() => router.push('/(farmer)/map' as any)}
           >
-            <Text style={styles.serviceIcon}>📍</Text>
-            <Text style={styles.serviceTitle}>Vet Centers</Text>
-            <Text style={styles.serviceSub}>Find clinics</Text>
+            <Text style={styles.serviceIcon}>👨‍⚕️</Text>
+            <Text style={styles.serviceTitle}>Nearby Vets</Text>
+            <Text style={styles.serviceSub}>Find nearest vets</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

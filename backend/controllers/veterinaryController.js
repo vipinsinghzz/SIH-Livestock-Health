@@ -91,7 +91,7 @@ exports.getNearbyVeterinarians = async (req, res) => {
       specialization,
       category,
       emergencyOnly,
-      limit = 25
+      limit = 10
     } = req.query;
 
     const hasCoordinates =

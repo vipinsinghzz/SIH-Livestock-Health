@@ -1279,8 +1279,8 @@ const veterinarians = {
       try {
         let q = supabase
           .from('profiles')
-          .select('*')
-          .in('role', ['veterinarian', 'field_worker'])
+          .select('id, name, phone, email, clinic_name, specialization, village, block, district, state, latitude, longitude, availability, is_available, emergency_available, is_active, rating, experience, registration_no')
+          .eq('role', 'veterinarian')
           .eq('is_active', true);
 
         const { data, error } = await q;
@@ -1289,9 +1289,41 @@ const veterinarians = {
             const distance = lat && lng && v.latitude && v.longitude
               ? haversineDistance(lat, lng, v.latitude, v.longitude)
               : 0;
+
+            const addressParts = [
+              v.clinic_name,
+              v.village,
+              v.block,
+              v.district,
+              v.state
+            ].filter(p => p && String(p).trim().length > 0);
+
+            const address = addressParts.join(', ') || `${v.district || 'Nagpur'}, ${v.state || 'Maharashtra'}`;
+
             return {
-              ...toCamel(v),
-              distanceKm: parseFloat(distance.toFixed(1))
+              id: String(v.id || v._id),
+              _id: String(v.id || v._id),
+              name: v.name || 'Veterinarian',
+              clinicName: v.clinic_name || 'Veterinary Clinic',
+              specialization: v.specialization || 'General Veterinary Physician',
+              phone: v.phone || '',
+              email: v.email || '',
+              address,
+              village: v.village || '',
+              block: v.block || '',
+              district: v.district || '',
+              state: v.state || 'Maharashtra',
+              latitude: typeof v.latitude === 'number' ? v.latitude : parseFloat(v.latitude || 0),
+              longitude: typeof v.longitude === 'number' ? v.longitude : parseFloat(v.longitude || 0),
+              availability: v.availability || (v.is_available === false ? 'OFF DUTY' : 'AVAILABLE'),
+              isAvailable: v.is_available !== false,
+              emergencyAvailable: v.emergency_available !== false,
+              isActive: v.is_active !== false,
+              isDirectoryVisible: true,
+              distanceKm: parseFloat(distance.toFixed(1)),
+              rating: v.rating ? parseFloat(v.rating) : 4.8,
+              experience: v.experience || 6,
+              registrationNo: v.registration_no || ''
             };
           });
 
@@ -1306,14 +1338,14 @@ const veterinarians = {
     // Fallback to Mongoose
     try {
       const query = {
-        role: { $in: ['veterinarian', 'field_worker'] },
+        role: 'veterinarian',
         isActive: { $ne: false }
       };
       if (district) {
         query.district = new RegExp(district, 'i');
       }
 
-      let docs = await User.find(query).select('-passwordHash').lean();
+      let docs = await User.find(query).select('-passwordHash -password_hash').lean();
 
       if ((!docs || docs.length === 0) && Object.values(MOCK_PROFILES).length > 0) {
         docs = Object.values(MOCK_PROFILES).filter(p => p.role === 'veterinarian');
@@ -1322,12 +1354,40 @@ const veterinarians = {
       return docs.map(v => {
         const distance = lat && lng && v.location?.lat && v.location?.lng
           ? haversineDistance(lat, lng, v.location.lat, v.location.lng)
-          : 2.5;
+          : (lat && lng && v.latitude && v.longitude ? haversineDistance(lat, lng, v.latitude, v.longitude) : 2.5);
+
+        const addressParts = [
+          v.clinicName || v.clinic_name,
+          v.village,
+          v.block,
+          v.district,
+          v.state
+        ].filter(p => p && String(p).trim().length > 0);
+
         return {
-          ...toCamel(v),
-          distanceKm: parseFloat(distance.toFixed(1)),
+          id: String(v.id || v._id),
+          _id: String(v.id || v._id),
+          name: v.name || 'Veterinarian',
+          clinicName: v.clinicName || v.clinic_name || 'Veterinary Clinic',
+          specialization: v.specialization || 'General Veterinary Physician',
+          phone: v.phone || '',
+          email: v.email || '',
+          address: addressParts.join(', ') || `${v.village || ''}, ${v.district || 'Nagpur'}, ${v.state || 'Maharashtra'}`,
+          village: v.village || '',
+          block: v.block || '',
+          district: v.district || '',
+          state: v.state || 'Maharashtra',
+          latitude: v.location?.lat || v.latitude || 0,
+          longitude: v.location?.lng || v.longitude || 0,
+          availability: v.availability || (v.isAvailable === false ? 'OFF DUTY' : 'AVAILABLE'),
+          isAvailable: v.isAvailable !== false,
+          emergencyAvailable: true,
           isActive: true,
-          emergencyAvailable: true
+          isDirectoryVisible: true,
+          distanceKm: parseFloat(distance.toFixed(1)),
+          rating: v.rating || 4.8,
+          experience: v.experience || 6,
+          registrationNo: v.registrationNo || v.registration_no || ''
         };
       }).sort((a, b) => a.distanceKm - b.distanceKm);
     } catch (e) {
