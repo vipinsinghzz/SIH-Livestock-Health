@@ -318,22 +318,42 @@ def get_goat_tta_batch(pil_img):
         views.append(tf.image.adjust_brightness(arr, delta).numpy())
     return np.stack(views, axis=0)
 
-# Canonical Sheep TTA: 10 views
-def get_sheep_tta_batch(pil_img):
+# Canonical Sheep TTA: 10 views (Memory-safe sequential evaluation)
+def predict_sheep_tta(model, pil_img):
+    """
+    Memory-safe sequential TTA inference for Sheep candidate vision model.
+    Evaluates the exact same 10 canonical views sequentially (batch size = 1)
+    to prevent memory spikes, accumulating predictions without holding
+    large parallel tensor batches in memory.
+    """
     img = pil_img.resize((300, 300))
     arr = tf.keras.utils.img_to_array(img)
-    views = [arr, tf.image.flip_left_right(arr).numpy()]
     h, w = (300, 300)
+    preds = []
+
+    def eval_view(view_arr):
+        inp = np.expand_dims(view_arr, axis=0)
+        out = float(model(inp, training=False)[0, 0])
+        preds.append(out)
+
+    # 10 canonical views in exact order:
+    # 1. Base
+    eval_view(arr)
+    # 2. Horizontal Flip
+    eval_view(tf.image.flip_left_right(arr).numpy())
+    # 3-8. Zoom crops (0.90, 0.75, 0.55) and their horizontal flips
     for zoom in (0.90, 0.75, 0.55):
         ch, cw = int(h * zoom), int(w * zoom)
         top, left = (h - ch) // 2, (w - cw) // 2
         cropped = arr[top:top + ch, left:left + cw, :]
         resized = tf.image.resize(cropped, (300, 300)).numpy()
-        views.append(resized)
-        views.append(tf.image.flip_left_right(resized).numpy())
+        eval_view(resized)
+        eval_view(tf.image.flip_left_right(resized).numpy())
+    # 9-10. Brightness adjustments (-0.15, 0.15)
     for delta in (-0.15, 0.15):
-        views.append(tf.image.adjust_brightness(arr, delta).numpy())
-    return np.stack(views, axis=0)
+        eval_view(tf.image.adjust_brightness(arr, delta).numpy())
+
+    return float(np.mean(preds))
 
 # ==============================================================================
 # INFERENCE ROUTINES
@@ -682,9 +702,7 @@ def predict():
             SHEEP_THRESHOLD = 0.5814669728279114
             p_norm_vis = None
             if has_image and sp_data['image'] is not None:
-                batch = get_sheep_tta_batch(pil_img)
-                raw_preds = sp_data['image'].predict(batch, verbose=0).flatten()
-                p_norm_vis = float(np.mean(raw_preds))
+                p_norm_vis = predict_sheep_tta(sp_data['image'], pil_img)
                 explanation_extra.append(f"Sheep visual 10-view TTA: {int((1.0 - p_norm_vis)*100)}% Orf probability.")
 
             p_norm_sym = None

@@ -90,7 +90,7 @@ async function checkSpatiotemporalOutbreak(block, district, symptoms = [], curre
  * Calls the Python AI Microservice (lsd_model.keras + Clinical Engine)
  * Robust error classification: TIMEOUT, SERVICE_UNAVAILABLE, INFERENCE_ERROR, MALFORMED_RESPONSE
  */
-async function callPythonAiService(payload) {
+async function callPythonAiService(payload, customHeaders = {}) {
   if (payload._simulateOffline || (typeof payload.notes === 'string' && payload.notes.includes('Testing report persistence during AI service downtime'))) {
     const connErr = new Error(`AI service is unreachable at ${AI_SERVICE_URL}`);
     connErr.type = 'SERVICE_UNAVAILABLE';
@@ -101,12 +101,25 @@ async function callPythonAiService(payload) {
   const timeoutId = setTimeout(() => controller.abort(), AI_SERVICE_TIMEOUT);
 
   try {
+    const requestHeaders = {
+      'Content-Type': 'application/json'
+    };
+
+    const headerVal = customHeaders?.['X-AI-Model-Version'] ||
+      customHeaders?.['x-ai-model-version'] ||
+      payload._aiModelVersion ||
+      payload.aiModelVersionHeader;
+
+    if (headerVal) {
+      requestHeaders['X-AI-Model-Version'] = headerVal;
+    }
+
+    const { _simulateOffline, _aiModelVersion, aiModelVersionHeader, ...cleanPayload } = payload;
+
     const response = await fetch(`${AI_SERVICE_URL}/predict`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload),
+      headers: requestHeaders,
+      body: JSON.stringify(cleanPayload),
       signal: controller.signal
     });
 
@@ -184,11 +197,14 @@ async function predictDisease(reportData, currentReportId = null) {
     }
   }
 
+  const modelVersion = reportData.model_version || reportData.modelVersion;
+  const modelVersionHeader = reportData._aiModelVersion || reportData.aiModelVersionHeader;
+
   let aiResponse = null;
 
   try {
     // 1. Call Python Deep Learning Microservice
-    aiResponse = await callPythonAiService({
+    const aiPayload = {
       species,
       symptoms,
       temperature,
@@ -196,7 +212,17 @@ async function predictDisease(reportData, currentReportId = null) {
       image: resolvedImage,
       notes,
       _simulateOffline: Boolean(reportData._simulateOffline)
-    });
+    };
+    if (modelVersion) {
+      aiPayload.model_version = modelVersion;
+    }
+
+    const customHeaders = {};
+    if (modelVersionHeader) {
+      customHeaders['X-AI-Model-Version'] = modelVersionHeader;
+    }
+
+    aiResponse = await callPythonAiService(aiPayload, customHeaders);
   } catch (err) {
     console.warn('[AI Model Service] AI inference unavailable or failed:', {
       type: err.type || 'SERVICE_UNAVAILABLE',

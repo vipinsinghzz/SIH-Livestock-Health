@@ -25,7 +25,9 @@ exports.runDirectTriage = async (req, res, next) => {
       image,
       photos,
       location,
-      notes
+      notes,
+      model_version,
+      modelVersion
     } = req.body;
 
     const symptomList = Array.isArray(symptoms) ? symptoms : (symptoms ? [symptoms] : []);
@@ -39,6 +41,7 @@ exports.runDirectTriage = async (req, res, next) => {
     }
 
     const simulateOffline = req.headers['x-simulate-ai-offline'] === 'true' || req.query.simulateAiOffline === 'true';
+    const aiModelHeader = req.headers['x-ai-model-version'];
 
     const triageResult = await predictDisease({
       species: species || 'Cattle',
@@ -48,6 +51,8 @@ exports.runDirectTriage = async (req, res, next) => {
       image: img,
       location: location || {},
       notes: notes || '',
+      model_version: model_version || modelVersion,
+      _aiModelVersion: aiModelHeader,
       _simulateOffline: simulateOffline
     });
 
@@ -142,6 +147,7 @@ exports.createReport = async (req, res, next) => {
 
     const simulateOffline = req.headers['x-simulate-ai-offline'] === 'true' ||
       (typeof report.notes === 'string' && report.notes.includes('Testing report persistence during AI service downtime'));
+    const aiModelHeader = req.headers['x-ai-model-version'];
 
     // 2. Trigger Deep Learning AI Triage (lsd_model.keras + Multimodal fusion) (Module 4)
     let triageData = null;
@@ -156,6 +162,8 @@ exports.createReport = async (req, res, next) => {
         affectedCount: report.affectedCount,
         location: report.location,
         notes: report.notes,
+        model_version: req.body.model_version || req.body.modelVersion,
+        _aiModelVersion: aiModelHeader,
         _simulateOffline: simulateOffline
       }, report.id || report._id);
     } catch (triageErr) {
