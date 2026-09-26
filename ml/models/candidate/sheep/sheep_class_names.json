@@ -1,0 +1,8 @@
+{
+  "class_names": [
+    "Contagious_Ecthyma_Orf",
+    "Normal_Healthy_Skin"
+  ],
+  "disease_index": 0,
+  "threshold": 0.5814669728279114
+}

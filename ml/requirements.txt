@@ -27,3 +27,7 @@ urllib3==2.7.0
 packaging==26.3
 rich==15.0.0
 absl-py==2.5.0
+
+# Classical ML & Symptom Random Forest Inference
+scikit-learn==1.9.1
+joblib==1.6.0

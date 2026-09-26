@@ -29,11 +29,22 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy model weights and AI microservice implementation
-COPY backend/lsd_model.keras /app/lsd_model.keras
-COPY backend/services/ai_service.py /app/services/ai_service.py
+COPY backend/lsd_model.keras /app/backend/lsd_model.keras
+COPY backend/services/ai_service.py /app/backend/services/ai_service.py
+COPY ml/models/candidate/ /app/ml/models/candidate/
+
+# Create symlinks for path compatibility across execution modes:
+# 1. /app/services/ai_service.py -> /app/backend/services/ai_service.py
+# 2. /app/lsd_model.keras -> /app/backend/lsd_model.keras
+# 3. /ml/models/candidate -> /app/ml/models/candidate
+RUN mkdir -p /app/services && \
+    ln -s /app/backend/services/ai_service.py /app/services/ai_service.py && \
+    ln -s /app/backend/lsd_model.keras /app/lsd_model.keras && \
+    mkdir -p /ml/models && \
+    ln -s /app/ml/models/candidate /ml/models/candidate
 
 # Switch ownership to non-root appuser
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /app /ml
 USER appuser
 
 # Expose AI microservice port
