@@ -2,7 +2,7 @@ const supabaseDb = require('./supabaseDb');
 const mongoose = require('mongoose');
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:5050';
-const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT || '8000', 10);
+const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT || '15000', 10);
 
 /**
  * Checks for spatiotemporal disease clustering
