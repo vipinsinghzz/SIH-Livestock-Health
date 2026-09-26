@@ -98,7 +98,7 @@ export const caseService = {
    * If offline, assigns temporary ID and "Pending Sync" status, enqueuing for background sync.
    * STRICT ZERO-MOCK: Never fabricates an official server Case ID format.
    */
-  async createCase(payload: CreateCaseInput): Promise<DiseaseCase> {
+  async createCase(payload: CreateCaseInput): Promise<DiseaseCase & { reused?: boolean }> {
     const netState = await NetInfo.fetch();
     const user = await getSavedUserProfile<{ id?: string; _id?: string }>();
     const farmerId = user?.id || user?._id || 'local_farmer';
@@ -107,11 +107,12 @@ export const caseService = {
       try {
         const response = await api.post<CreateCaseResponse>('/cases', payload);
         const serverCase = response.data.case;
+        const reused = response.data.reused === true;
         if (farmerId && serverCase) {
           const { cases } = await getCachedCases(farmerId);
           await saveCasesCache(farmerId, [serverCase, ...cases]);
         }
-        return serverCase;
+        return { ...serverCase, reused };
       } catch (err: any) {
         const isNetworkError =
           err.status === 0 ||

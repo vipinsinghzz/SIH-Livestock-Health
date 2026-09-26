@@ -41,8 +41,13 @@ export const kisanSaathiService = {
       );
 
       if (response.data && response.data.success) {
+        const rawActions = response.data.suggestedActions || [];
+        const normalizedActions = rawActions.map((act: any) =>
+          typeof act === 'string' ? act : (act?.label || act?.text || (act?.tel ? `${act.tel} Helpline` : 'Action'))
+        );
         return {
           ...response.data,
+          suggestedActions: normalizedActions,
           // Ensure flags are strictly boolean
           isAIPowered: Boolean(response.data.isAIPowered),
           model: response.data.model || 'veterinary-clinical-engine'

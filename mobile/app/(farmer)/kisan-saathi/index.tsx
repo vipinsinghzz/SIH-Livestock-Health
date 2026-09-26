@@ -231,7 +231,8 @@ export default function KisanSaathiScreen() {
   };
 
   // Handle Suggested Action Tap
-  const handleActionTap = (actionText: string) => {
+  const handleActionTap = (actionInput: string | any) => {
+    const actionText = typeof actionInput === 'string' ? actionInput : (actionInput?.label || actionInput?.text || '');
     if (actionText.includes('1962')) {
       Linking.openURL('tel:1962').catch(() => {
         Alert.alert('Helpline 1962', 'Please dial 1962 from your phone app for emergency veterinary support.');
@@ -433,14 +434,15 @@ export default function KisanSaathiScreen() {
                   {!isUser && item.suggestedActions && item.suggestedActions.length > 0 && (
                     <View style={styles.actionsContainer}>
                       {item.suggestedActions.map((action, aIdx) => {
-                        const is1962 = action.includes('1962');
+                        const actionText = typeof action === 'string' ? action : ((action as any)?.label || (action as any)?.text || '');
+                        const is1962 = actionText.includes('1962');
                         return (
                           <TouchableOpacity
                             key={aIdx}
                             style={[styles.actionChip, is1962 && styles.actionChipEmergency]}
-                            onPress={() => handleActionTap(action)}
+                            onPress={() => handleActionTap(actionText)}
                             activeOpacity={0.7}
-                            accessibilityLabel={`Suggested action: ${action}`}
+                            accessibilityLabel={`Suggested action: ${actionText}`}
                           >
                             <Text
                               style={[
@@ -448,7 +450,7 @@ export default function KisanSaathiScreen() {
                                 is1962 && styles.actionChipEmergencyText,
                               ]}
                             >
-                              {is1962 ? `📞 ${action}` : `💬 ${action}`}
+                              {is1962 ? `📞 ${actionText}` : `💬 ${actionText}`}
                             </Text>
                           </TouchableOpacity>
                         );

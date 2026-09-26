@@ -161,6 +161,8 @@ export interface CreateCaseResponse {
   success: boolean;
   message: string;
   case: DiseaseCase;
+  /** True when the backend reused an existing active case (duplicate protection) */
+  reused?: boolean;
   matchingVetsCount?: number;
   matchingVets?: Array<{ id: string; name: string; role: string }>;
 }

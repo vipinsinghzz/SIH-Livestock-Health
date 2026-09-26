@@ -98,9 +98,16 @@ export default function AiScanResultScreen() {
 
       setCaseCreated(created.caseId || 'Referral Registered');
 
+      // Phase 3A Fix: Distinguish between a new case and a reused existing active case
+      const isReused = (created as any).reused === true;
+      const alertTitle = isReused ? 'Active Case Found' : 'Veterinary Case Registered';
+      const alertMessage = isReused
+        ? `An active referral case (${created.caseId || ''}) is already open for this animal. Your screening has been noted. Please monitor the existing case for updates.`
+        : `Referral Case ${created.caseId || ''} has been registered and dispatched to veterinary officials in ${animal.district || 'your district'}.`;
+
       Alert.alert(
-        'Veterinary Case Registered',
-        `Referral Case ${created.caseId || ''} has been registered and dispatched to veterinary officials in ${animal.district || 'your district'}.`,
+        alertTitle,
+        alertMessage,
         [
           {
             text: 'View Cases',
