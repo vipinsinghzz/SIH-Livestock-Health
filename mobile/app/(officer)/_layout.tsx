@@ -7,10 +7,13 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { colors } from '../../src/theme';
 import { RouteErrorBoundary } from '../../src/components/RouteErrorBoundary';
+import { useAppLanguage } from '../../src/services/i18n';
 
 export const ErrorBoundary = RouteErrorBoundary;
 
 export default function OfficerLayout() {
+  const { t } = useAppLanguage();
+
   return (
     <Stack
       screenOptions={{
@@ -30,55 +33,55 @@ export default function OfficerLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Officer Command Center',
+          title: t('nav.officerCommand', 'Officer Command Center'),
         }}
       />
       <Stack.Screen
         name="surveillance/index"
         options={{
-          title: 'Epidemic Surveillance',
+          title: t('nav.surveillance', 'Epidemic Surveillance'),
         }}
       />
       <Stack.Screen
         name="outbreaks/index"
         options={{
-          title: 'Outbreak Alerts',
+          title: t('nav.outbreaks', 'Outbreak Alerts'),
         }}
       />
       <Stack.Screen
         name="containment/index"
         options={{
-          title: 'Containment Zones',
+          title: t('nav.containmentZones', 'Containment Zones'),
         }}
       />
       <Stack.Screen
         name="vaccination/index"
         options={{
-          title: 'Mass Vaccination Camps',
+          title: t('nav.camps', 'Mass Vaccination Camps'),
         }}
       />
       <Stack.Screen
         name="map/index"
         options={{
-          title: 'District GIS Surveillance Map',
+          title: t('nav.districtMap', 'District GIS Surveillance Map'),
         }}
       />
       <Stack.Screen
         name="advisories/index"
         options={{
-          title: 'Official Advisories',
+          title: t('nav.advisories', 'Official Advisories'),
         }}
       />
       <Stack.Screen
         name="advisories/[id]"
         options={{
-          title: 'Advisory Detail',
+          title: t('nav.advisories', 'Advisory Detail'),
         }}
       />
       <Stack.Screen
         name="forewarning/index"
         options={{
-          title: 'NADRES Forewarning & Alerts',
+          title: t('nav.forewarning', 'NADRES Forewarning & Alerts'),
         }}
       />
     </Stack>

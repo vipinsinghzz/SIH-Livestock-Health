@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
 import animalService from '../../../src/services/animalService';
 import vaccinationService from '../../../src/services/vaccinationService';
@@ -40,17 +41,10 @@ import {
 
 type ActiveTab = 'schedules' | 'camps' | 'advisories';
 
-const VACCINE_FILTERS: { key: VaccinationFilter; label: string }[] = [
-  { key: 'All', label: 'All Records' },
-  { key: 'Due', label: '⏰ Due Soon' },
-  { key: 'Overdue', label: '⚠️ Overdue' },
-  { key: 'Upcoming', label: '📅 Upcoming' },
-  { key: 'Completed', label: '✅ Completed' },
-];
-
 export default function FarmerVaccinationScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('schedules');
   const [animals, setAnimals] = useState<Animal[]>([]);
@@ -65,6 +59,14 @@ export default function FarmerVaccinationScreen() {
   // Search & Filter state for Herd Schedules
   const [scheduleFilter, setScheduleFilter] = useState<VaccinationFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const vaccineFilters = useMemo((): { key: VaccinationFilter; label: string }[] => [
+    { key: 'All', label: t('common.all', 'All Records') },
+    { key: 'Due', label: `⏰ ${t('vaccination.due', 'Due Soon')}` },
+    { key: 'Overdue', label: `⚠️ ${t('vaccination.overdue', 'Overdue')}` },
+    { key: 'Upcoming', label: `📅 ${t('vaccination.upcoming', 'Upcoming')}` },
+    { key: 'Completed', label: `✅ ${t('vaccination.completed', 'Completed')}` },
+  ], [t]);
 
   // Camp Registration Modal state
   const [selectedCamp, setSelectedCamp] = useState<VaccinationDrive | null>(null);
@@ -253,7 +255,7 @@ export default function FarmerVaccinationScreen() {
                   : styles.statusTextDue,
               ]}
             >
-              {isOverdue ? '⚠️ Overdue' : isCompleted ? '✅ Completed' : '⏰ Due Soon'}
+              {isOverdue ? `⚠️ ${t('vaccination.overdue', 'Overdue')}` : isCompleted ? `✅ ${t('vaccination.completed', 'Completed')}` : `⏰ ${t('vaccination.due', 'Due Soon')}`}
             </Text>
           </View>
         </View>
@@ -262,13 +264,13 @@ export default function FarmerVaccinationScreen() {
         <View style={styles.dateRow}>
           {item.date ? (
             <View style={styles.dateCol}>
-              <Text style={styles.dateLabel}>Given On</Text>
+              <Text style={styles.dateLabel}>{t('vaccination.dateAdministered', 'Given On')}</Text>
               <Text style={styles.dateValue}>{formatDate(item.date)}</Text>
             </View>
           ) : null}
 
           <View style={styles.dateCol}>
-            <Text style={styles.dateLabel}>Next Booster Due</Text>
+            <Text style={styles.dateLabel}>{t('vaccination.nextDueDate', 'Next Booster Due')}</Text>
             <Text
               style={[
                 styles.dateValue,
@@ -420,7 +422,7 @@ export default function FarmerVaccinationScreen() {
             <Text style={[styles.kpiNumber, metrics.due > 0 && { color: colors.light.warning }]}>
               {loading ? '-' : metrics.due}
             </Text>
-            <Text style={styles.kpiLabel}>Due Soon</Text>
+            <Text style={styles.kpiLabel}>{t('vaccination.dueSoon', 'Due Soon')}</Text>
             <Text style={styles.kpiSub}>Next 30 Days</Text>
           </View>
 
@@ -429,21 +431,21 @@ export default function FarmerVaccinationScreen() {
             <Text style={[styles.kpiNumber, metrics.overdue > 0 && { color: colors.light.danger }]}>
               {loading ? '-' : metrics.overdue}
             </Text>
-            <Text style={styles.kpiLabel}>Overdue</Text>
+            <Text style={styles.kpiLabel}>{t('vaccination.overdueDoses', 'Overdue')}</Text>
             <Text style={styles.kpiSub}>Immediate Booster</Text>
           </View>
 
           <View style={styles.kpiCard}>
             <Text style={styles.kpiIcon}>📅</Text>
             <Text style={styles.kpiNumber}>{loading ? '-' : metrics.upcoming}</Text>
-            <Text style={styles.kpiLabel}>Upcoming</Text>
+            <Text style={styles.kpiLabel}>{t('vaccination.upcoming', 'Upcoming')}</Text>
             <Text style={styles.kpiSub}>Future Schedules</Text>
           </View>
 
           <View style={styles.kpiCard}>
             <Text style={styles.kpiIcon}>✅</Text>
             <Text style={styles.kpiNumber}>{loading ? '-' : metrics.completed}</Text>
-            <Text style={styles.kpiLabel}>Completed</Text>
+            <Text style={styles.kpiLabel}>{t('vaccination.completed', 'Completed')}</Text>
             <Text style={styles.kpiSub}>Vaccine Doses</Text>
           </View>
         </View>
@@ -456,7 +458,7 @@ export default function FarmerVaccinationScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabBtnText, activeTab === 'schedules' && styles.tabBtnTextActive]}>
-              Herd Schedules ({metrics.allRecords.length})
+              {t('vaccination.herdSchedule', 'Herd Schedules')} ({metrics.allRecords.length})
             </Text>
           </TouchableOpacity>
 
@@ -466,7 +468,7 @@ export default function FarmerVaccinationScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabBtnText, activeTab === 'camps' && styles.tabBtnTextActive]}>
-              Govt Camps ({drives.length})
+              {t('vaccination.camps', 'Govt Camps')} ({drives.length})
             </Text>
           </TouchableOpacity>
 
@@ -476,7 +478,7 @@ export default function FarmerVaccinationScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabBtnText, activeTab === 'advisories' && styles.tabBtnTextActive]}>
-              Advisories ({advisories.length})
+              {t('vaccination.advisories', 'Advisories')} ({advisories.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -485,15 +487,15 @@ export default function FarmerVaccinationScreen() {
         {loading && !refreshing ? (
           <View style={styles.centerBox}>
             <ActivityIndicator size="large" color={colors.light.primary} />
-            <Text style={styles.loadingText}>Loading preventive health records...</Text>
+            <Text style={styles.loadingText}>{t('common.loading', 'Loading preventive health records...')}</Text>
           </View>
         ) : errorMessage ? (
           <View style={styles.centerBox}>
             <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorTitle}>Notice</Text>
+            <Text style={styles.errorTitle}>{t('common.error', 'Notice')}</Text>
             <Text style={styles.errorText}>{errorMessage}</Text>
             <TouchableOpacity style={styles.retryBtn} onPress={() => loadAllData()} activeOpacity={0.8}>
-              <Text style={styles.retryBtnText}>🔄 Retry</Text>
+              <Text style={styles.retryBtnText}>🔄 {t('common.retry', 'Retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : activeTab === 'schedules' ? (
@@ -503,7 +505,7 @@ export default function FarmerVaccinationScreen() {
               <Text style={styles.searchIcon}>🔍</Text>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by animal, tag, or vaccine..."
+                placeholder={t('common.search', 'Search by animal, tag, or vaccine...')}
                 placeholderTextColor={colors.light.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -518,7 +520,7 @@ export default function FarmerVaccinationScreen() {
 
             {/* Filter Chips */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              {VACCINE_FILTERS.map((f) => {
+              {vaccineFilters.map((f) => {
                 const isSelected = scheduleFilter === f.key;
                 return (
                   <TouchableOpacity

@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
+import { useAppLanguage } from '../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
 import animalService from '../../src/services/animalService';
 import caseService from '../../src/services/caseService';
@@ -30,6 +31,7 @@ import { calculateVaccinationMetrics } from '../../src/types/vaccination';
 export default function FarmerHomeScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { t } = useAppLanguage();
 
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [cases, setCases] = useState<DiseaseCase[]>([]);
@@ -80,12 +82,12 @@ export default function FarmerHomeScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
+      t('common.logOut', 'Sign Out'),
+      t('profile.signOutConfirm', 'Are you sure you want to sign out?'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: t('common.logOut', 'Sign Out'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -135,13 +137,13 @@ export default function FarmerHomeScreen() {
   const getHealthBadgeStyle = (status: string) => {
     switch (status) {
       case 'Healthy':
-        return { bg: colors.light.successBg, text: colors.light.success, label: 'Healthy' };
+        return { bg: colors.light.successBg, text: colors.light.success, label: t('farmer.healthy', 'Healthy') };
       case 'Needs Attention':
-        return { bg: colors.light.warningBg, text: colors.light.warning, label: 'Attention' };
+        return { bg: colors.light.warningBg, text: colors.light.warning, label: t('farmer.attention', 'Attention') };
       case 'Critical':
-        return { bg: colors.light.dangerBg, text: colors.light.danger, label: 'Critical' };
+        return { bg: colors.light.dangerBg, text: colors.light.danger, label: t('farmer.critical', 'Critical') };
       default:
-        return { bg: colors.light.surfaceAlt, text: colors.light.textSecondary, label: status || 'Unknown' };
+        return { bg: colors.light.surfaceAlt, text: colors.light.textSecondary, label: status || t('common.unknown', 'Unknown') };
     }
   };
 
@@ -162,28 +164,28 @@ export default function FarmerHomeScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>FARMER SAATHI</Text>
+            <Text style={styles.badgeText}>{t('farmer.badge', 'FARMER SAATHI')}</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
               onPress={() => router.push('/(farmer)/profile' as any)}
               style={styles.profileButton}
               activeOpacity={0.7}
-              accessibilityLabel="Farmer Profile"
+              accessibilityLabel={t('common.profile', 'Profile')}
             >
-              <Text style={styles.profileButtonText}>👤 Profile</Text>
+              <Text style={styles.profileButtonText}>👤 {t('common.profile', 'Profile')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
-              <Text style={styles.logoutButtonText}>Sign Out</Text>
+              <Text style={styles.logoutButtonText}>{t('common.logOut', 'Sign Out')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <Text style={styles.title}>
-          Namaste, {user?.name ? user.name.split(' ')[0] : 'Farmer'}
+          {t('farmer.namaste', 'Namaste, {name}', { name: user?.name ? user.name.split(' ')[0] : 'Farmer' })}
         </Text>
         <Text style={styles.subtitle}>
-          📍 {[user?.village, user?.district, user?.state].filter(Boolean).join(', ') || 'Livestock Health Portal'}
+          📍 {[user?.village, user?.district, user?.state].filter(Boolean).join(', ') || t('common.appSubtitle', 'Livestock Health Portal')}
         </Text>
       </View>
 
@@ -192,7 +194,7 @@ export default function FarmerHomeScreen() {
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{errorMessage}</Text>
           <TouchableOpacity onPress={fetchDashboardData} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -208,8 +210,8 @@ export default function FarmerHomeScreen() {
             <Text style={styles.kpiIcon}>🐄</Text>
             <Text style={styles.kpiNumber}>{loading ? '-' : totalAnimals}</Text>
           </View>
-          <Text style={styles.kpiLabel}>Total Herd</Text>
-          <Text style={styles.kpiSub}>Registered animals</Text>
+          <Text style={styles.kpiLabel}>{t('farmer.totalHerd', 'Total Herd')}</Text>
+          <Text style={styles.kpiSub}>{t('farmer.registeredAnimals', 'Registered animals')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -228,8 +230,8 @@ export default function FarmerHomeScreen() {
               {loading ? '-' : healthAlerts}
             </Text>
           </View>
-          <Text style={styles.kpiLabel}>Health Alerts</Text>
-          <Text style={styles.kpiSub}>Require review</Text>
+          <Text style={styles.kpiLabel}>{t('farmer.healthAlerts', 'Health Alerts')}</Text>
+          <Text style={styles.kpiSub}>{t('farmer.requireReview', 'Require review')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -248,8 +250,8 @@ export default function FarmerHomeScreen() {
               {loading ? '-' : activeCases}
             </Text>
           </View>
-          <Text style={styles.kpiLabel}>Active Cases</Text>
-          <Text style={styles.kpiSub}>In investigation</Text>
+          <Text style={styles.kpiLabel}>{t('farmer.activeCases', 'Active Cases')}</Text>
+          <Text style={styles.kpiSub}>{t('farmer.inInvestigation', 'In investigation')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -268,13 +270,13 @@ export default function FarmerHomeScreen() {
               {loading ? '-' : vaccinationsDue}
             </Text>
           </View>
-          <Text style={styles.kpiLabel}>Vaccine Due</Text>
+          <Text style={styles.kpiLabel}>{t('farmer.vaccineDue', 'Vaccine Due')}</Text>
           <Text style={styles.kpiSub}>
             {loading
-              ? 'Checking records...'
+              ? t('farmer.checkingRecords', 'Checking records...')
               : vaccinationsDue > 0
-              ? `${vaccinationsDue} pending / due`
-              : 'All up-to-date'}
+              ? t('farmer.pendingDue', '{count} pending / due', { count: vaccinationsDue })
+              : t('farmer.allUpToDate', 'All up-to-date')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -288,8 +290,8 @@ export default function FarmerHomeScreen() {
         >
           <Text style={styles.actionButtonIcon}>📷</Text>
           <View>
-            <Text style={styles.actionButtonTitle}>AI Disease Scan</Text>
-            <Text style={styles.actionButtonSub}>Screen symptoms with AI</Text>
+            <Text style={styles.actionButtonTitle}>{t('farmer.aiDiseaseScan', 'AI Disease Scan')}</Text>
+            <Text style={styles.actionButtonSub}>{t('farmer.screenSymptoms', 'Screen symptoms with AI')}</Text>
           </View>
         </TouchableOpacity>
 
@@ -300,8 +302,8 @@ export default function FarmerHomeScreen() {
         >
           <Text style={styles.actionButtonIcon}>➕</Text>
           <View>
-            <Text style={styles.secondaryButtonTitle}>Add Animal</Text>
-            <Text style={styles.secondaryButtonSub}>Register new livestock</Text>
+            <Text style={styles.secondaryButtonTitle}>{t('farmer.addAnimal', 'Add Animal')}</Text>
+            <Text style={styles.secondaryButtonSub}>{t('farmer.registerLivestock', 'Register new livestock')}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -310,9 +312,9 @@ export default function FarmerHomeScreen() {
       {activeCases > 0 && (
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active Referral Cases</Text>
+            <Text style={styles.sectionTitle}>{t('farmer.activeReferralCases', 'Active Referral Cases')}</Text>
             <TouchableOpacity onPress={() => router.push('/(farmer)/cases' as any)}>
-              <Text style={styles.sectionLink}>View All ({cases.length})</Text>
+              <Text style={styles.sectionLink}>{t('common.viewAll', 'View All')} ({cases.length})</Text>
             </TouchableOpacity>
           </View>
 
@@ -331,15 +333,15 @@ export default function FarmerHomeScreen() {
               </View>
               <Text style={styles.caseDiseaseText}>{item.disease}</Text>
               <Text style={styles.caseMetaText}>
-                {item.animalId?.name ? `Animal: ${item.animalId.name} • ` : ''}
-                Risk: {item.risk || 'Moderate'}
+                {item.animalId?.name ? `${t('farmer.animalName', 'Animal')}: ${item.animalId.name} • ` : ''}
+                {t('common.status', 'Status')}: {item.status || 'Active'}
               </Text>
               {item.assignedVetId ? (
                 <Text style={styles.vetAssignedText}>
-                  👨‍⚕️ Assigned Vet: {item.assignedVetId.name}
+                  {t('farmer.assignedVet', '👨‍⚕️ Assigned Vet: {name}', { name: item.assignedVetId.name })}
                 </Text>
               ) : (
-                <Text style={styles.vetPendingText}>⏳ Awaiting Vet Claim</Text>
+                <Text style={styles.vetPendingText}>{t('farmer.awaitingVetClaim', '⏳ Awaiting Vet Claim')}</Text>
               )}
             </TouchableOpacity>
           ))}
@@ -349,29 +351,29 @@ export default function FarmerHomeScreen() {
       {/* Livestock Herd Section */}
       <View style={styles.sectionContainer}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Livestock Herd</Text>
+          <Text style={styles.sectionTitle}>{t('farmer.myLivestockHerd', 'My Livestock Herd')}</Text>
           <TouchableOpacity onPress={() => router.push('/(farmer)/animals')}>
-            <Text style={styles.sectionLink}>View All ({totalAnimals})</Text>
+            <Text style={styles.sectionLink}>{t('common.viewAll', 'View All')} ({totalAnimals})</Text>
           </TouchableOpacity>
         </View>
 
         {loading ? (
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="small" color={colors.light.primary} />
-            <Text style={styles.loaderText}>Loading livestock records...</Text>
+            <Text style={styles.loaderText}>{t('farmer.loadingRecords', 'Loading livestock records...')}</Text>
           </View>
         ) : animals.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyIcon}>🐄</Text>
-            <Text style={styles.emptyTitle}>No Animals Registered Yet</Text>
+            <Text style={styles.emptyTitle}>{t('farmer.noAnimalsYet', 'No Animals Registered Yet')}</Text>
             <Text style={styles.emptyDesc}>
-              Register your cattle, buffalo, goats, and sheep to monitor health, schedule vaccinations, and enable instant AI screening.
+              {t('farmer.noAnimalsDesc', 'Register your cattle, buffalo, goats, and sheep to monitor health, schedule vaccinations, and enable instant AI screening.')}
             </Text>
             <TouchableOpacity
               style={styles.emptyAddButton}
               onPress={() => router.push('/(farmer)/animals/add')}
             >
-              <Text style={styles.emptyAddButtonText}>+ Register First Animal</Text>
+              <Text style={styles.emptyAddButtonText}>{t('farmer.registerFirstAnimal', '+ Register First Animal')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -401,9 +403,9 @@ export default function FarmerHomeScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.animalTag}>Tag: {item.tagId}</Text>
+                  <Text style={styles.animalTag}>{t('farmer.tag', 'Tag: {tag}', { tag: item.tagId })}</Text>
                   <Text style={styles.animalSub}>
-                    {item.species} • {item.breed} • {item.age} yrs • {item.gender}
+                    {t(`farmer.${item.species.toLowerCase()}`, item.species)} • {item.breed} • {t('farmer.ageYears', '{age} yrs', { age: item.age })} • {item.gender}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -414,7 +416,7 @@ export default function FarmerHomeScreen() {
 
       {/* Services Hub */}
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Livestock Services</Text>
+        <Text style={styles.sectionTitle}>{t('farmer.services', 'Livestock Services')}</Text>
 
         <View style={styles.servicesGrid}>
           <TouchableOpacity
@@ -422,8 +424,8 @@ export default function FarmerHomeScreen() {
             onPress={() => router.push('/(farmer)/vaccination' as any)}
           >
             <Text style={styles.serviceIcon}>💉</Text>
-            <Text style={styles.serviceTitle}>Vaccines</Text>
-            <Text style={styles.serviceSub}>Camps & cards</Text>
+            <Text style={styles.serviceTitle}>{t('farmer.vaccines', 'Vaccines')}</Text>
+            <Text style={styles.serviceSub}>{t('farmer.campsAndCards', 'Camps & cards')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -431,8 +433,8 @@ export default function FarmerHomeScreen() {
             onPress={() => router.push('/(farmer)/kisan-saathi' as any)}
           >
             <Text style={styles.serviceIcon}>🤖</Text>
-            <Text style={styles.serviceTitle}>Kisan Saathi</Text>
-            <Text style={styles.serviceSub}>AI Voice & Chat</Text>
+            <Text style={styles.serviceTitle}>{t('farmer.kisanSaathi', 'Kisan Saathi')}</Text>
+            <Text style={styles.serviceSub}>{t('farmer.aiVoiceChat', 'AI Voice & Chat')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -440,8 +442,8 @@ export default function FarmerHomeScreen() {
             onPress={() => router.push('/(farmer)/map' as any)}
           >
             <Text style={styles.serviceIcon}>👨‍⚕️</Text>
-            <Text style={styles.serviceTitle}>Nearby Vets</Text>
-            <Text style={styles.serviceSub}>Find nearest vets</Text>
+            <Text style={styles.serviceTitle}>{t('farmer.nearbyVets', 'Nearby Vets')}</Text>
+            <Text style={styles.serviceSub}>{t('farmer.findNearestVets', 'Find nearest vets')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -456,9 +458,11 @@ export default function FarmerHomeScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.serviceTitle}>Alerts</Text>
+            <Text style={styles.serviceTitle}>{t('farmer.alerts', 'Alerts')}</Text>
             <Text style={styles.serviceSub}>
-              {unreadAlertsCount > 0 ? `${unreadAlertsCount} unread warnings` : 'Disease warnings'}
+              {unreadAlertsCount > 0
+                ? t('farmer.unreadWarnings', '{count} unread warnings', { count: unreadAlertsCount })
+                : t('farmer.diseaseWarnings', 'Disease warnings')}
             </Text>
           </TouchableOpacity>
         </View>

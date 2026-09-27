@@ -11,8 +11,11 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import syncService, { SyncState } from '../services/syncService';
 import { colors, typography, spacing } from '../theme';
 
+import { useAppLanguage } from '../services/i18n';
+
 export const OfflineNotice: React.FC = () => {
   const [syncState, setSyncState] = useState<SyncState>(syncService.getState());
+  const { t } = useAppLanguage();
 
   useEffect(() => {
     const unsubscribe = syncService.subscribe((state) => {
@@ -50,25 +53,10 @@ export const OfflineNotice: React.FC = () => {
         />
       )}
       <Text style={styles.text} numberOfLines={1}>
-        {isOffline &&
-          `⚠️ Offline Mode — Cached data is displayed${
-            syncState.pendingCount > 0
-              ? ` • ${syncState.pendingCount} pending change${syncState.pendingCount > 1 ? 's' : ''}`
-              : ''
-          }`}
-        {isSyncing &&
-          `🔄 Syncing ${syncState.pendingCount} pending change${
-            syncState.pendingCount > 1 ? 's' : ''
-          } with server...`}
-        {isError &&
-          `⚠️ Sync issue: ${
-            syncState.pendingCount
-          } item${syncState.pendingCount > 1 ? 's' : ''} queued for retry.`}
-        {syncState.status === 'ONLINE' &&
-          syncState.pendingCount > 0 &&
-          `⏳ ${syncState.pendingCount} change${
-            syncState.pendingCount > 1 ? 's' : ''
-          } waiting for sync.`}
+        {isOffline && `⚠️ ${t('common.offlineMode')}`}
+        {isSyncing && `🔄 ${t('common.syncing')}`}
+        {isError && `⚠️ Sync issue: ${syncState.pendingCount} queued for retry.`}
+        {syncState.status === 'ONLINE' && syncState.pendingCount > 0 && `⏳ ${syncState.pendingCount} waiting for sync.`}
       </Text>
     </View>
   );

@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
 import notificationService from '../../../src/services/notificationService';
 import {
@@ -30,17 +31,10 @@ import {
   resolveNotificationNavigation,
 } from '../../../src/types/notification';
 
-const FILTER_CHIPS: { key: NotificationCategory; label: string }[] = [
-  { key: 'All', label: 'All' },
-  { key: 'Unread', label: 'Unread' },
-  { key: 'Health', label: 'Health' },
-  { key: 'Cases', label: 'Cases' },
-  { key: 'Advisory', label: 'Advisory' },
-];
-
 export default function FarmerNotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +42,14 @@ export default function FarmerNotificationsScreen() {
   const [selectedFilter, setSelectedFilter] = useState<NotificationCategory>('All');
   const [isOffline, setIsOffline] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const filterChips = useMemo((): { key: NotificationCategory; label: string }[] => [
+    { key: 'All', label: t('common.all', 'All') },
+    { key: 'Unread', label: t('notifications.unread', 'Unread') },
+    { key: 'Health', label: t('farmer.healthAlerts', 'Health') },
+    { key: 'Cases', label: t('farmer.activeCases', 'Cases') },
+    { key: 'Advisory', label: t('vaccination.advisories', 'Advisory') },
+  ], [t]);
 
   const loadNotifications = useCallback(
     async (isPullToRefresh = false) => {
@@ -319,10 +321,10 @@ export default function FarmerNotificationsScreen() {
       {/* Top Header Bar with Count and Mark Read */}
       <View style={styles.headerBar}>
         <View style={styles.headerTitleRow}>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={styles.headerTitle}>{t('notifications.title', 'Notifications')}</Text>
           {unreadCount > 0 && (
             <View style={styles.unreadCountPill}>
-              <Text style={styles.unreadCountText}>{unreadCount} new</Text>
+              <Text style={styles.unreadCountText}>{unreadCount} {t('notifications.unread', 'new')}</Text>
             </View>
           )}
         </View>
@@ -333,7 +335,7 @@ export default function FarmerNotificationsScreen() {
             onPress={handleMarkAllAsRead}
             activeOpacity={0.7}
           >
-            <Text style={styles.markAllText}>Mark all read</Text>
+            <Text style={styles.markAllText}>{t('notifications.markAllRead', 'Mark all read')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -343,7 +345,7 @@ export default function FarmerNotificationsScreen() {
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={FILTER_CHIPS}
+          data={filterChips}
           keyExtractor={(item) => item.key}
           contentContainerStyle={styles.chipsContainer}
           renderItem={({ item }) => {
@@ -378,13 +380,13 @@ export default function FarmerNotificationsScreen() {
       {loading ? (
         <View style={styles.centeredState}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading notifications...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading notifications...')}</Text>
         </View>
       ) : isOffline ? (
         /* Offline State per Step 8 */
         <View style={styles.centeredState}>
           <Text style={styles.stateIcon}>📡</Text>
-          <Text style={styles.stateTitle}>Notifications unavailable offline</Text>
+          <Text style={styles.stateTitle}>{t('common.offline', 'Notifications unavailable offline')}</Text>
           <Text style={styles.stateSubtitle}>
             Please connect to the internet to view your live health alerts and advisories.
           </Text>
@@ -393,21 +395,21 @@ export default function FarmerNotificationsScreen() {
             onPress={() => loadNotifications()}
             activeOpacity={0.8}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : errorMessage ? (
         /* Server Error State */
         <View style={styles.centeredState}>
           <Text style={styles.stateIcon}>⚠️</Text>
-          <Text style={styles.stateTitle}>Unable to Load</Text>
+          <Text style={styles.stateTitle}>{t('common.error', 'Unable to Load')}</Text>
           <Text style={styles.stateSubtitle}>{errorMessage}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => loadNotifications()}
             activeOpacity={0.8}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : filteredNotifications.length === 0 ? (
@@ -416,8 +418,8 @@ export default function FarmerNotificationsScreen() {
           <Text style={styles.stateIcon}>🔔</Text>
           <Text style={styles.stateTitle}>
             {selectedFilter === 'Unread'
-              ? 'No Unread Notifications'
-              : 'No Notifications'}
+              ? t('notifications.noNotifications', 'No Unread Notifications')
+              : t('notifications.noNotifications', 'No Notifications')}
           </Text>
           <Text style={styles.stateSubtitle}>
             {selectedFilter === 'Unread'

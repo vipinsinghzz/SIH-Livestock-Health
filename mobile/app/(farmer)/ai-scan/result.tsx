@@ -18,6 +18,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import caseService from '../../../src/services/caseService';
 import { Animal } from '../../../src/types/animal';
@@ -25,6 +26,7 @@ import { AiScreeningResponse, SuspectedDisease } from '../../../src/types/aiScre
 
 export default function AiScanResultScreen() {
   const router = useRouter();
+  const { t } = useAppLanguage();
   const params = useLocalSearchParams<{
     resultData?: string;
     animalData?: string;
@@ -135,9 +137,9 @@ export default function AiScanResultScreen() {
       <View style={styles.mandatoryNoticeBanner}>
         <Text style={styles.mandatoryNoticeIcon}>⚠️</Text>
         <View style={styles.mandatoryNoticeContent}>
-          <Text style={styles.mandatoryNoticeTitle}>AI-Assisted Preliminary Screening</Text>
+          <Text style={styles.mandatoryNoticeTitle}>{t('aiScan.resultTitle', 'AI-Assisted Preliminary Screening')}</Text>
           <Text style={styles.mandatoryNoticeText}>
-            Not a final veterinary diagnosis. This automated assessment is designed to support early detection and does not replace examination by a licensed veterinarian.
+            {t('aiScan.consultVet', 'Not a final veterinary diagnosis. This automated assessment is designed to support early detection and does not replace examination by a licensed veterinarian.')}
           </Text>
         </View>
       </View>
@@ -151,7 +153,7 @@ export default function AiScanResultScreen() {
           <View style={styles.animalSummaryInfo}>
             <Text style={styles.animalSummaryName}>{animal.name || animal.tagId}</Text>
             <Text style={styles.animalSummaryMeta}>
-              Tag: {animal.tagId} • {animal.species} • {animal.age} yrs • {animal.gender}
+              {t('farmer.tag', 'Tag: {tag}', { tag: animal.tagId })} • {t(`farmer.${animal.species.toLowerCase()}`, animal.species)} • {t('farmer.ageYears', '{age} yrs', { age: animal.age })} • {animal.gender}
             </Text>
           </View>
         </View>
@@ -171,14 +173,14 @@ export default function AiScanResultScreen() {
       {isUnavailable ? (
         <View style={styles.unavailableCard}>
           <Text style={styles.unavailableEmoji}>📡</Text>
-          <Text style={styles.unavailableTitle}>AI Screening Is Temporarily Unavailable</Text>
+          <Text style={styles.unavailableTitle}>{t('common.error', 'AI Screening Is Temporarily Unavailable')}</Text>
           <Text style={styles.unavailableDesc}>
             {result?.message ||
               'The deep learning inference service could not be reached. Your observations have been preserved and can still be reviewed by a veterinary professional.'}
           </Text>
 
           <View style={styles.firstAidBox}>
-            <Text style={styles.firstAidTitle}>Recommended Precautionary Steps:</Text>
+            <Text style={styles.firstAidTitle}>{t('aiScan.firstAid', 'Recommended Precautionary Steps:')}</Text>
             <Text style={styles.firstAidItem}>• Isolate the animal in a clean, shaded, well-ventilated shed.</Text>
             <Text style={styles.firstAidItem}>• Provide clean, fresh drinking water and digestible fodder.</Text>
             <Text style={styles.firstAidItem}>• Contact your nearest veterinary dispensary for a physical checkup.</Text>
@@ -192,7 +194,7 @@ export default function AiScanResultScreen() {
             <View style={styles.heroTopRow}>
               <View style={[styles.riskPill, { backgroundColor: riskStyle.bg }]}>
                 <Text style={[styles.riskPillText, { color: riskStyle.text }]}>
-                  {result?.riskLevel ? (result.riskLevel === 'Pending' ? 'Screening pending' : `${result.riskLevel} Risk`) : 'Screening complete'}
+                  {result?.riskLevel ? (result.riskLevel === 'Pending' ? t('common.status', 'Screening pending') : `${result.riskLevel} ${t('aiScan.severity', 'Risk')}`) : t('common.success', 'Screening complete')}
                 </Text>
               </View>
               {result?.modelVersion && (
@@ -207,7 +209,7 @@ export default function AiScanResultScreen() {
             {result?.confidenceScore !== null && result?.confidenceScore !== undefined && (
               <View style={styles.confidenceRow}>
                 <Text style={styles.confidenceLabel}>
-                  AI screening confidence: <Text style={styles.confidenceValue}>{result.confidenceScore}%</Text>
+                  {t('aiScan.confidence', 'AI screening confidence')}: <Text style={styles.confidenceValue}>{result.confidenceScore}%</Text>
                 </Text>
               </View>
             )}
@@ -228,7 +230,7 @@ export default function AiScanResultScreen() {
           {/* Differential Disease Possibilities */}
           {result?.suspectedDiseases && result.suspectedDiseases.length > 1 && (
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionHeading}>Differential Diagnostic Possibilities</Text>
+              <Text style={styles.sectionHeading}>{t('aiScan.predictedDisease', 'Differential Diagnostic Possibilities')}</Text>
               <Text style={styles.sectionSub}>Candidate diseases evaluated from clinical symptoms:</Text>
 
               {result.suspectedDiseases.map((item: SuspectedDisease, idx: number) => (
@@ -250,7 +252,7 @@ export default function AiScanResultScreen() {
           {/* Recommended Clinical Action */}
           {result?.recommendedAction && (
             <View style={styles.actionCard}>
-              <Text style={styles.actionCardTitle}>👨‍⚕️ Recommended Clinical Action</Text>
+              <Text style={styles.actionCardTitle}>👨‍⚕️ {t('aiScan.recommendations', 'Recommended Clinical Action')}</Text>
               <Text style={styles.actionCardBody}>{result.recommendedAction}</Text>
             </View>
           )}
@@ -258,7 +260,7 @@ export default function AiScanResultScreen() {
           {/* Immediate First Aid Measures */}
           {result?.immediateFirstAid && result.immediateFirstAid.length > 0 && (
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionHeading}>Immediate First Aid Measures</Text>
+              <Text style={styles.sectionHeading}>{t('aiScan.firstAid', 'Immediate First Aid Measures')}</Text>
               {result.immediateFirstAid.map((step: string, idx: number) => (
                 <View key={idx} style={styles.firstAidStepRow}>
                   <Text style={styles.stepNumber}>{idx + 1}</Text>
@@ -286,20 +288,20 @@ export default function AiScanResultScreen() {
 
       {/* Referral / Case Dispatch Card */}
       <View style={styles.referralCard}>
-        <Text style={styles.referralCardTitle}>Connect with District Veterinarian</Text>
+        <Text style={styles.referralCardTitle}>{t('cases.requestReferral', 'Connect with District Veterinarian')}</Text>
         <Text style={styles.referralCardSub}>
           Dispatch this preliminary health screening to registered veterinary officers in {animal?.district || 'your district'} for clinical verification.
         </Text>
 
         {caseCreated ? (
           <View style={styles.caseSuccessBanner}>
-            <Text style={styles.caseSuccessText}>✓ Case Dispatched: {caseCreated}</Text>
+            <Text style={styles.caseSuccessText}>✓ {t('aiScan.caseSaved', 'Case Dispatched')}: {caseCreated}</Text>
             <TouchableOpacity
               style={styles.viewCreatedCaseBtn}
               onPress={() => router.push(`/(farmer)/cases/${caseCreated}` as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewCreatedCaseBtnText}>📋 View Case Details →</Text>
+              <Text style={styles.viewCreatedCaseBtnText}>📋 {t('common.details', 'View Case Details')} →</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -312,7 +314,7 @@ export default function AiScanResultScreen() {
             {creatingCase ? (
               <ActivityIndicator color={colors.light.textInverse} size="small" />
             ) : (
-              <Text style={styles.referralBtnText}>📋 Create Veterinary Referral Case</Text>
+              <Text style={styles.referralBtnText}>📋 {t('aiScan.saveAsCase', 'Create Veterinary Referral Case')}</Text>
             )}
           </TouchableOpacity>
         )}
@@ -325,7 +327,7 @@ export default function AiScanResultScreen() {
           onPress={() => router.replace('/(farmer)/ai-scan')}
           activeOpacity={0.8}
         >
-          <Text style={styles.secondaryNavBtnText}>🔄 Scan Another Animal</Text>
+          <Text style={styles.secondaryNavBtnText}>🔄 {t('farmer.aiDiseaseScan', 'Scan Another Animal')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -333,7 +335,7 @@ export default function AiScanResultScreen() {
           onPress={() => router.replace('/(farmer)')}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryNavBtnText}>🏠 Back to Dashboard</Text>
+          <Text style={styles.primaryNavBtnText}>🏠 {t('common.home', 'Back to Dashboard')}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

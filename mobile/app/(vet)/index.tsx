@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
+import { useAppLanguage } from '../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
 import { veterinarianService } from '../../src/services/veterinarianService';
 import { VetDashboardMetrics } from '../../src/types/vet';
@@ -31,6 +32,7 @@ import notificationService from '../../src/services/notificationService';
 export default function VetHomeScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { t } = useAppLanguage();
 
   const [metrics, setMetrics] = useState<VetDashboardMetrics | null>(null);
   const [recentCases, setRecentCases] = useState<DiseaseCase[]>([]);
@@ -151,7 +153,7 @@ export default function VetHomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>VETERINARY CLINICAL PORTAL</Text>
+              <Text style={styles.badgeText}>{t('nav.vetWorkspace', 'VETERINARY CLINICAL PORTAL')}</Text>
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity
@@ -170,7 +172,7 @@ export default function VetHomeScreen() {
                 )}
               </TouchableOpacity>
               <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton} activeOpacity={0.7}>
-                <Text style={styles.logoutButtonText}>Sign Out</Text>
+                <Text style={styles.logoutButtonText}>{t('common.signOut', 'Sign Out')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -194,7 +196,7 @@ export default function VetHomeScreen() {
         {loading && (
           <View style={styles.centerLoading}>
             <ActivityIndicator size="large" color={colors.light.primary} />
-            <Text style={styles.loadingText}>Loading clinical cases...</Text>
+            <Text style={styles.loadingText}>{t('common.loading', 'Loading clinical cases...')}</Text>
           </View>
         )}
 
@@ -203,7 +205,7 @@ export default function VetHomeScreen() {
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={loadDashboardData} activeOpacity={0.8}>
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -219,7 +221,7 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'New' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>New Referrals</Text>
+                <Text style={styles.metricLabel}>{t('vet.pendingReferrals', 'New Referrals')}</Text>
                 <Text style={[styles.metricValue, { color: '#D97706' }]}>
                   {metrics?.newReferralsCount ?? 0}
                 </Text>
@@ -232,7 +234,7 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'my_cases' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>My Cases</Text>
+                <Text style={styles.metricLabel}>{t('cases.title', 'My Cases')}</Text>
                 <Text style={[styles.metricValue, { color: '#059669' }]}>
                   {metrics?.myCasesCount ?? 0}
                 </Text>
@@ -245,7 +247,7 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Investigating' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>Investigating</Text>
+                <Text style={styles.metricLabel}>{t('cases.investigating', 'Investigating')}</Text>
                 <Text style={[styles.metricValue, { color: '#2563EB' }]}>
                   {metrics?.investigatingCount ?? 0}
                 </Text>
@@ -258,7 +260,7 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Confirmed' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>Confirmed</Text>
+                <Text style={styles.metricLabel}>{t('cases.confirmed', 'Confirmed')}</Text>
                 <Text style={[styles.metricValue, { color: '#DC2626' }]}>
                   {metrics?.confirmedCount ?? 0}
                 </Text>
@@ -271,7 +273,7 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Containment' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>Containment</Text>
+                <Text style={styles.metricLabel}>{t('containment.title', 'Containment')}</Text>
                 <Text style={[styles.metricValue, { color: '#7C3AED' }]}>
                   {metrics?.containmentCount ?? 0}
                 </Text>
@@ -284,7 +286,7 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Resolved' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>Resolved</Text>
+                <Text style={styles.metricLabel}>{t('cases.resolved', 'Resolved')}</Text>
                 <Text style={[styles.metricValue, { color: '#047857' }]}>
                   {metrics?.resolvedCount ?? 0}
                 </Text>
@@ -311,7 +313,7 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>📋</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>Triage & Referral Queue</Text>
+                    <Text style={styles.primaryActionTitle}>{t('nav.incomingReferrals', 'Triage & Referral Queue')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       Review incoming cases reported by farmers in {vetDistrict}
                     </Text>
@@ -328,7 +330,7 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🩺</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>My Active Patient Cases</Text>
+                    <Text style={styles.primaryActionTitle}>{t('cases.title', 'My Active Patient Cases')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       Manage treatments, prescriptions, and recovery timelines
                     </Text>
@@ -345,7 +347,7 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🔬</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>Diagnostic Lab Tests</Text>
+                    <Text style={styles.primaryActionTitle}>{t('nav.labTests', 'Diagnostic Lab Tests')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       Sample chain-of-custody, lab testing & confirmation
                     </Text>
@@ -363,7 +365,7 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🗺️</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>Outbreak GIS Surveillance</Text>
+                    <Text style={styles.primaryActionTitle}>{t('nav.fieldMap', 'Outbreak GIS Surveillance')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       DBSCAN spatial clusters, risk heatmaps & perimeters
                     </Text>
@@ -381,7 +383,7 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🛡️</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>Containment & Ring Drives</Text>
+                    <Text style={styles.primaryActionTitle}>{t('nav.containmentRings', 'Containment & Ring Drives')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       Active quarantine perimeters & emergency vaccination
                     </Text>
@@ -399,7 +401,7 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🚨</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>Clinical Alerts & Triage Pings</Text>
+                    <Text style={styles.primaryActionTitle}>{t('nav.clinicalAlerts', 'Clinical Alerts & Triage Pings')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       {unreadAlertsCount > 0
                         ? `${unreadAlertsCount} unread alert${unreadAlertsCount > 1 ? 's' : ''} awaiting triage`
@@ -414,12 +416,12 @@ export default function VetHomeScreen() {
             {/* Recent District Referrals Section */}
             <View style={styles.recentSection}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Recent District Referrals</Text>
+                <Text style={styles.sectionTitle}>{t('vet.pendingReferrals', 'Recent District Referrals')}</Text>
                 <TouchableOpacity
                   onPress={() => router.push('/(vet)/referrals')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.seeAllText}>View All ({metrics?.totalRecentCases ?? 0})</Text>
+                  <Text style={styles.seeAllText}>{t('common.all', 'View All')} ({metrics?.totalRecentCases ?? 0})</Text>
                 </TouchableOpacity>
               </View>
 

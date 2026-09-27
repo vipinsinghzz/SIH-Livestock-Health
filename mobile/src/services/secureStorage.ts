@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   AUTH_TOKEN: 'livestocksaathi_jwt_token',
   REFRESH_TOKEN: 'livestocksaathi_refresh_token',
   USER_PROFILE: 'livestocksaathi_user_profile',
+  APP_LANGUAGE: 'livestocksaathi_app_language',
 } as const;
 
 /**
@@ -107,3 +108,21 @@ export async function clearAllSecureAuthData(): Promise<void> {
     console.warn('[SecureStore] Failed to clear secure auth data:', error);
   }
 }
+
+export async function saveAppLanguage(lang: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(STORAGE_KEYS.APP_LANGUAGE, lang);
+  } catch (error) {
+    console.warn('[SecureStore] Failed to save app language:', error);
+  }
+}
+
+export async function getSavedAppLanguage(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(STORAGE_KEYS.APP_LANGUAGE);
+  } catch (error) {
+    console.warn('[SecureStore] Failed to get app language:', error);
+    return null;
+  }
+}
+

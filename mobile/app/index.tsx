@@ -8,12 +8,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/context/AuthContext';
+import { useAppLanguage, SUPPORTED_LANGUAGES } from '../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../src/theme';
 import { ENV } from '../src/config/env';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user, isAuthenticated, logout, loginAsPersona } = useAuth();
+  const { language, changeLanguage, t } = useAppLanguage();
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalError, setEvalError] = useState<string | null>(null);
 
@@ -67,8 +69,8 @@ export default function HomeScreen() {
           <View style={styles.logoBadge}>
             <Text style={styles.logoIcon}>🐄</Text>
           </View>
-          <Text style={styles.appTitle}>Livestock Saathi</Text>
-          <Text style={styles.appSubtitle}>AI-Powered Livestock Health Assistant</Text>
+          <Text style={styles.appTitle}>{t('common.appTitle')}</Text>
+          <Text style={styles.appSubtitle}>{t('common.appSubtitle')}</Text>
           <View style={styles.phaseBadge}>
             <Text style={styles.phaseBadgeText}>PHASE 2 AUTHENTICATION</Text>
           </View>
@@ -78,7 +80,7 @@ export default function HomeScreen() {
         <View style={styles.statusCard}>
           <View style={styles.statusIndicator} />
           <View style={styles.statusContent}>
-            <Text style={styles.statusTitle}>Production Backend Connected</Text>
+            <Text style={styles.statusTitle}>{t('common.connected')}</Text>
             <Text style={styles.statusEndpoint} numberOfLines={1}>
               {ENV.API_URL}
             </Text>
@@ -96,7 +98,7 @@ export default function HomeScreen() {
           <View style={styles.userCard}>
             <View style={styles.userCardHeader}>
               <View>
-                <Text style={styles.userGreeting}>Signed In As</Text>
+                <Text style={styles.userGreeting}>{t('auth.signedInAs')}</Text>
                 <Text style={styles.userName}>{user.name}</Text>
                 <Text style={styles.userEmail}>{user.email}</Text>
               </View>
@@ -113,7 +115,7 @@ export default function HomeScreen() {
                 onPress={navigateToRolePortal}
                 activeOpacity={0.8}
               >
-                <Text style={styles.enterPortalBtnText}>Open {user.role.toUpperCase()} Portal →</Text>
+                <Text style={styles.enterPortalBtnText}>{t('auth.openPortal')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -121,13 +123,13 @@ export default function HomeScreen() {
                 onPress={logout}
                 activeOpacity={0.8}
               >
-                <Text style={styles.logoutBtnText}>Log Out</Text>
+                <Text style={styles.logoutBtnText}>{t('common.logOut')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Authentication Gateway</Text>
+            <Text style={styles.sectionTitle}>{t('auth.gateway')}</Text>
             <View style={styles.buttonRow}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.primaryButton]}
@@ -137,7 +139,7 @@ export default function HomeScreen() {
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.primaryButtonText}>Sign In</Text>
+                <Text style={styles.primaryButtonText}>{t('common.signIn')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -148,15 +150,15 @@ export default function HomeScreen() {
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.secondaryButtonText}>Create Account</Text>
+                <Text style={styles.secondaryButtonText}>{t('common.createAccount')}</Text>
               </TouchableOpacity>
             </View>
 
             {/* Quick Persona Evaluator */}
             <View style={styles.personaBox}>
-              <Text style={styles.personaBoxTitle}>⚡ Quick Persona Switcher (Testing & Evaluation)</Text>
+              <Text style={styles.personaBoxTitle}>{t('auth.quickPersonaTitle')}</Text>
               <Text style={styles.personaBoxSubtitle}>
-                Uses authentic backend accounts to instantly evaluate role-based flows.
+                {t('auth.quickPersonaSubtitle')}
               </Text>
               {evalLoading ? (
                 <ActivityIndicator size="small" color={colors.light.primary} style={{ marginVertical: 8 }} />
@@ -166,19 +168,19 @@ export default function HomeScreen() {
                     style={[styles.personaChip, { borderColor: colors.light.farmerBadge }]}
                     onPress={() => handleQuickEval('farmer')}
                   >
-                    <Text style={styles.personaChipText}>🌾 Farmer</Text>
+                    <Text style={styles.personaChipText}>🌾 {t('auth.farmer')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.personaChip, { borderColor: colors.light.vetBadge }]}
                     onPress={() => handleQuickEval('vet')}
                   >
-                    <Text style={styles.personaChipText}>🩺 Veterinarian</Text>
+                    <Text style={styles.personaChipText}>🩺 {t('auth.veterinarian')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.personaChip, { borderColor: colors.light.officerBadge }]}
                     onPress={() => handleQuickEval('officer')}
                   >
-                    <Text style={styles.personaChipText}>🏛️ Officer</Text>
+                    <Text style={styles.personaChipText}>🏛️ {t('auth.officer')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -186,60 +188,41 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Portal Information Tiles */}
+        {/* App Language Selection Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Available Role Portals</Text>
+          <Text style={styles.sectionTitle}>{t('common.appLanguage')}</Text>
 
-          {/* Farmer Portal Card */}
-          <TouchableOpacity
-            style={styles.portalCard}
-            onPress={() => {
-              console.log('[DIAGNOSTIC] Tapped "Farmer Portal" card -> router.push("/(farmer)")');
-              router.push('/(farmer)');
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.portalIcon}>🌾</Text>
-            <View style={styles.portalInfo}>
-              <Text style={styles.portalName}>Farmer Portal</Text>
-              <Text style={styles.portalDesc}>Livestock management, AI disease scans, triage cases</Text>
-            </View>
-            <Text style={styles.portalArrow}>→</Text>
-          </TouchableOpacity>
-
-          {/* Veterinarian Portal Card */}
-          <TouchableOpacity
-            style={styles.portalCard}
-            onPress={() => {
-              console.log('[DIAGNOSTIC] Tapped "Veterinarian Portal" card -> router.push("/(vet)")');
-              router.push('/(vet)');
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.portalIcon}>🩺</Text>
-            <View style={styles.portalInfo}>
-              <Text style={styles.portalName}>Veterinarian Portal</Text>
-              <Text style={styles.portalDesc}>Case referrals, prescriptions, laboratory test reports</Text>
-            </View>
-            <Text style={styles.portalArrow}>→</Text>
-          </TouchableOpacity>
-
-          {/* Officer Portal Card */}
-          <TouchableOpacity
-            style={styles.portalCard}
-            onPress={() => {
-              console.log('[DIAGNOSTIC] Tapped "Officer Portal" card -> router.push("/(officer)")');
-              router.push('/(officer)');
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.portalIcon}>🏛️</Text>
-            <View style={styles.portalInfo}>
-              <Text style={styles.portalName}>Officer Portal</Text>
-              <Text style={styles.portalDesc}>Epidemic surveillance, containment zones, camps</Text>
-            </View>
-            <Text style={styles.portalArrow}>→</Text>
-          </TouchableOpacity>
+          <View style={styles.languageCardsContainer}>
+            {SUPPORTED_LANGUAGES.map((langOption) => {
+              const isSelected = language === langOption.code;
+              return (
+                <TouchableOpacity
+                  key={langOption.code}
+                  style={[
+                    styles.languageCard,
+                    isSelected && styles.languageCardSelected,
+                  ]}
+                  onPress={() => changeLanguage(langOption.code)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${langOption.label}`}
+                >
+                  <Text style={styles.languageIcon}>{langOption.flagEmoji}</Text>
+                  <View style={styles.languageInfo}>
+                    <Text style={[styles.languageNativeName, isSelected && styles.languageTextSelected]}>
+                      {langOption.nativeLabel}
+                    </Text>
+                    <Text style={styles.languageSubName}>
+                      {langOption.subLabel}
+                    </Text>
+                  </View>
+                  <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                    {isSelected ? <View style={styles.radioDot} /> : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.footer}>
@@ -492,37 +475,62 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.semibold,
     color: colors.light.textPrimary,
   },
-  portalCard: {
+  languageCardsContainer: {
+    gap: spacing.xs,
+  },
+  languageCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.light.surface,
     padding: spacing.md,
     borderRadius: radii.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.light.border,
     marginBottom: spacing.xs,
     ...shadows.sm,
   },
-  portalIcon: {
+  languageCardSelected: {
+    borderColor: colors.light.primary,
+    backgroundColor: colors.light.primarySubtle,
+  },
+  languageIcon: {
     fontSize: 24,
     marginRight: spacing.md,
   },
-  portalInfo: {
+  languageInfo: {
     flex: 1,
   },
-  portalName: {
+  languageNativeName: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
     color: colors.light.textPrimary,
   },
-  portalDesc: {
+  languageTextSelected: {
+    color: colors.light.primary,
+  },
+  languageSubName: {
     fontSize: typography.sizes.xs,
     color: colors.light.textSecondary,
     marginTop: 2,
   },
-  portalArrow: {
-    fontSize: 18,
-    color: colors.light.textMuted,
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.light.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  radioCircleSelected: {
+    borderColor: colors.light.primary,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.light.primary,
   },
   footer: {
     marginTop: spacing.md,

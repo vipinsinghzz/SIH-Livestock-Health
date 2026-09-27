@@ -18,10 +18,12 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth, UserRole } from '../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
+import { useAppLanguage } from '../../src/services/i18n';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { register } = useAuth();
+  const { t } = useAppLanguage();
 
   const [role, setRole] = useState<UserRole>('farmer');
   const [name, setName] = useState('');
@@ -94,8 +96,8 @@ export default function RegisterScreen() {
           <View style={styles.logoBadge}>
             <Text style={styles.logoIcon}>📝</Text>
           </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join Livestock Saathi Community</Text>
+          <Text style={styles.title}>{t('common.createAccount')}</Text>
+          <Text style={styles.subtitle}>{t('auth.newAccount')}</Text>
         </View>
 
         <View style={styles.card}>
@@ -106,14 +108,14 @@ export default function RegisterScreen() {
           ) : null}
 
           {/* Role Selection Tabs */}
-          <Text style={styles.sectionLabel}>Select Your Role</Text>
+          <Text style={styles.sectionLabel}>{t('auth.role')}</Text>
           <View style={styles.roleTabs}>
             <TouchableOpacity
               style={[styles.roleTab, role === 'farmer' && styles.roleTabActive]}
               onPress={() => setRole('farmer')}
             >
               <Text style={[styles.roleTabText, role === 'farmer' && styles.roleTabTextActive]}>
-                🌾 Farmer
+                🌾 {t('auth.farmer')}
               </Text>
             </TouchableOpacity>
 
@@ -122,7 +124,7 @@ export default function RegisterScreen() {
               onPress={() => setRole('veterinarian')}
             >
               <Text style={[styles.roleTabText, role === 'veterinarian' && styles.roleTabTextActive]}>
-                🩺 Vet
+                🩺 {t('auth.veterinarian')}
               </Text>
             </TouchableOpacity>
 
@@ -131,14 +133,14 @@ export default function RegisterScreen() {
               onPress={() => setRole('officer')}
             >
               <Text style={[styles.roleTabText, role === 'officer' && styles.roleTabTextActive]}>
-                🏛️ Officer
+                🏛️ {t('auth.officer')}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Full Name */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name *</Text>
+            <Text style={styles.label}>{t('auth.fullName')} *</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Ramesh Patil"
@@ -151,7 +153,7 @@ export default function RegisterScreen() {
 
           {/* Mobile Phone */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Mobile Number *</Text>
+            <Text style={styles.label}>{t('auth.phone')} *</Text>
             <TextInput
               style={styles.input}
               placeholder="10-digit mobile number"
@@ -166,7 +168,7 @@ export default function RegisterScreen() {
 
           {/* Optional Email */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address (Optional)</Text>
+            <Text style={styles.label}>{t('auth.email')}</Text>
             <TextInput
               style={styles.input}
               placeholder="name@example.com"
@@ -181,7 +183,7 @@ export default function RegisterScreen() {
 
           {/* Password */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Create Password *</Text>
+            <Text style={styles.label}>{t('auth.password')} *</Text>
             <View style={styles.passwordContainer}>
               <TextInput
                 style={[styles.input, styles.passwordInput]}
@@ -234,7 +236,7 @@ export default function RegisterScreen() {
           {/* Location Fields */}
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>District</Text>
+              <Text style={styles.label}>{t('auth.district')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="District"
@@ -245,7 +247,7 @@ export default function RegisterScreen() {
               />
             </View>
             <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>State</Text>
+              <Text style={styles.label}>{t('auth.state')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="State"
@@ -258,7 +260,7 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Village / Locality</Text>
+            <Text style={styles.label}>{t('auth.village')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. Baramati"
@@ -279,17 +281,17 @@ export default function RegisterScreen() {
             {loading ? (
               <ActivityIndicator color={colors.light.textInverse} size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>Create Account</Text>
+              <Text style={styles.submitButtonText}>{t('common.createAccount')}</Text>
             )}
           </TouchableOpacity>
 
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={styles.footerText}>{t('auth.haveAccount')} </Text>
             <TouchableOpacity
               onPress={() => router.push('/(auth)/login')}
               disabled={loading}
             >
-              <Text style={styles.loginLink}>Sign In</Text>
+              <Text style={styles.loginLink}>{t('common.signIn')}</Text>
             </TouchableOpacity>
           </View>
         </View>

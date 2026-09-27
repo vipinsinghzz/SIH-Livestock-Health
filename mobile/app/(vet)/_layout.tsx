@@ -7,10 +7,13 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { colors } from '../../src/theme';
 import { RouteErrorBoundary } from '../../src/components/RouteErrorBoundary';
+import { useAppLanguage } from '../../src/services/i18n';
 
 export const ErrorBoundary = RouteErrorBoundary;
 
 export default function VetLayout() {
+  const { t } = useAppLanguage();
+
   return (
     <Stack
       screenOptions={{
@@ -30,55 +33,55 @@ export default function VetLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Veterinarian Workspace',
+          title: t('nav.vetWorkspace', 'Veterinarian Workspace'),
         }}
       />
       <Stack.Screen
         name="referrals/index"
         options={{
-          title: 'Incoming Referrals',
+          title: t('nav.incomingReferrals', 'Incoming Referrals'),
         }}
       />
       <Stack.Screen
         name="referrals/[id]"
         options={{
-          title: 'Referral Details',
+          title: t('cases.details', 'Referral Details'),
         }}
       />
       <Stack.Screen
         name="cases/index"
         options={{
-          title: 'Clinical Cases',
+          title: t('cases.title', 'Clinical Cases'),
         }}
       />
       <Stack.Screen
         name="labs/index"
         options={{
-          title: 'Diagnostic Lab Tests',
+          title: t('nav.labTests', 'Diagnostic Lab Tests'),
         }}
       />
       <Stack.Screen
         name="labs/[id]"
         options={{
-          title: 'Diagnostic Lab Referral',
+          title: t('nav.labTests', 'Diagnostic Lab Referral'),
         }}
       />
       <Stack.Screen
         name="map/index"
         options={{
-          title: 'Field Cases GIS Map',
+          title: t('nav.fieldMap', 'Field Cases GIS Map'),
         }}
       />
       <Stack.Screen
         name="containment/index"
         options={{
-          title: 'Containment & Ring Drives',
+          title: t('nav.containmentRings', 'Containment & Ring Drives'),
         }}
       />
       <Stack.Screen
         name="notifications/index"
         options={{
-          title: 'Clinical Alerts',
+          title: t('nav.clinicalAlerts', 'Clinical Alerts'),
         }}
       />
     </Stack>

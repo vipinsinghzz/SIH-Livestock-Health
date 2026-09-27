@@ -18,10 +18,12 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
+import { useAppLanguage } from '../../src/services/i18n';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useAppLanguage();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -95,8 +97,8 @@ export default function LoginScreen() {
           <View style={styles.logoBadge}>
             <Text style={styles.logoIcon}>🐄</Text>
           </View>
-          <Text style={styles.title}>Livestock Saathi</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+          <Text style={styles.title}>{t('common.appTitle')}</Text>
+          <Text style={styles.subtitle}>{t('auth.signInSubtitle')}</Text>
         </View>
 
         {/* Login Card */}
@@ -109,7 +111,7 @@ export default function LoginScreen() {
 
           {/* Identifier Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address or Mobile Number</Text>
+            <Text style={styles.label}>{t('auth.emailOrPhone')}</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. farmer@pashurakshak.in or 9822011223"
@@ -129,12 +131,12 @@ export default function LoginScreen() {
           {/* Password Input */}
           <View style={styles.inputGroup}>
             <View style={styles.passwordLabelRow}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t('auth.password')}</Text>
               <TouchableOpacity
                 onPress={() => router.push('/(auth)/forgot-password')}
                 disabled={loading}
               >
-                <Text style={styles.forgotLink}>Forgot Password?</Text>
+                <Text style={styles.forgotLink}>{t('auth.forgotPassword')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -171,7 +173,7 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color={colors.light.textInverse} size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>Sign In</Text>
+              <Text style={styles.submitButtonText}>{t('common.signIn')}</Text>
             )}
           </TouchableOpacity>
 
@@ -184,33 +186,33 @@ export default function LoginScreen() {
                 onPress={() => fillQuickCredential('farmer')}
                 disabled={loading}
               >
-                <Text style={styles.presetButtonText}>Farmer</Text>
+                <Text style={styles.presetButtonText}>{t('auth.farmer')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.presetButton}
                 onPress={() => fillQuickCredential('vet')}
                 disabled={loading}
               >
-                <Text style={styles.presetButtonText}>Veterinarian</Text>
+                <Text style={styles.presetButtonText}>{t('auth.veterinarian')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.presetButton}
                 onPress={() => fillQuickCredential('officer')}
                 disabled={loading}
               >
-                <Text style={styles.presetButtonText}>Officer</Text>
+                <Text style={styles.presetButtonText}>{t('auth.officer')}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Footer Register Link */}
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
             <TouchableOpacity
               onPress={() => router.push('/(auth)/register')}
               disabled={loading}
             >
-              <Text style={styles.registerLink}>Register Now</Text>
+              <Text style={styles.registerLink}>{t('common.createAccount')}</Text>
             </TouchableOpacity>
           </View>
         </View>

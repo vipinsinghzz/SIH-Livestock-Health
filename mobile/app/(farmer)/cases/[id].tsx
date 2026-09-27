@@ -19,6 +19,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
 import { caseService } from '../../../src/services/caseService';
 import {
@@ -48,6 +49,7 @@ const STAGE_ORDER: Record<NormalizedCaseStatus, number> = {
 export default function CaseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useAppLanguage();
 
   const [caseDoc, setCaseDoc] = useState<DiseaseCase | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,7 +140,7 @@ export default function CaseDetailScreen() {
     return (
       <View style={styles.centerBox}>
         <ActivityIndicator size="large" color={colors.light.primary} />
-        <Text style={styles.loadingText}>Loading case details...</Text>
+        <Text style={styles.loadingText}>{t('common.loading', 'Loading case details...')}</Text>
       </View>
     );
   }
@@ -148,17 +150,17 @@ export default function CaseDetailScreen() {
       <View style={styles.centerBox}>
         <Text style={styles.errorIcon}>{errorStatus === 404 ? '🔍' : errorStatus === 403 ? '🔒' : '⚠️'}</Text>
         <Text style={styles.errorTitle}>
-          {errorStatus === 404 ? 'Not Found' : errorStatus === 403 ? 'Access Restricted' : 'Unable to Load'}
+          {errorStatus === 404 ? t('common.noData', 'Not Found') : errorStatus === 403 ? t('common.error', 'Access Restricted') : t('common.error', 'Unable to Load')}
         </Text>
-        <Text style={styles.errorText}>{errorMessage || 'Case information could not be retrieved.'}</Text>
+        <Text style={styles.errorText}>{errorMessage || t('common.offline', 'Case information could not be retrieved.')}</Text>
         <View style={styles.errorBtnRow}>
           {errorStatus !== 404 && errorStatus !== 403 && (
             <TouchableOpacity style={styles.primaryBtn} onPress={() => loadCaseDetails()} activeOpacity={0.8}>
-              <Text style={styles.primaryBtnText}>🔄 Retry</Text>
+              <Text style={styles.primaryBtnText}>🔄 {t('common.retry', 'Retry')}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.back()} activeOpacity={0.8}>
-            <Text style={styles.secondaryBtnText}>← Back to Cases</Text>
+            <Text style={styles.secondaryBtnText}>← {t('common.back', 'Back to Cases')}</Text>
           </TouchableOpacity>
         </View>
       </View>

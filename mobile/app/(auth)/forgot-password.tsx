@@ -18,10 +18,12 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
+import { useAppLanguage } from '../../src/services/i18n';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { forgotPassword } = useAuth();
+  const { t } = useAppLanguage();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -60,8 +62,8 @@ export default function ForgotPasswordScreen() {
           <View style={styles.logoBadge}>
             <Text style={styles.logoIcon}>🔑</Text>
           </View>
-          <Text style={styles.title}>Password Recovery</Text>
-          <Text style={styles.subtitle}>Enter your email to receive recovery instructions</Text>
+          <Text style={styles.title}>{t('auth.resetPassword')}</Text>
+          <Text style={styles.subtitle}>{t('auth.resetSubtitle')}</Text>
         </View>
 
         <View style={styles.card}>
@@ -81,7 +83,7 @@ export default function ForgotPasswordScreen() {
           ) : (
             <>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Registered Email Address</Text>
+                <Text style={styles.label}>{t('auth.email')}</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. farmer@pashurakshak.in"
@@ -107,7 +109,7 @@ export default function ForgotPasswordScreen() {
                 {loading ? (
                   <ActivityIndicator color={colors.light.textInverse} size="small" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Send Reset Link</Text>
+                  <Text style={styles.submitButtonText}>{t('auth.sendResetLink')}</Text>
                 )}
               </TouchableOpacity>
             </>
@@ -118,7 +120,7 @@ export default function ForgotPasswordScreen() {
             onPress={() => router.replace('/(auth)/login')}
             disabled={loading}
           >
-            <Text style={styles.backButtonText}>← Return to Sign In</Text>
+            <Text style={styles.backButtonText}>{t('auth.backToSignIn')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

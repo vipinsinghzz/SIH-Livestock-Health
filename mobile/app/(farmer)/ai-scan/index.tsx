@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import animalService from '../../../src/services/animalService';
 import aiScreeningService from '../../../src/services/aiScreeningService';
@@ -30,6 +31,7 @@ import { SYMPTOMS_27, SymptomTag, AiScreeningResponse } from '../../../src/types
 export default function FarmerAiScanScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ animalId?: string }>();
+  const { t, language } = useAppLanguage();
 
   // State
   const [animals, setAnimals] = useState<Animal[]>([]);
@@ -346,11 +348,11 @@ export default function FarmerAiScanScreen() {
       {/* Header Banner */}
       <View style={styles.header}>
         <View style={styles.badgePill}>
-          <Text style={styles.badgePillText}>AI HEALTH ASSISTANT</Text>
+          <Text style={styles.badgePillText}>{t('aiScan.title', 'AI HEALTH ASSISTANT')}</Text>
         </View>
-        <Text style={styles.title}>AI Livestock Health Screening</Text>
+        <Text style={styles.title}>{t('aiScan.title', 'AI Livestock Health Screening')}</Text>
         <Text style={styles.subtitle}>
-          Upload an animal image and describe its symptoms for an AI-assisted preliminary health screening.
+          {t('aiScan.subtitle', 'Upload an animal image and describe its symptoms for an AI-assisted preliminary health screening.')}
         </Text>
       </View>
 
@@ -364,33 +366,33 @@ export default function FarmerAiScanScreen() {
       {/* Section 1: Animal Selection */}
       <View style={styles.card}>
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.cardTitle}>1. Select Animal</Text>
-          <Text style={styles.requiredLabel}>* Required</Text>
+          <Text style={styles.cardTitle}>{t('aiScan.step1', '1. Select Animal')}</Text>
+          <Text style={styles.requiredLabel}>* {t('common.required', 'Required')}</Text>
         </View>
 
         {loadingAnimals ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={colors.light.primary} />
-            <Text style={styles.loadingSub}>Loading your registered livestock...</Text>
+            <Text style={styles.loadingSub}>{t('common.loading', 'Loading your registered livestock...')}</Text>
           </View>
         ) : animals.length === 0 ? (
           <View style={styles.noAnimalsBox}>
             <Text style={styles.noAnimalsEmoji}>🐄</Text>
-            <Text style={styles.noAnimalsTitle}>No animals registered yet.</Text>
+            <Text style={styles.noAnimalsTitle}>{t('farmer.noAnimalsYet', 'No animals registered yet.')}</Text>
             <Text style={styles.noAnimalsSub}>
-              Register your animal first so this screening can be linked to its medical history.
+              {t('farmer.noAnimalsDesc', 'Register your animal first so this screening can be linked to its medical history.')}
             </Text>
             <TouchableOpacity
               style={styles.addAnimalBtn}
               onPress={() => router.push('/(farmer)/animals/add')}
             >
-              <Text style={styles.addAnimalBtnText}>+ Register Animal</Text>
+              <Text style={styles.addAnimalBtnText}>{t('farmer.registerFirstAnimal', '+ Register Animal')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View>
             <Text style={styles.pickerHint}>
-              Tap to choose the animal being examined ({animals.length} available):
+              {t('aiScan.selectAnimalPrompt', 'Tap to choose the animal being examined')}:
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.animalChipScroll}>
               {animals.map((a) => {
@@ -412,7 +414,7 @@ export default function FarmerAiScanScreen() {
                         {a.name || a.tagId}
                       </Text>
                       <Text style={[styles.animalChipTag, isSelected && styles.chipSubSelected]}>
-                        🏷️ {a.tagId} • {a.species}
+                        🏷️ {a.tagId} • {t(`farmer.${a.species.toLowerCase()}`, a.species)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -423,7 +425,7 @@ export default function FarmerAiScanScreen() {
             {selectedAnimal && (
               <View style={styles.selectedAnimalBanner}>
                 <Text style={styles.selectedAnimalText}>
-                  Selected: <Text style={{ fontWeight: 'bold' }}>{selectedAnimal.name}</Text> (Tag: {selectedAnimal.tagId}, {selectedAnimal.species} {selectedAnimal.breed ? `• ${selectedAnimal.breed}` : ''})
+                  {t('common.details', 'Selected')}: <Text style={{ fontWeight: 'bold' }}>{selectedAnimal.name}</Text> (Tag: {selectedAnimal.tagId}, {t(`farmer.${selectedAnimal.species.toLowerCase()}`, selectedAnimal.species)} {selectedAnimal.breed ? `• ${selectedAnimal.breed}` : ''})
                 </Text>
               </View>
             )}
@@ -434,30 +436,30 @@ export default function FarmerAiScanScreen() {
       {/* Section 2: Photo Capture */}
       <View style={styles.card}>
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.cardTitle}>2. Capture Lesion / Skin Photo</Text>
-          <Text style={styles.optionalLabel}>Recommended</Text>
+          <Text style={styles.cardTitle}>{t('aiScan.step3', '2. Capture Lesion / Skin Photo')}</Text>
+          <Text style={styles.optionalLabel}>{t('common.optional', 'Recommended')}</Text>
         </View>
         <Text style={styles.cardDesc}>
-          Take a clear photo of skin nodules, mouth blisters, or visible lesions for computer vision evaluation (lsd_model.keras).
+          {t('aiScan.step3', 'Take a clear photo of skin nodules, mouth blisters, or visible lesions for evaluation.')}
         </Text>
 
         {imageUri ? (
           <View style={styles.previewContainer}>
             <Image source={{ uri: imageUri }} style={styles.previewImage} resizeMode="cover" />
             <TouchableOpacity style={styles.clearImageBtn} onPress={handleClearImage}>
-              <Text style={styles.clearImageBtnText}>✕ Remove / Retake Photo</Text>
+              <Text style={styles.clearImageBtnText}>✕ {t('aiScan.retake', 'Remove / Retake Photo')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.photoActionRow}>
             <TouchableOpacity style={styles.photoBtnPrimary} onPress={handleTakePhoto} activeOpacity={0.8}>
               <Text style={styles.photoBtnIcon}>📷</Text>
-              <Text style={styles.photoBtnText}>Take Camera Photo</Text>
+              <Text style={styles.photoBtnText}>{t('aiScan.takePhoto', 'Take Camera Photo')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.photoBtnSecondary} onPress={handlePickFromGallery} activeOpacity={0.8}>
               <Text style={styles.photoBtnIcon}>🖼️</Text>
-              <Text style={styles.photoBtnSecText}>Choose from Gallery</Text>
+              <Text style={styles.photoBtnSecText}>{t('aiScan.chooseGallery', 'Choose from Gallery')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -466,11 +468,11 @@ export default function FarmerAiScanScreen() {
       {/* Section 3: Observed Symptoms */}
       <View style={styles.card}>
         <View style={styles.cardHeaderRow}>
-          <Text style={styles.cardTitle}>3. Observed Symptoms</Text>
-          <Text style={styles.optionalLabel}>Select all that apply</Text>
+          <Text style={styles.cardTitle}>{t('aiScan.step2', '3. Observed Symptoms')}</Text>
+          <Text style={styles.optionalLabel}>{t('aiScan.selectSymptomsPrompt', 'Select all that apply')}</Text>
         </View>
         <Text style={styles.cardDesc}>
-          Tap observed symptoms to correlate with epidemiological and clinical disease profiles:
+          {t('aiScan.selectSymptomsPrompt', 'Tap observed symptoms to correlate with clinical disease profiles:')}
         </Text>
 
         <View style={styles.symptomsGrid}>
@@ -484,10 +486,7 @@ export default function FarmerAiScanScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={[styles.symptomText, isSelected && styles.symptomTextSelected]}>
-                  {isSelected ? '✓ ' : '+ '}{item.labelEn}
-                </Text>
-                <Text style={[styles.symptomLocalText, isSelected && styles.symptomLocalSelected]}>
-                  {item.labelHi}
+                  {isSelected ? '✓ ' : '+ '}{language === 'hi' ? item.labelHi : language === 'mr' ? (item.labelHi || item.labelEn) : item.labelEn}
                 </Text>
               </TouchableOpacity>
             );
@@ -497,7 +496,7 @@ export default function FarmerAiScanScreen() {
         {/* Vital Signs (Temperature & Duration) */}
         <View style={styles.vitalsRow}>
           <View style={styles.vitalCol}>
-            <Text style={styles.fieldLabel}>Body Temperature (°C)</Text>
+            <Text style={styles.fieldLabel}>{t('aiScan.temperature', 'Body Temperature (°C)')}</Text>
             <TextInput
               style={styles.vitalInput}
               placeholder="e.g. 39.5"
@@ -509,7 +508,7 @@ export default function FarmerAiScanScreen() {
           </View>
 
           <View style={styles.vitalCol}>
-            <Text style={styles.fieldLabel}>Duration (Hours)</Text>
+            <Text style={styles.fieldLabel}>{t('aiScan.duration', 'Duration (Hours)')}</Text>
             <TextInput
               style={styles.vitalInput}
               placeholder="e.g. 48"
@@ -524,17 +523,14 @@ export default function FarmerAiScanScreen() {
         {/* Free-text Observation Field */}
         <View style={styles.notesSection}>
           <View style={styles.notesHeader}>
-            <Text style={styles.fieldLabel}>Additional Observations / Symptoms</Text>
-            <View style={styles.voiceUnavailableBadge}>
-              <Text style={styles.voiceUnavailableText}>🎤 Voice: Unavailable</Text>
-            </View>
+            <Text style={styles.fieldLabel}>{t('common.notes', 'Additional Observations / Symptoms')}</Text>
           </View>
 
           <TextInput
             style={styles.notesInput}
             multiline
             numberOfLines={4}
-            placeholder="Describe symptoms such as fever, coughing, nasal discharge, loss of appetite, swelling, reduced milk production..."
+            placeholder={t('aiScan.selectSymptomsPrompt', 'Describe symptoms such as fever, coughing, nasal discharge, loss of appetite, swelling...')}
             placeholderTextColor={colors.light.textMuted}
             value={customNotes}
             onChangeText={setCustomNotes}
@@ -545,9 +541,9 @@ export default function FarmerAiScanScreen() {
 
       {/* Mandatory Medical Disclaimer Banner */}
       <View style={styles.disclaimerBanner}>
-        <Text style={styles.disclaimerTitle}>⚖️ Important Clinical Notice</Text>
+        <Text style={styles.disclaimerTitle}>⚖️ {t('common.warning', 'Important Clinical Notice')}</Text>
         <Text style={styles.disclaimerBody}>
-          AI-assisted preliminary screening only. This does not constitute a final veterinary diagnosis. If symptoms are severe or deteriorating, contact your nearest veterinary dispensary immediately.
+          {t('aiScan.consultVet', 'AI-assisted preliminary screening only. This does not constitute a final veterinary diagnosis. If symptoms are severe, contact your nearest veterinary dispensary immediately.')}
         </Text>
       </View>
 
@@ -561,10 +557,10 @@ export default function FarmerAiScanScreen() {
         {isAnalyzing ? (
           <View style={styles.analyzingRow}>
             <ActivityIndicator color={colors.light.textInverse} size="small" />
-            <Text style={styles.analyzingText}>{analysisStage || 'Analyzing livestock data...'}</Text>
+            <Text style={styles.analyzingText}>{analysisStage || t('aiScan.analyzing', 'Analyzing livestock data...')}</Text>
           </View>
         ) : (
-          <Text style={styles.submitButtonText}>Submit for AI Screening</Text>
+          <Text style={styles.submitButtonText}>{t('aiScan.analyzeBtn', 'Submit for AI Screening')}</Text>
         )}
       </TouchableOpacity>
     </ScrollView>

@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import animalService from '../../../src/services/animalService';
 import { Animal } from '../../../src/types/animal';
@@ -26,6 +27,7 @@ const SPECIES_OPTIONS = ['All', 'Cattle', 'Buffalo', 'Goat', 'Sheep', 'Pig', 'Po
 
 export default function FarmerAnimalsScreen() {
   const router = useRouter();
+  const { t } = useAppLanguage();
 
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,13 +98,13 @@ export default function FarmerAnimalsScreen() {
   const getHealthBadgeStyle = (status: string) => {
     switch (status) {
       case 'Healthy':
-        return { bg: colors.light.successBg, text: colors.light.success, label: 'Healthy' };
+        return { bg: colors.light.successBg, text: colors.light.success, label: t('farmer.healthy', 'Healthy') };
       case 'Needs Attention':
-        return { bg: colors.light.warningBg, text: colors.light.warning, label: 'Attention' };
+        return { bg: colors.light.warningBg, text: colors.light.warning, label: t('farmer.attention', 'Attention') };
       case 'Critical':
-        return { bg: colors.light.dangerBg, text: colors.light.danger, label: 'Critical' };
+        return { bg: colors.light.dangerBg, text: colors.light.danger, label: t('farmer.critical', 'Critical') };
       default:
-        return { bg: colors.light.surfaceAlt, text: colors.light.textSecondary, label: status || 'Unknown' };
+        return { bg: colors.light.surfaceAlt, text: colors.light.textSecondary, label: status || t('common.unknown', 'Unknown') };
     }
   };
 
@@ -131,14 +133,14 @@ export default function FarmerAnimalsScreen() {
               </View>
               {item.isPendingSync && (
                 <View style={[styles.badge, { backgroundColor: '#FEF3C7', marginLeft: 6 }]}>
-                  <Text style={[styles.badgeText, { color: '#D97706' }]}>⏳ Pending Sync</Text>
+                  <Text style={[styles.badgeText, { color: '#D97706' }]}>⏳ {t('common.offline', 'Pending Sync')}</Text>
                 </View>
               )}
             </View>
 
-            <Text style={styles.tagText}>🏷️ Tag ID: {item.tagId}</Text>
+            <Text style={styles.tagText}>🏷️ {t('farmer.tag', 'Tag ID: {tag}', { tag: item.tagId })}</Text>
             <Text style={styles.metaText}>
-              {item.species} • {item.breed} • {item.age} yrs • {item.gender}
+              {t(`farmer.${item.species.toLowerCase()}`, item.species)} • {item.breed} • {t('farmer.ageYears', '{age} yrs', { age: item.age })} • {item.gender}
             </Text>
 
             {item.milkYieldDaily && item.milkYieldDaily !== 'N/A' && (
@@ -158,9 +160,9 @@ export default function FarmerAnimalsScreen() {
       <View style={styles.topControlSection}>
         <View style={styles.headerBar}>
           <View>
-            <Text style={styles.headerTitle}>Livestock Inventory</Text>
+            <Text style={styles.headerTitle}>{t('nav.myLivestock', 'Livestock Inventory')}</Text>
             <Text style={styles.headerSub}>
-              {animals.length} {animals.length === 1 ? 'animal' : 'animals'} registered in herd
+              {t('farmer.registeredAnimals', '{count} registered in herd', { count: animals.length })}
             </Text>
           </View>
 
@@ -169,7 +171,7 @@ export default function FarmerAnimalsScreen() {
             onPress={() => router.push('/(farmer)/animals/add')}
             activeOpacity={0.8}
           >
-            <Text style={styles.addButtonText}>+ Add Animal</Text>
+            <Text style={styles.addButtonText}>{t('farmer.addAnimal', '+ Add Animal')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -178,7 +180,7 @@ export default function FarmerAnimalsScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by tag, name, or breed..."
+            placeholder={t('common.search', 'Search by tag, name, or breed...')}
             placeholderTextColor={colors.light.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -200,13 +202,14 @@ export default function FarmerAnimalsScreen() {
           contentContainerStyle={styles.speciesList}
           renderItem={({ item }) => {
             const isSelected = selectedSpecies === item;
+            const label = item === 'All' ? t('common.all', 'All') : `${getSpeciesEmoji(item)} ${t(`farmer.${item.toLowerCase()}`, item)}`;
             return (
               <TouchableOpacity
                 style={[styles.filterChip, isSelected && styles.filterChipSelected]}
                 onPress={() => setSelectedSpecies(item)}
               >
                 <Text style={[styles.filterChipText, isSelected && styles.filterChipTextSelected]}>
-                  {item === 'All' ? 'All' : `${getSpeciesEmoji(item)} ${item}`}
+                  {label}
                 </Text>
               </TouchableOpacity>
             );
@@ -219,7 +222,7 @@ export default function FarmerAnimalsScreen() {
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{errorMessage}</Text>
           <TouchableOpacity onPress={fetchAnimals} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -228,7 +231,7 @@ export default function FarmerAnimalsScreen() {
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading livestock herd...</Text>
+          <Text style={styles.loadingText}>{t('farmer.loadingRecords', 'Loading livestock herd...')}</Text>
         </View>
       ) : (
         <FlatList
@@ -248,15 +251,15 @@ export default function FarmerAnimalsScreen() {
             animals.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyEmoji}>🐄</Text>
-                <Text style={styles.emptyTitle}>No Animals Registered Yet</Text>
+                <Text style={styles.emptyTitle}>{t('farmer.noAnimalsYet', 'No Animals Registered Yet')}</Text>
                 <Text style={styles.emptySubtitle}>
-                  Add your cows, buffaloes, goats, or sheep to maintain medical records, receive vaccination reminders, and screen symptoms.
+                  {t('farmer.noAnimalsDesc', 'Add your cows, buffaloes, goats, or sheep to maintain medical records, receive vaccination reminders, and screen symptoms.')}
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyAddBtn}
                   onPress={() => router.push('/(farmer)/animals/add')}
                 >
-                  <Text style={styles.emptyAddBtnText}>+ Register First Animal</Text>
+                  <Text style={styles.emptyAddBtnText}>{t('farmer.registerFirstAnimal', '+ Register First Animal')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (

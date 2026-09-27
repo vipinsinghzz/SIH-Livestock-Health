@@ -24,6 +24,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import animalService from '../../../src/services/animalService';
 import kisanSaathiService from '../../../src/services/kisanSaathiService';
@@ -69,10 +70,13 @@ const PLACEHOLDER_TEXT: Record<KisanSaathiLanguage, string> = {
 
 export default function KisanSaathiScreen() {
   const { user } = useAuth();
+  const { language: globalLang, changeLanguage: setGlobalLanguage, t } = useAppLanguage();
 
-  // Language State (Defaults to user preference if available, else 'en')
+  // Language State (Defaults to global app language if valid, else user preference or 'en')
   const defaultLang: KisanSaathiLanguage =
-    user?.preferredLanguage === 'hi' || user?.preferredLanguage === 'mr'
+    globalLang === 'hi' || globalLang === 'mr'
+      ? globalLang
+      : user?.preferredLanguage === 'hi' || user?.preferredLanguage === 'mr'
       ? (user.preferredLanguage as KisanSaathiLanguage)
       : 'en';
 
@@ -129,6 +133,7 @@ export default function KisanSaathiScreen() {
   // When language changes, update greeting if no conversation has occurred yet
   const handleLanguageChange = (newLang: KisanSaathiLanguage) => {
     setLanguage(newLang);
+    setGlobalLanguage(newLang);
     setMessages((prev) => {
       if (prev.length === 1 && prev[0].sender === 'saathi') {
         return [
@@ -145,6 +150,14 @@ export default function KisanSaathiScreen() {
       return prev;
     });
   };
+
+  useEffect(() => {
+    if (globalLang && (globalLang === 'en' || globalLang === 'hi' || globalLang === 'mr')) {
+      if (globalLang !== language) {
+        handleLanguageChange(globalLang as KisanSaathiLanguage);
+      }
+    }
+  }, [globalLang]);
 
   // Scroll to latest message
   const scrollToBottom = () => {

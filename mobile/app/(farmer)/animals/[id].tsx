@@ -17,6 +17,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import animalService from '../../../src/services/animalService';
 import { Animal, TimelineEvent, VaccinationRecord, TreatmentRecord } from '../../../src/types/animal';
@@ -26,6 +27,7 @@ type ActiveTab = 'overview' | 'timeline' | 'vaccines' | 'treatments';
 export default function AnimalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useAppLanguage();
 
   const [animal, setAnimal] = useState<Animal | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
@@ -78,13 +80,13 @@ export default function AnimalDetailScreen() {
   const getHealthBadge = (status?: string) => {
     switch (status) {
       case 'Healthy':
-        return { bg: colors.light.successBg, text: colors.light.success, label: 'Healthy' };
+        return { bg: colors.light.successBg, text: colors.light.success, label: t('farmer.healthy', 'Healthy') };
       case 'Needs Attention':
-        return { bg: colors.light.warningBg, text: colors.light.warning, label: 'Needs Attention' };
+        return { bg: colors.light.warningBg, text: colors.light.warning, label: t('farmer.attention', 'Needs Attention') };
       case 'Critical':
-        return { bg: colors.light.dangerBg, text: colors.light.danger, label: 'Critical' };
+        return { bg: colors.light.dangerBg, text: colors.light.danger, label: t('farmer.critical', 'Critical') };
       default:
-        return { bg: colors.light.surfaceAlt, text: colors.light.textSecondary, label: status || 'Unknown' };
+        return { bg: colors.light.surfaceAlt, text: colors.light.textSecondary, label: status || t('common.unknown', 'Unknown') };
     }
   };
 
@@ -92,7 +94,7 @@ export default function AnimalDetailScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.light.primary} />
-        <Text style={styles.loadingText}>Loading animal health record...</Text>
+        <Text style={styles.loadingText}>{t('farmer.loadingRecords', 'Loading animal health record...')}</Text>
       </View>
     );
   }
@@ -101,15 +103,15 @@ export default function AnimalDetailScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorTitle}>Profile Not Found</Text>
+        <Text style={styles.errorTitle}>{t('common.error', 'Profile Not Found')}</Text>
         <Text style={styles.errorSub}>
-          {errorMessage || 'The requested animal profile could not be loaded.'}
+          {errorMessage || t('common.offline', 'The requested animal profile could not be loaded.')}
         </Text>
         <TouchableOpacity style={styles.retryBtn} onPress={fetchAnimal}>
-          <Text style={styles.retryBtnText}>Retry Loading</Text>
+          <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back to Herd</Text>
+          <Text style={styles.backBtnText}>{t('common.back', 'Go Back to Herd')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -166,20 +168,20 @@ export default function AnimalDetailScreen() {
 
         <View style={styles.specRow}>
           <View style={styles.specItem}>
-            <Text style={styles.specLabel}>Species</Text>
-            <Text style={styles.specValue}>{animal.species}</Text>
+            <Text style={styles.specLabel}>{t('farmer.species', 'Species')}</Text>
+            <Text style={styles.specValue}>{t(`farmer.${animal.species.toLowerCase()}`, animal.species)}</Text>
           </View>
           <View style={styles.specItem}>
-            <Text style={styles.specLabel}>Breed</Text>
-            <Text style={styles.specValue}>{animal.breed || 'Not specified'}</Text>
+            <Text style={styles.specLabel}>{t('farmer.breed', 'Breed')}</Text>
+            <Text style={styles.specValue}>{animal.breed || t('common.unknown', 'Not specified')}</Text>
           </View>
           <View style={styles.specItem}>
-            <Text style={styles.specLabel}>Age</Text>
-            <Text style={styles.specValue}>{animal.age} Years</Text>
+            <Text style={styles.specLabel}>{t('farmer.age', 'Age')}</Text>
+            <Text style={styles.specValue}>{t('farmer.ageYears', '{age} Years', { age: animal.age })}</Text>
           </View>
           <View style={styles.specItem}>
-            <Text style={styles.specLabel}>Gender</Text>
-            <Text style={styles.specValue}>{animal.gender}</Text>
+            <Text style={styles.specLabel}>{t('farmer.gender', 'Gender')}</Text>
+            <Text style={styles.specValue}>{animal.gender === 'Female' ? t('farmer.female', 'Female') : t('farmer.male', 'Male')}</Text>
           </View>
         </View>
 
@@ -196,7 +198,7 @@ export default function AnimalDetailScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.actionBtnIcon}>📷</Text>
-            <Text style={styles.actionBtnScanText}>AI Disease Scan</Text>
+            <Text style={styles.actionBtnScanText}>{t('farmer.aiDiseaseScan', 'AI Disease Scan')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -205,7 +207,7 @@ export default function AnimalDetailScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.actionBtnIcon}>✏️</Text>
-            <Text style={styles.actionBtnEditText}>Edit Animal</Text>
+            <Text style={styles.actionBtnEditText}>{t('common.edit', 'Edit Animal')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -217,7 +219,7 @@ export default function AnimalDetailScreen() {
           onPress={() => setActiveTab('overview')}
         >
           <Text style={[styles.tabText, activeTab === 'overview' && styles.tabTextActive]}>
-            Overview
+            {t('common.details', 'Overview')}
           </Text>
         </TouchableOpacity>
 
@@ -226,7 +228,7 @@ export default function AnimalDetailScreen() {
           onPress={() => setActiveTab('timeline')}
         >
           <Text style={[styles.tabText, activeTab === 'timeline' && styles.tabTextActive]}>
-            Timeline ({timeline.length})
+            {t('nav.farmerHome', 'Timeline')} ({timeline.length})
           </Text>
         </TouchableOpacity>
 
@@ -235,7 +237,7 @@ export default function AnimalDetailScreen() {
           onPress={() => setActiveTab('vaccines')}
         >
           <Text style={[styles.tabText, activeTab === 'vaccines' && styles.tabTextActive]}>
-            Vaccines ({vaccinations.length})
+            {t('farmer.vaccines', 'Vaccines')} ({vaccinations.length})
           </Text>
         </TouchableOpacity>
 
@@ -244,7 +246,7 @@ export default function AnimalDetailScreen() {
           onPress={() => setActiveTab('treatments')}
         >
           <Text style={[styles.tabText, activeTab === 'treatments' && styles.tabTextActive]}>
-            Treatments ({treatments.length})
+            {t('farmer.services', 'Treatments')} ({treatments.length})
           </Text>
         </TouchableOpacity>
       </View>

@@ -8,9 +8,12 @@ import { Stack } from 'expo-router';
 import { colors } from '../../src/theme';
 import { RouteErrorBoundary } from '../../src/components/RouteErrorBoundary';
 
+import { useAppLanguage } from '../../src/services/i18n';
+
 export const ErrorBoundary = RouteErrorBoundary;
 
 export default function FarmerLayout() {
+  const { t } = useAppLanguage();
   return (
     <Stack
       screenOptions={{
@@ -30,85 +33,85 @@ export default function FarmerLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Farmer Home',
+          title: t('nav.farmerHome'),
         }}
       />
       <Stack.Screen
         name="animals/index"
         options={{
-          title: 'My Livestock',
+          title: t('nav.myLivestock'),
         }}
       />
       <Stack.Screen
         name="animals/add"
         options={{
-          title: 'Register Animal',
+          title: t('nav.registerAnimal'),
         }}
       />
       <Stack.Screen
         name="animals/[id]"
         options={{
-          title: 'Animal Profile',
+          title: t('nav.animalProfile'),
         }}
       />
       <Stack.Screen
         name="animals/edit/[id]"
         options={{
-          title: 'Edit Animal',
+          title: t('nav.editAnimal'),
         }}
       />
       <Stack.Screen
         name="cases/index"
         options={{
-          title: 'Health Cases',
+          title: t('nav.healthCases'),
         }}
       />
       <Stack.Screen
         name="cases/[id]"
         options={{
-          title: 'Case Details',
+          title: t('nav.caseDetails'),
         }}
       />
       <Stack.Screen
         name="ai-scan/index"
         options={{
-          title: 'AI Disease Screening',
+          title: t('nav.aiDiseaseScreening'),
         }}
       />
       <Stack.Screen
         name="ai-scan/result"
         options={{
-          title: 'Screening Result',
+          title: t('nav.screeningResult'),
         }}
       />
       <Stack.Screen
         name="vaccination/index"
         options={{
-          title: 'Vaccination Schedules',
+          title: t('nav.vaccinationSchedules'),
         }}
       />
       <Stack.Screen
         name="notifications/index"
         options={{
-          title: 'Alerts & Advisories',
+          title: t('nav.alertsAdvisories'),
         }}
       />
       <Stack.Screen
         name="kisan-saathi/index"
         options={{
-          title: 'Kisan Saathi AI Chat',
+          title: t('nav.kisanSaathi'),
         }}
       />
       <Stack.Screen
         name="map/index"
         options={{
-          title: 'Nearby Veterinarians',
+          title: t('nav.nearbyVets'),
         }}
       />
       <Stack.Screen
         name="profile/index"
         options={{
-          title: 'Profile & Settings',
+          title: t('nav.profileSettings'),
         }}
       />
     </Stack>

@@ -19,6 +19,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
 import { caseService } from '../../../src/services/caseService';
 import {
@@ -29,18 +30,9 @@ import {
   getRiskTheme,
 } from '../../../src/types/case';
 
-const FILTER_OPTIONS: { key: CaseFilter; label: string }[] = [
-  { key: 'All', label: 'All Cases' },
-  { key: 'New', label: 'New' },
-  { key: 'Investigating', label: 'Investigating' },
-  { key: 'Confirmed', label: 'Confirmed' },
-  { key: 'Containment', label: 'Containment' },
-  { key: 'Resolved', label: 'Resolved' },
-  { key: 'HighRisk', label: '⚠️ High Risk' },
-];
-
 export default function FarmerCasesScreen() {
   const router = useRouter();
+  const { t } = useAppLanguage();
 
   const [cases, setCases] = useState<DiseaseCase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +41,16 @@ export default function FarmerCasesScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<CaseFilter>('All');
+
+  const filterOptions = useMemo((): { key: CaseFilter; label: string }[] => [
+    { key: 'All', label: t('cases.allCases', 'All Cases') },
+    { key: 'New', label: t('cases.new', 'New') },
+    { key: 'Investigating', label: t('cases.investigating', 'Investigating') },
+    { key: 'Confirmed', label: t('cases.confirmed', 'Confirmed') },
+    { key: 'Containment', label: t('cases.containment', 'Containment') },
+    { key: 'Resolved', label: t('cases.resolved', 'Resolved') },
+    { key: 'HighRisk', label: `⚠️ ${t('cases.highRisk', 'High Risk')}` },
+  ], [t]);
 
   const loadCases = useCallback(async (isPullToRefresh = false) => {
     try {
@@ -217,14 +219,14 @@ export default function FarmerCasesScreen() {
             <View style={styles.vetAssignedBox}>
               <Text style={styles.vetAssignedIcon}>👨‍⚕️</Text>
               <Text style={styles.vetAssignedText} numberOfLines={1}>
-                Assigned: {item.assignedVetId.name}
+                {t('cases.assignedVet', 'Assigned: {name}', { name: item.assignedVetId.name })}
               </Text>
             </View>
           ) : (
             <View style={styles.vetPendingBox}>
               <Text style={styles.vetPendingIcon}>⏳</Text>
               <Text style={styles.vetPendingText} numberOfLines={1}>
-                Referral Pending • Dispatched to District Vets
+                {t('cases.requestReferral', 'Referral Pending • Dispatched to District Vets')}
               </Text>
             </View>
           )}
@@ -244,7 +246,7 @@ export default function FarmerCasesScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by case ID, disease, animal, or tag..."
+            placeholder={t('common.search', 'Search by case ID, disease, animal, or tag...')}
             placeholderTextColor={colors.light.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -261,7 +263,7 @@ export default function FarmerCasesScreen() {
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={FILTER_OPTIONS}
+          data={filterOptions}
           keyExtractor={(item) => item.key}
           contentContainerStyle={styles.filterListContainer}
           renderItem={({ item }) => {
@@ -285,38 +287,38 @@ export default function FarmerCasesScreen() {
       {loading && !refreshing ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading clinical cases...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading clinical cases...')}</Text>
         </View>
       ) : errorMessage ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Notice</Text>
+          <Text style={styles.errorTitle}>{t('common.error', 'Notice')}</Text>
           <Text style={styles.errorText}>{errorMessage}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadCases()} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>🔄 Retry</Text>
+            <Text style={styles.retryBtnText}>🔄 {t('common.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : cases.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyEmoji}>📋</Text>
-          <Text style={styles.emptyTitle}>No Disease Cases Yet</Text>
+          <Text style={styles.emptyTitle}>{t('farmer.noCasesYet', 'No Disease Cases Yet')}</Text>
           <Text style={styles.emptySub}>
-            You have not registered any veterinary referral cases. Screen your livestock with AI to detect health conditions early.
+            {t('farmer.noAnimalsDesc', 'You have not registered any veterinary referral cases. Screen your livestock with AI to detect health conditions early.')}
           </Text>
           <TouchableOpacity
             style={styles.primaryActionBtn}
             onPress={() => router.push('/(farmer)/ai-scan' as any)}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryActionBtnText}>📷 Start AI Screening</Text>
+            <Text style={styles.primaryActionBtnText}>📷 {t('farmer.aiDiseaseScan', 'Start AI Screening')}</Text>
           </TouchableOpacity>
         </View>
       ) : filteredCases.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyEmoji}>🔍</Text>
-          <Text style={styles.emptyTitle}>No Matching Cases Found</Text>
+          <Text style={styles.emptyTitle}>{t('common.noData', 'No Matching Cases Found')}</Text>
           <Text style={styles.emptySub}>
-            No cases matched your filter and search criteria.
+            {t('common.search', 'No cases matched your filter and search criteria.')}
           </Text>
           <TouchableOpacity
             style={styles.secondaryActionBtn}
@@ -326,7 +328,7 @@ export default function FarmerCasesScreen() {
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.secondaryActionBtnText}>Clear Filters</Text>
+            <Text style={styles.secondaryActionBtnText}>{t('common.clear', 'Clear Filters')}</Text>
           </TouchableOpacity>
         </View>
       ) : (

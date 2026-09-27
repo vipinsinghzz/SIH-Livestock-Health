@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { colors, typography, spacing, radii, shadows } from '../theme';
 
+import { useAppLanguage } from '../services/i18n';
+
 interface PlaceholderScreenProps {
   title: string;
   role: 'farmer' | 'vet' | 'officer' | 'auth' | 'common';
@@ -29,6 +31,7 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
 }) => {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { t } = useAppLanguage();
 
   const getRoleBadgeStyle = () => {
     switch (role) {
@@ -61,7 +64,7 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
           </View>
           {user ? (
             <TouchableOpacity onPress={handleLogout} style={styles.logoutPill}>
-              <Text style={styles.logoutPillText}>Sign Out</Text>
+              <Text style={styles.logoutPillText}>{t('common.signOut')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -96,7 +99,7 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
             activeOpacity={0.8}
           >
-            <Text style={styles.backButtonText}>← Go Back</Text>
+            <Text style={styles.backButtonText}>{t('common.goBack')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -104,7 +107,7 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
             onPress={() => router.replace('/')}
             activeOpacity={0.8}
           >
-            <Text style={styles.homeButtonText}>Home Launcher</Text>
+            <Text style={styles.homeButtonText}>{t('common.homeLauncher')}</Text>
           </TouchableOpacity>
         </View>
       </View>

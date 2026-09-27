@@ -13,6 +13,7 @@ import { OfflineNotice } from '../src/components/OfflineNotice';
 import { colors, typography, spacing, radii, shadows } from '../src/theme';
 
 import { RouteErrorBoundary } from '../src/components/RouteErrorBoundary';
+import { t } from '../src/services/i18n';
 
 export const ErrorBoundary = RouteErrorBoundary;
 
@@ -156,8 +157,8 @@ function NavigationGuard() {
           <View style={styles.logoBadge}>
             <Text style={styles.logoIcon}>🐄</Text>
           </View>
-          <Text style={styles.splashTitle}>Livestock Saathi</Text>
-          <Text style={styles.splashSubtitle}>Restoring Secure Session...</Text>
+          <Text style={styles.splashTitle}>{t('common.appTitle')}</Text>
+          <Text style={styles.splashSubtitle}>{t('common.loading')}</Text>
           <ActivityIndicator size="large" color={colors.light.textInverse} style={styles.splashSpinner} />
         </View>
       )}
@@ -180,7 +181,7 @@ function NavigationGuard() {
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.errorLogoutBtnText}>Sign Out & Switch Account</Text>
+              <Text style={styles.errorLogoutBtnText}>{t('common.signOut')}</Text>
             </TouchableOpacity>
           </View>
         </View>

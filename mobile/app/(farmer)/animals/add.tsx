@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import animalService from '../../../src/services/animalService';
 import { AnimalSpecies, AnimalGender, AnimalHealthStatus } from '../../../src/types/animal';
@@ -40,6 +41,7 @@ const HEALTH_STATUSES: AnimalHealthStatus[] = ['Healthy', 'Needs Attention', 'Cr
 export default function AddAnimalScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [species, setSpecies] = useState<AnimalSpecies>('Cattle');
   const [tagId, setTagId] = useState('');
@@ -117,9 +119,9 @@ export default function AddAnimalScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Register Livestock</Text>
+        <Text style={styles.title}>{t('nav.registerAnimal', 'Register Livestock')}</Text>
         <Text style={styles.subtitle}>
-          Add animal credentials, RFID tag, breed, and health baseline to your digital herd.
+          {t('farmer.registerLivestock', 'Add animal credentials, RFID tag, breed, and health baseline to your digital herd.')}
         </Text>
       </View>
 
@@ -132,7 +134,7 @@ export default function AddAnimalScreen() {
       {/* Species Selector */}
       <View style={styles.formGroup}>
         <Text style={styles.label}>
-          Animal Species <Text style={styles.requiredStar}>*</Text>
+          {t('farmer.species', 'Animal Species')} <Text style={styles.requiredStar}>*</Text>
         </Text>
         <View style={styles.chipRow}>
           {SPECIES_LIST.map((item) => {
@@ -146,7 +148,7 @@ export default function AddAnimalScreen() {
                 }}
               >
                 <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                  {item}
+                  {t(`farmer.${item.toLowerCase()}`, item)}
                 </Text>
               </TouchableOpacity>
             );
@@ -156,23 +158,23 @@ export default function AddAnimalScreen() {
 
       {/* Tag ID (RFID / Govt Tag) */}
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Tag ID / RFID (Optional)</Text>
+        <Text style={styles.label}>{t('farmer.tagId', 'Tag ID / RFID (Optional)')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. MH-12-P-4821 (Leave blank to auto-generate)"
+          placeholder="e.g. MH-12-P-4821"
           placeholderTextColor={colors.light.textMuted}
           value={tagId}
           onChangeText={setTagId}
           autoCapitalize="characters"
         />
         <Text style={styles.helperText}>
-          If you have a 12-digit INAPH ear tag or RFID chip, enter it here.
+          {t('farmer.tagId', 'If you have a 12-digit INAPH ear tag or RFID chip, enter it here.')}
         </Text>
       </View>
 
       {/* Animal Name */}
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Animal Name</Text>
+        <Text style={styles.label}>{t('farmer.animalName', 'Animal Name')}</Text>
         <TextInput
           style={styles.input}
           placeholder="e.g. Lakshmi, Gauri, Raja"
@@ -184,10 +186,10 @@ export default function AddAnimalScreen() {
 
       {/* Breed */}
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Breed</Text>
+        <Text style={styles.label}>{t('farmer.breed', 'Breed')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. Gir, Murrah, Sahiwal, Osmanabadi"
+          placeholder="e.g. Gir, Murrah, Sahiwal"
           placeholderTextColor={colors.light.textMuted}
           value={breed}
           onChangeText={setBreed}
@@ -197,7 +199,7 @@ export default function AddAnimalScreen() {
       {/* Two column: Age & Gender */}
       <View style={styles.row}>
         <View style={[styles.formGroup, styles.flex1]}>
-          <Text style={styles.label}>Age (Years)</Text>
+          <Text style={styles.label}>{t('farmer.age', 'Age (Years)')}</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. 3"
@@ -209,7 +211,7 @@ export default function AddAnimalScreen() {
         </View>
 
         <View style={[styles.formGroup, styles.flex1]}>
-          <Text style={styles.label}>Gender</Text>
+          <Text style={styles.label}>{t('farmer.gender', 'Gender')}</Text>
           <View style={styles.genderRow}>
             {GENDERS.map((g) => {
               const isSelected = gender === g;
@@ -220,7 +222,7 @@ export default function AddAnimalScreen() {
                   onPress={() => setGender(g)}
                 >
                   <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                    {g}
+                    {g === 'Female' ? t('farmer.female', 'Female') : t('farmer.male', 'Male')}
                   </Text>
                 </TouchableOpacity>
               );
@@ -231,13 +233,20 @@ export default function AddAnimalScreen() {
 
       {/* Health Status */}
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Initial Health Status</Text>
+        <Text style={styles.label}>{t('common.status', 'Initial Health Status')}</Text>
         <View style={styles.statusRow}>
           {HEALTH_STATUSES.map((status) => {
             const isSelected = healthStatus === status;
             let activeColor: string = colors.light.primary;
             if (status === 'Needs Attention') activeColor = colors.light.warning;
             if (status === 'Critical') activeColor = colors.light.danger;
+
+            const statusLabel =
+              status === 'Healthy'
+                ? t('farmer.healthy', 'Healthy')
+                : status === 'Needs Attention'
+                ? t('farmer.attention', 'Attention')
+                : t('farmer.critical', 'Critical');
 
             return (
               <TouchableOpacity
@@ -254,7 +263,7 @@ export default function AddAnimalScreen() {
                     isSelected && { color: colors.light.textInverse },
                   ]}
                 >
-                  {status}
+                  {statusLabel}
                 </Text>
               </TouchableOpacity>
             );
@@ -264,10 +273,10 @@ export default function AddAnimalScreen() {
 
       {/* Daily Milk Yield */}
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Daily Milk Yield (Optional)</Text>
+        <Text style={styles.label}>{t('farmer.milkYield', 'Daily Milk Yield (Optional)')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. 12.0 L or N/A"
+          placeholder="e.g. 12.0 L"
           placeholderTextColor={colors.light.textMuted}
           value={milkYieldDaily}
           onChangeText={setMilkYieldDaily}
@@ -276,15 +285,15 @@ export default function AddAnimalScreen() {
 
       {/* Location (Village, Block, District) */}
       <View style={styles.sectionDivider}>
-        <Text style={styles.sectionDividerTitle}>Location Details</Text>
+        <Text style={styles.sectionDividerTitle}>{t('cases.location', 'Location Details')}</Text>
       </View>
 
       <View style={styles.row}>
         <View style={[styles.formGroup, styles.flex1]}>
-          <Text style={styles.label}>Village</Text>
+          <Text style={styles.label}>{t('farmer.village', 'Village')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Village name"
+            placeholder={t('farmer.village', 'Village name')}
             placeholderTextColor={colors.light.textMuted}
             value={village}
             onChangeText={setVillage}
@@ -292,10 +301,10 @@ export default function AddAnimalScreen() {
         </View>
 
         <View style={[styles.formGroup, styles.flex1]}>
-          <Text style={styles.label}>Block / Taluka</Text>
+          <Text style={styles.label}>{t('farmer.block', 'Block / Taluka')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Block name"
+            placeholder={t('farmer.block', 'Block name')}
             placeholderTextColor={colors.light.textMuted}
             value={block}
             onChangeText={setBlock}
@@ -304,10 +313,10 @@ export default function AddAnimalScreen() {
       </View>
 
       <View style={styles.formGroup}>
-        <Text style={styles.label}>District</Text>
+        <Text style={styles.label}>{t('farmer.district', 'District')}</Text>
         <TextInput
           style={styles.input}
-          placeholder="District name"
+          placeholder={t('farmer.district', 'District name')}
           placeholderTextColor={colors.light.textMuted}
           value={district}
           onChangeText={setDistrict}
@@ -324,7 +333,7 @@ export default function AddAnimalScreen() {
         {loading ? (
           <ActivityIndicator color={colors.light.textInverse} />
         ) : (
-          <Text style={styles.submitButtonText}>Register Animal to Herd</Text>
+          <Text style={styles.submitButtonText}>{t('common.save', 'Register Animal to Herd')}</Text>
         )}
       </TouchableOpacity>
     </ScrollView>

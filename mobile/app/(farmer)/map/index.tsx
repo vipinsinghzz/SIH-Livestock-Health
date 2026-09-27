@@ -27,12 +27,14 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
 import { mapService, DEFAULT_MAHARASHTRA_CENTER } from '../../../src/services/mapService';
 import { VeterinaryFacilityMarker } from '../../../src/types/map';
 
 export default function NearbyVeterinariansScreen() {
   const router = useRouter();
+  const { t } = useAppLanguage();
 
   // Coordinates & Permission State
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -200,7 +202,7 @@ export default function NearbyVeterinariansScreen() {
                 onPress={requestLocationAndFetch}
                 activeOpacity={0.8}
               >
-                <Text style={styles.tryAgainButtonText}>Try Again</Text>
+                <Text style={styles.tryAgainButtonText}>{t('common.retry', 'Try Again')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -217,7 +219,7 @@ export default function NearbyVeterinariansScreen() {
         {loading && !refreshing && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.light.primary} />
-            <Text style={styles.loadingText}>Locating nearest veterinarians...</Text>
+            <Text style={styles.loadingText}>{t('common.loading', 'Locating nearest veterinarians...')}</Text>
           </View>
         )}
 

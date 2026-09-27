@@ -21,6 +21,7 @@ import {
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage, SUPPORTED_LANGUAGES } from '../../../src/services/i18n';
 import animalService from '../../../src/services/animalService';
 import caseService from '../../../src/services/caseService';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
@@ -28,6 +29,7 @@ import { colors, typography, spacing, radii, shadows } from '../../../src/theme'
 export default function FarmerProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { language, changeLanguage, t } = useAppLanguage();
 
   const [herdStats, setHerdStats] = useState<{
     totalAnimals: number;
@@ -97,12 +99,12 @@ export default function FarmerProfileScreen() {
 
   const handleSignOut = () => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
+      t('common.logOut', 'Sign Out'),
+      t('profile.signOutConfirm', 'Are you sure you want to sign out?'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: t('common.logOut', 'Sign Out'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -117,7 +119,7 @@ export default function FarmerProfileScreen() {
     );
   };
 
-  const farmerRoleDisplay = user?.role === 'farmer' ? 'Farmer' : user?.role || 'Farmer';
+  const farmerRoleDisplay = user?.role === 'farmer' ? t('auth.farmer', 'Farmer') : user?.role || t('auth.farmer', 'Farmer');
 
   return (
     <ScrollView
@@ -140,7 +142,7 @@ export default function FarmerProfileScreen() {
           </Text>
         </View>
 
-        <Text style={styles.userName}>{user?.name || 'Farmer User'}</Text>
+        <Text style={styles.userName}>{user?.name || t('auth.farmer', 'Farmer User')}</Text>
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>🌱 {farmerRoleDisplay}</Text>
         </View>
@@ -148,73 +150,73 @@ export default function FarmerProfileScreen() {
 
       {/* Account & Location Details Section */}
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Profile Details</Text>
+        <Text style={styles.sectionTitle}>{t('profile.accountProfile', 'Profile Details')}</Text>
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Full Name</Text>
-          <Text style={styles.detailValue}>{user?.name || 'Not available'}</Text>
+          <Text style={styles.detailLabel}>{t('auth.fullName', 'Full Name')}</Text>
+          <Text style={styles.detailValue}>{user?.name || t('common.unknown', 'Not available')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Mobile Phone</Text>
-          <Text style={styles.detailValue}>{user?.phone || 'Not available'}</Text>
+          <Text style={styles.detailLabel}>{t('auth.phone', 'Mobile Phone')}</Text>
+          <Text style={styles.detailValue}>{user?.phone || t('common.unknown', 'Not available')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Email</Text>
-          <Text style={styles.detailValue} numberOfLines={1}>{user?.email || 'Not available'}</Text>
+          <Text style={styles.detailLabel}>{t('auth.email', 'Email')}</Text>
+          <Text style={styles.detailValue} numberOfLines={1}>{user?.email || t('common.unknown', 'Not available')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Village</Text>
-          <Text style={styles.detailValue}>{user?.village || 'Not specified'}</Text>
+          <Text style={styles.detailLabel}>{t('auth.village', 'Village')}</Text>
+          <Text style={styles.detailValue}>{user?.village || t('common.notSpecified', 'Not specified')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Block / Tehsil</Text>
-          <Text style={styles.detailValue}>{user?.block || 'Not specified'}</Text>
+          <Text style={styles.detailLabel}>{t('profile.block', 'Block / Tehsil')}</Text>
+          <Text style={styles.detailValue}>{user?.block || t('common.notSpecified', 'Not specified')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>District</Text>
-          <Text style={styles.detailValue}>{user?.district || 'Not specified'}</Text>
+          <Text style={styles.detailLabel}>{t('profile.district', 'District')}</Text>
+          <Text style={styles.detailValue}>{user?.district || t('common.notSpecified', 'Not specified')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>State</Text>
-          <Text style={styles.detailValue}>{user?.state || 'Not specified'}</Text>
+          <Text style={styles.detailLabel}>{t('profile.state', 'State')}</Text>
+          <Text style={styles.detailValue}>{user?.state || t('common.notSpecified', 'Not specified')}</Text>
         </View>
       </View>
 
       {/* Herd Summary Card */}
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Herd Summary</Text>
+        <Text style={styles.sectionTitle}>{t('profile.herdSummary', 'Herd Summary')}</Text>
         <Text style={styles.sectionSub}>
-          Live status of your registered herd and recent health cases.
+          {t('profile.herdSummarySub', 'Live status of your registered herd and recent health cases.')}
         </Text>
 
         {statsLoading ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={colors.light.primary} />
-            <Text style={styles.loadingText}>Loading herd statistics...</Text>
+            <Text style={styles.loadingText}>{t('common.loading', 'Loading herd statistics...')}</Text>
           </View>
         ) : statsError ? (
           <View style={styles.statsErrorBox}>
             <Text style={styles.statsErrorText}>{statsError}</Text>
             <TouchableOpacity onPress={loadHerdSummary} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t('common.retry', 'Retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -222,8 +224,8 @@ export default function FarmerProfileScreen() {
             <View style={styles.statsGrid}>
               <View style={styles.statBox}>
                 <Text style={styles.statNumber}>{herdStats?.totalAnimals ?? '-'}</Text>
-                <Text style={styles.statLabel}>Total Animals</Text>
-                <Text style={styles.statSub}>Full registered herd</Text>
+                <Text style={styles.statLabel}>{t('farmer.totalHerd', 'Total Animals')}</Text>
+                <Text style={styles.statSub}>{t('farmer.registeredAnimals', 'Full registered herd')}</Text>
               </View>
 
               <View style={styles.statDivider} />
@@ -237,22 +239,19 @@ export default function FarmerProfileScreen() {
                 >
                   {herdStats?.activeCases ?? '-'}
                 </Text>
-                <Text style={styles.statLabel}>Active Cases</Text>
-                <Text style={styles.statSub}>Recent records (≤50)</Text>
+                <Text style={styles.statLabel}>{t('farmer.activeCases', 'Active Cases')}</Text>
+                <Text style={styles.statSub}>{t('farmer.inInvestigation', 'Recent records (≤50)')}</Text>
               </View>
             </View>
-            <Text style={styles.statsFootnote}>
-              * Total animals reflects your full registered herd. Active cases is calculated from your 50 most recent health records.
-            </Text>
           </>
         )}
       </View>
 
       {/* Emergency & Public Helplines */}
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Emergency & Public Helplines</Text>
+        <Text style={styles.sectionTitle}>{t('profile.emergencyHelplines', 'Emergency & Public Helplines')}</Text>
         <Text style={styles.sectionSub}>
-          Official government livestock and agricultural support lines.
+          {t('profile.emergencyHelplinesSub', 'Official government livestock and agricultural support lines.')}
         </Text>
 
         <TouchableOpacity
@@ -264,10 +263,10 @@ export default function FarmerProfileScreen() {
             <Text style={styles.helplineEmoji}>🚑</Text>
           </View>
           <View style={styles.helplineTextCol}>
-            <Text style={styles.helplineTitle}>Veterinary Emergency Helpline</Text>
-            <Text style={styles.helplineNumber}>1962 (Toll Free)</Text>
+            <Text style={styles.helplineTitle}>{t('profile.vetHelpline', 'Veterinary Emergency Helpline')}</Text>
+            <Text style={styles.helplineNumber}>{t('profile.vetHelplineNum', '1962 (Toll Free)')}</Text>
           </View>
-          <Text style={styles.callActionText}>Call</Text>
+          <Text style={styles.callActionText}>{t('common.call', 'Call')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -279,43 +278,73 @@ export default function FarmerProfileScreen() {
             <Text style={styles.helplineEmoji}>📞</Text>
           </View>
           <View style={styles.helplineTextCol}>
-            <Text style={styles.helplineTitle}>Kisan Call Center</Text>
-            <Text style={styles.helplineNumber}>1800-180-1551 (Toll Free)</Text>
+            <Text style={styles.helplineTitle}>{t('profile.kisanHelpline', 'Kisan Call Center')}</Text>
+            <Text style={styles.helplineNumber}>{t('profile.kisanHelplineNum', '1800-180-1551 (Toll Free)')}</Text>
           </View>
-          <Text style={styles.callActionText}>Call</Text>
+          <Text style={styles.callActionText}>{t('common.call', 'Call')}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Language / Settings Information */}
+      {/* App Language Selection Section */}
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Language</Text>
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoBannerText}>
-            English / Hindi / Marathi support is planned / currently limited
-          </Text>
+        <Text style={styles.sectionTitle}>{t('common.appLanguage', 'App Language')}</Text>
+        <Text style={styles.sectionSub}>
+          {t('common.selectLanguageSubtitle', 'Select your language for the entire mobile application')}
+        </Text>
+
+        <View style={styles.languageCardsContainer}>
+          {SUPPORTED_LANGUAGES.map((langOption) => {
+            const isSelected = language === langOption.code;
+            return (
+              <TouchableOpacity
+                key={langOption.code}
+                style={[
+                  styles.languageCard,
+                  isSelected && styles.languageCardSelected,
+                ]}
+                onPress={() => changeLanguage(langOption.code)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${langOption.label}`}
+              >
+                <Text style={styles.languageIcon}>{langOption.flagEmoji}</Text>
+                <View style={styles.languageInfo}>
+                  <Text style={[styles.languageNativeName, isSelected && styles.languageTextSelected]}>
+                    {langOption.nativeLabel}
+                  </Text>
+                  <Text style={styles.languageSubName}>
+                    {langOption.subLabel}
+                  </Text>
+                </View>
+                <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                  {isSelected ? <View style={styles.radioDot} /> : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
       {/* App Information */}
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>App Information</Text>
+        <Text style={styles.sectionTitle}>{t('profile.appInfo', 'App Information')}</Text>
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Application</Text>
+          <Text style={styles.detailLabel}>{t('profile.application', 'Application')}</Text>
           <Text style={styles.detailValue}>Livestock Saathi</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Platform</Text>
-          <Text style={styles.detailValue}>Android application</Text>
+          <Text style={styles.detailLabel}>{t('profile.platform', 'Platform')}</Text>
+          <Text style={styles.detailValue}>{t('profile.androidApp', 'Android application')}</Text>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Version</Text>
+          <Text style={styles.detailLabel}>{t('profile.version', 'Version')}</Text>
           <Text style={styles.detailValue}>v{appVersion}</Text>
         </View>
       </View>
@@ -326,7 +355,7 @@ export default function FarmerProfileScreen() {
         onPress={handleSignOut}
         activeOpacity={0.8}
       >
-        <Text style={styles.signOutButtonText}>Sign Out</Text>
+        <Text style={styles.signOutButtonText}>{t('common.logOut', 'Sign Out')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -537,17 +566,60 @@ const styles = StyleSheet.create({
     color: colors.light.primary,
     paddingHorizontal: spacing.sm,
   },
-  infoBanner: {
+  languageCardsContainer: {
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  languageCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.light.surfaceAlt,
     borderRadius: radii.md,
     padding: spacing.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.light.border,
   },
-  infoBannerText: {
-    fontSize: typography.sizes.sm,
+  languageCardSelected: {
+    borderColor: colors.light.primary,
+    backgroundColor: colors.light.primarySubtle,
+  },
+  languageIcon: {
+    fontSize: 24,
+    marginRight: spacing.md,
+  },
+  languageInfo: {
+    flex: 1,
+  },
+  languageNativeName: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+  },
+  languageSubName: {
+    fontSize: typography.sizes.xs,
     color: colors.light.textSecondary,
-    lineHeight: 20,
+    marginTop: 2,
+  },
+  languageTextSelected: {
+    color: colors.light.primaryDark,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.light.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleSelected: {
+    borderColor: colors.light.primary,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.light.primary,
   },
   signOutButton: {
     backgroundColor: colors.light.dangerBg,

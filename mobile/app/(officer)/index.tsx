@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
+import { useAppLanguage } from '../../src/services/i18n';
 import { officerService } from '../../src/services/officerService';
 import { DashboardSummary } from '../../src/types/officer';
 import { colors, typography, spacing, radii, shadows } from '../../src/theme';
@@ -26,6 +27,7 @@ import { colors, typography, spacing, radii, shadows } from '../../src/theme';
 export default function OfficerHomeScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { t } = useAppLanguage();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -113,12 +115,12 @@ export default function OfficerHomeScreen() {
         <View style={styles.headerTop}>
           <View style={styles.badgeRow}>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>OFFICER COMMAND CENTER</Text>
+              <Text style={styles.roleBadgeText}>{t('nav.officerCommand', 'OFFICER COMMAND CENTER')}</Text>
             </View>
             <View style={styles.pulseDot} />
           </View>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
-            <Text style={styles.logoutButtonText}>Sign Out</Text>
+            <Text style={styles.logoutButtonText}>{t('common.signOut', 'Sign Out')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -135,7 +137,7 @@ export default function OfficerHomeScreen() {
             style={styles.refreshIconBtn}
             disabled={loading || refreshing}
           >
-            <Text style={styles.refreshIconText}>🔄 Refresh</Text>
+            <Text style={styles.refreshIconText}>🔄 {t('common.refresh', 'Refresh')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -154,7 +156,7 @@ export default function OfficerHomeScreen() {
       {loading && !refreshing && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.light.officerBadge} />
-          <Text style={styles.loadingText}>Syncing Epidemiological Surveillance Metrics...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Syncing Epidemiological Surveillance Metrics...')}</Text>
         </View>
       )}
 
@@ -162,14 +164,14 @@ export default function OfficerHomeScreen() {
       {!loading && errorMessage && !summary && (
         <View style={styles.errorCard}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Surveillance Data Unavailable</Text>
+          <Text style={styles.errorTitle}>{t('common.error', 'Surveillance Data Unavailable')}</Text>
           <Text style={styles.errorMessage}>{errorMessage}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => loadDashboardData(selectedBlock, false)}
             activeOpacity={0.8}
           >
-            <Text style={styles.retryButtonText}>Retry Sync</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry', 'Retry Sync')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -239,14 +241,14 @@ export default function OfficerHomeScreen() {
           <View style={styles.kpiGrid}>
             {/* Total Reports */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>TOTAL REPORTS</Text>
+              <Text style={styles.kpiLabel}>{t('officer.totalReports', 'TOTAL REPORTS')}</Text>
               <Text style={styles.kpiValue}>{summary.totalReports}</Text>
               <Text style={styles.kpiSub}>Logged cases</Text>
             </View>
 
             {/* Active Cases */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>ACTIVE CASES</Text>
+              <Text style={styles.kpiLabel}>{t('farmer.activeCases', 'ACTIVE CASES')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.info }]}>
                 {summary.activeCases}
               </Text>
@@ -255,7 +257,7 @@ export default function OfficerHomeScreen() {
 
             {/* Livestock Mortalities */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>MORTALITIES</Text>
+              <Text style={styles.kpiLabel}>{t('officer.mortalities', 'MORTALITIES')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.danger }]}>
                 {summary.totalMortality}
               </Text>
@@ -266,7 +268,7 @@ export default function OfficerHomeScreen() {
 
             {/* Critical Triage */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>HIGH / CRITICAL</Text>
+              <Text style={styles.kpiLabel}>{t('officer.highRiskZones', 'HIGH / CRITICAL')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.warning }]}>
                 {(summary.triageMetrics?.criticalCount || 0) +
                   (summary.triageMetrics?.highCount || 0)}
@@ -276,7 +278,7 @@ export default function OfficerHomeScreen() {
 
             {/* Outbreaks */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>OUTBREAKS</Text>
+              <Text style={styles.kpiLabel}>{t('officer.activeOutbreaks', 'OUTBREAKS')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.danger }]}>
                 {summary.triageMetrics?.outbreakCount || 0}
               </Text>
@@ -285,7 +287,7 @@ export default function OfficerHomeScreen() {
 
             {/* Vaccination Coverage */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>VACCINATION</Text>
+              <Text style={styles.kpiLabel}>{t('officer.vaccinationCoverage', 'VACCINATION')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.success }]}>
                 {summary.vaccination?.coveragePct ?? 0}%
               </Text>
@@ -374,7 +376,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>📊</Text>
-              <Text style={styles.navTitle}>Epidemic Surveillance</Text>
+              <Text style={styles.navTitle}>{t('nav.surveillance', 'Epidemic Surveillance')}</Text>
               <Text style={styles.navDesc}>30-day epidemic curve, triage funnel, disease breakdown</Text>
             </TouchableOpacity>
 
@@ -384,7 +386,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>⚠️</Text>
-              <Text style={styles.navTitle}>Outbreak Alerts</Text>
+              <Text style={styles.navTitle}>{t('nav.outbreaks', 'Outbreak Alerts')}</Text>
               <Text style={styles.navDesc}>DBSCAN proximity clusters, threshold alarms, high-risk villages</Text>
             </TouchableOpacity>
 
@@ -394,7 +396,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>🛡️</Text>
-              <Text style={styles.navTitle}>Containment Zones</Text>
+              <Text style={styles.navTitle}>{t('nav.containmentZones', 'Containment Zones')}</Text>
               <Text style={styles.navDesc}>Quarantine buffers, movement restrictions, ring vaccination</Text>
             </TouchableOpacity>
 
@@ -404,7 +406,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>⛺</Text>
-              <Text style={styles.navTitle}>Mass Vaccination Camps</Text>
+              <Text style={styles.navTitle}>{t('nav.camps', 'Mass Vaccination Camps')}</Text>
               <Text style={styles.navDesc}>District camp scheduling, slot allocation, and logistics</Text>
             </TouchableOpacity>
 
@@ -414,7 +416,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>🗺️</Text>
-              <Text style={styles.navTitle}>District GIS Map</Text>
+              <Text style={styles.navTitle}>{t('nav.districtMap', 'District GIS Map')}</Text>
               <Text style={styles.navDesc}>High-density outbreak heatmaps and zone boundaries</Text>
             </TouchableOpacity>
 
@@ -424,7 +426,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>📢</Text>
-              <Text style={styles.navTitle}>Official Advisories</Text>
+              <Text style={styles.navTitle}>{t('nav.advisories', 'Official Advisories')}</Text>
               <Text style={styles.navDesc}>Biosecurity bulletins, emergency directives, and broadcasts</Text>
             </TouchableOpacity>
 
@@ -434,7 +436,7 @@ export default function OfficerHomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.navIcon}>📡</Text>
-              <Text style={styles.navTitle}>NADRES Forewarning</Text>
+              <Text style={styles.navTitle}>{t('nav.forewarning', 'NADRES Forewarning')}</Text>
               <Text style={styles.navDesc}>ICAR-NIVEDI early warnings, meteorological risk, and alerts</Text>
             </TouchableOpacity>
           </View>

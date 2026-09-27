@@ -8,9 +8,12 @@ import { Stack } from 'expo-router';
 import { colors } from '../../src/theme';
 import { RouteErrorBoundary } from '../../src/components/RouteErrorBoundary';
 
+import { useAppLanguage } from '../../src/services/i18n';
+
 export const ErrorBoundary = RouteErrorBoundary;
 
 export default function AuthLayout() {
+  const { t } = useAppLanguage();
   return (
     <Stack
       screenOptions={{
@@ -30,19 +33,19 @@ export default function AuthLayout() {
       <Stack.Screen
         name="login"
         options={{
-          title: 'Sign In',
+          title: t('common.signIn'),
         }}
       />
       <Stack.Screen
         name="register"
         options={{
-          title: 'Create Account',
+          title: t('common.createAccount'),
         }}
       />
       <Stack.Screen
         name="forgot-password"
         options={{
-          title: 'Password Recovery',
+          title: t('nav.passwordRecovery'),
         }}
       />
     </Stack>
