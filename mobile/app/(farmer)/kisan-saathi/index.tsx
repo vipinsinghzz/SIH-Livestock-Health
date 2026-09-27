@@ -336,7 +336,7 @@ export default function KisanSaathiScreen() {
         {/* Persistent Safety Disclaimer */}
         <View style={styles.disclaimerBanner}>
           <Text style={styles.disclaimerText}>
-            ⚠️ Kisan Saathi provides AI-assisted preliminary guidance and does not replace a registered veterinarian. In emergency, call 1962.
+            ⚠️ {t('kisanSaathi.disclaimer', 'Kisan Saathi provides AI-assisted preliminary guidance and does not replace a registered veterinarian. In emergency, call 1962.')}
           </Text>
         </View>
 

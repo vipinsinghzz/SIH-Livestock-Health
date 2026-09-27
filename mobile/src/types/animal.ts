@@ -93,6 +93,8 @@ export interface AnimalUpdateInput {
   newTimelineEvent?: Partial<TimelineEvent>;
   newVaccination?: Partial<VaccinationRecord>;
   newTreatment?: Partial<TreatmentRecord>;
+  vaccinationHistory?: VaccinationRecord[];
+  timeline?: TimelineEvent[];
 }
 
 export interface CaseSummary {
