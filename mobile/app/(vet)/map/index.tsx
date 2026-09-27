@@ -37,6 +37,7 @@ import {
 } from '../../../src/types/containment';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../../src/types/case';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
+import { useAppLanguage } from '../../../src/services/i18n';
 
 const DEFAULT_MAHARASHTRA_CENTER = {
   latitude: 18.5204,
@@ -48,6 +49,7 @@ type VetMapLayer = 'cases' | 'containment' | 'clusters';
 export default function VetOutbreakMapScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
   const mapRef = useRef<MapView>(null);
 
   const userDistrict = user?.district || 'Pune';
@@ -178,7 +180,7 @@ export default function VetOutbreakMapScreen() {
       <View style={styles.topBar}>
         <View style={styles.topRow}>
           <View>
-            <Text style={styles.screenTitle}>Outbreak GIS Surveillance</Text>
+            <Text style={styles.screenTitle}>{t('vet.outbreakGisTitle', 'Outbreak GIS Surveillance')}</Text>
             <Text style={styles.screenSubtitle}>
               {userDistrict} District • {validZones.length} Zone(s) • {validClusters.length} Cluster(s)
             </Text>
@@ -189,7 +191,7 @@ export default function VetOutbreakMapScreen() {
               onPress={() => router.push('/(vet)/containment' as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionPillBtnText}>🛡️ Zones & Rings</Text>
+              <Text style={styles.actionPillBtnText}>{t('vet.containmentZonesAndRings', '🛡️ Zones & Rings')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.refreshBtn}
@@ -210,7 +212,7 @@ export default function VetOutbreakMapScreen() {
             activeOpacity={0.75}
           >
             <Text style={[styles.layerChipText, activeLayers.containment && styles.layerChipTextActive]}>
-              ⭕ Containment ({validZones.length})
+              {t('vet.layerContainment', '⭕ Containment ({count})', { count: validZones.length })}
             </Text>
           </TouchableOpacity>
 
@@ -220,7 +222,7 @@ export default function VetOutbreakMapScreen() {
             activeOpacity={0.75}
           >
             <Text style={[styles.layerChipText, activeLayers.clusters && styles.layerChipTextActive]}>
-              🔶 Clusters ({validClusters.length})
+              {t('vet.layerClusters', '🔶 Clusters ({count})', { count: validClusters.length })}
             </Text>
           </TouchableOpacity>
 
@@ -230,7 +232,7 @@ export default function VetOutbreakMapScreen() {
             activeOpacity={0.75}
           >
             <Text style={[styles.layerChipText, activeLayers.cases && styles.layerChipTextActive]}>
-              📍 Cases ({validCases.length})
+              {t('vet.layerCases', '📍 Cases ({count})', { count: validCases.length })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -238,7 +240,7 @@ export default function VetOutbreakMapScreen() {
         {isFromCache && (
           <View style={styles.cacheNoticeBanner}>
             <Text style={styles.cacheNoticeBannerText}>
-              ⚡ Offline Mode: Displaying saved outbreak surveillance from device memory.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved records from device cache.')}
             </Text>
           </View>
         )}
@@ -248,15 +250,15 @@ export default function VetOutbreakMapScreen() {
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading outbreak surveillance layers...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading outbreak surveillance layers...')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Surveillance Layer Error</Text>
+          <Text style={styles.errorTitle}>{t('common.error', 'Surveillance Layer Error')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadAllSpatialData} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+            <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -359,18 +361,18 @@ export default function VetOutbreakMapScreen() {
 
           {/* Floating Map Legend */}
           <View style={styles.legendCard}>
-            <Text style={styles.legendTitle}>Surveillance Legend</Text>
+            <Text style={styles.legendTitle}>{t('vet.legendTitle', 'Surveillance Legend')}</Text>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#DC2626' }]} />
-              <Text style={styles.legendText}>Active Quarantine (Buffer Circle)</Text>
+              <Text style={styles.legendText}>{t('vet.legendQuarantine', 'Active Quarantine (Buffer Circle)')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#D97706' }]} />
-              <Text style={styles.legendText}>DBSCAN Cluster (&lt;= 5km Hotspot)</Text>
+              <Text style={styles.legendText}>{t('vet.legendCluster', 'DBSCAN Cluster (<= 5km Hotspot)')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#0284C7' }]} />
-              <Text style={styles.legendText}>Clinical Case Point</Text>
+              <Text style={styles.legendText}>{t('vet.legendCasePoint', 'Clinical Case Point')}</Text>
             </View>
           </View>
 
@@ -460,7 +462,7 @@ export default function VetOutbreakMapScreen() {
                       onPress={() => router.push('/(vet)/containment' as any)}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.cardPrimaryBtnText}>Manage Containment Perimeters ➔</Text>
+                      <Text style={styles.cardPrimaryBtnText}>{t('vet.managePerimeters', 'Manage Containment Perimeters ➔')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -489,7 +491,7 @@ export default function VetOutbreakMapScreen() {
                       onPress={() => router.push('/(vet)/containment' as any)}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.cardPrimaryBtnText}>Declare Containment Zone for Cluster ➔</Text>
+                      <Text style={styles.cardPrimaryBtnText}>{t('vet.declareZoneForCluster', 'Declare Containment Zone for Cluster ➔')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -520,7 +522,7 @@ export default function VetOutbreakMapScreen() {
                       }
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.cardPrimaryBtnText}>Open Case Examination ➔</Text>
+                      <Text style={styles.cardPrimaryBtnText}>{t('vet.openCaseExam', 'Open Case Examination ➔')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -533,7 +535,7 @@ export default function VetOutbreakMapScreen() {
       {/* Mandatory Medical AI Safety Disclaimer */}
       <View style={styles.aiDisclaimerBox}>
         <Text style={styles.aiDisclaimerText}>
-          ⚠️ AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis. Containment actions require veterinarian clinical verification.
+          {t('vet.aiDisclaimer', '⚠️ AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis. Containment actions require veterinarian clinical verification.')}
         </Text>
       </View>
     </View>

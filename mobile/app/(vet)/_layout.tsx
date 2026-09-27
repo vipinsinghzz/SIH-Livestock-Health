@@ -40,48 +40,56 @@ export default function VetLayout() {
         name="referrals/index"
         options={{
           title: t('nav.incomingReferrals', 'Incoming Referrals'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="referrals/[id]"
         options={{
-          title: t('cases.details', 'Referral Details'),
+          title: t('nav.referralDetails', 'Referral Details'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="cases/index"
         options={{
-          title: t('cases.title', 'Clinical Cases'),
+          title: t('nav.clinicalCases', 'Clinical Cases'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="labs/index"
         options={{
-          title: t('nav.labTests', 'Diagnostic Lab Tests'),
+          title: t('nav.diagnosticLabs', 'Diagnostic Lab Tests'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="labs/[id]"
         options={{
-          title: t('nav.labTests', 'Diagnostic Lab Referral'),
+          title: t('nav.labReferral', 'Diagnostic Lab Referral'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="map/index"
         options={{
           title: t('nav.fieldMap', 'Field Cases GIS Map'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="containment/index"
         options={{
-          title: t('nav.containmentRings', 'Containment & Ring Drives'),
+          title: t('nav.containmentDrives', 'Containment & Ring Drives'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="notifications/index"
         options={{
           title: t('nav.clinicalAlerts', 'Clinical Alerts'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
     </Stack>

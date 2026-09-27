@@ -38,18 +38,20 @@ import {
   DEFAULT_CONTAINMENT_RULES,
 } from '../../../src/types/containment';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
-
-const STATUS_FILTERS: Array<{ key: string; label: string }> = [
-  { key: 'all', label: 'All Perimeters' },
-  { key: 'ACTIVE', label: '🔴 Active Quarantine' },
-  { key: 'CONTAINED', label: '🟡 Contained' },
-  { key: 'LIFTED', label: '🟢 Lifted' },
-];
+import { useAppLanguage } from '../../../src/services/i18n';
 
 export default function VetContainmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
   const userDistrict = user?.district || 'Pune';
+
+  const STATUS_FILTERS: Array<{ key: string; label: string }> = [
+    { key: 'all', label: t('vet.allPerimeters', 'All Perimeters') },
+    { key: 'ACTIVE', label: t('vet.activeQuarantine', '🔴 Active Quarantine') },
+    { key: 'CONTAINED', label: t('vet.contained', '🟡 Contained') },
+    { key: 'LIFTED', label: t('vet.lifted', '🟢 Lifted') },
+  ];
 
   const [zones, setZones] = useState<ContainmentZone[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -276,7 +278,7 @@ export default function VetContainmentScreen() {
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.actionBtnOutlineText}>✏️ Update Status</Text>
+            <Text style={styles.actionBtnOutlineText}>{t('vet.updateZoneStatus', '✏️ Update Status')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -288,7 +290,7 @@ export default function VetContainmentScreen() {
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.actionBtnPrimaryText}>💉 Launch Ring Drive</Text>
+            <Text style={styles.actionBtnPrimaryText}>{t('vet.launchRingDrive', '💉 Launch Ring Drive')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -303,7 +305,7 @@ export default function VetContainmentScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.headerTitle}>Containment & Ring Vaccination</Text>
+            <Text style={styles.headerTitle}>{t('containment.title', 'Containment & Ring Vaccination')}</Text>
             <Text style={styles.headerSubtitle}>
               {userDistrict} District • {zones.length} Quarantine Perimeter(s)
             </Text>
@@ -313,14 +315,14 @@ export default function VetContainmentScreen() {
             onPress={() => setShowCreateModal(true)}
             activeOpacity={0.8}
           >
-            <Text style={styles.declareBtnText}>+ Declare Zone</Text>
+            <Text style={styles.declareBtnText}>{t('vet.declareZoneBtn', '+ Declare Zone')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Metric Strip */}
         <View style={styles.metricStrip}>
           <View style={styles.metricCol}>
-            <Text style={styles.metricLabel}>ACTIVE ZONES</Text>
+            <Text style={styles.metricLabel}>{t('common.active', 'ACTIVE ZONES')}</Text>
             <Text style={[styles.metricValue, { color: '#DC2626' }]}>
               {zones.filter((z) => z.status === 'ACTIVE').length}
             </Text>
@@ -342,7 +344,7 @@ export default function VetContainmentScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search disease, zone ID, village, notes..."
+            placeholder={t('common.search', 'Search disease, zone ID, village, notes...')}
             placeholderTextColor={colors.light.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -377,7 +379,7 @@ export default function VetContainmentScreen() {
         {isFromCache && (
           <View style={styles.cacheNoticeBanner}>
             <Text style={styles.cacheNoticeBannerText}>
-              ⚡ Offline Mode: Displaying saved containment records from device memory.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved records from device cache.')}
             </Text>
           </View>
         )}
@@ -387,15 +389,15 @@ export default function VetContainmentScreen() {
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading containment perimeters...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading containment perimeters...')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Error Loading Perimeters</Text>
+          <Text style={styles.errorTitle}>{t('common.error', 'Error Loading Perimeters')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadZones} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+            <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -415,10 +417,10 @@ export default function VetContainmentScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>🛡️</Text>
-              <Text style={styles.emptyTitle}>No Quarantine Zones Found</Text>
+              <Text style={styles.emptyTitle}>{t('vet.noMatchingReferrals', 'No Quarantine Zones Found')}</Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery || activeFilter !== 'all'
-                  ? 'No containment perimeters match the active filter or search term.'
+                  ? t('vet.noMatchingReferrals', 'No containment perimeters match the active filter or search term.')
                   : 'There are currently no active containment perimeters declared in this district. Click "+ Declare Zone" to establish biosecurity quarantine.'}
               </Text>
             </View>
@@ -524,7 +526,7 @@ export default function VetContainmentScreen() {
 
             <View style={styles.modalActionRow}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowCreateModal(false)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSubmitBtn}
@@ -534,7 +536,7 @@ export default function VetContainmentScreen() {
                 {submittingCreate ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalSubmitBtnText}>Establish Containment</Text>
+                  <Text style={styles.modalSubmitBtnText}>{t('vet.declareZoneBtn', 'Establish Containment')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -547,14 +549,14 @@ export default function VetContainmentScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Update Containment Status</Text>
+              <Text style={styles.modalTitle}>{t('vet.updateZoneStatus', 'Update Containment Status')}</Text>
               <TouchableOpacity onPress={() => setShowStatusModal(false)}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalScroll}>
-              <Text style={styles.inputLabel}>Target Status *</Text>
+              <Text style={styles.inputLabel}>{t('vet.targetStage', 'Target Status *')}</Text>
               <View style={styles.statusOptionsRow}>
                 {(['ACTIVE', 'CONTAINED', 'LIFTED'] as ContainmentZoneStatus[]).map((st) => {
                   const isSelected = newStatus === st;
@@ -576,7 +578,7 @@ export default function VetContainmentScreen() {
                 })}
               </View>
 
-              <Text style={styles.inputLabel}>Clinical Status / Resolution Notes</Text>
+              <Text style={styles.inputLabel}>{t('common.notes', 'Clinical Status / Resolution Notes')}</Text>
               <TextInput
                 style={[styles.modalInput, styles.modalTextArea]}
                 value={statusNotes}
@@ -590,7 +592,7 @@ export default function VetContainmentScreen() {
 
             <View style={styles.modalActionRow}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowStatusModal(false)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSubmitBtn}
@@ -600,7 +602,7 @@ export default function VetContainmentScreen() {
                 {submittingStatus ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalSubmitBtnText}>Submit Status</Text>
+                  <Text style={styles.modalSubmitBtnText}>{t('common.submit', 'Submit Status')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -613,19 +615,19 @@ export default function VetContainmentScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule Emergency Ring Vaccination</Text>
+              <Text style={styles.modalTitle}>{t('vet.scheduleRingVaccination', 'Schedule Emergency Ring Vaccination')}</Text>
               <TouchableOpacity onPress={() => setShowRingModal(false)}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalScroll}>
-              <Text style={styles.inputLabel}>Target Outbreak / Zone</Text>
+              <Text style={styles.inputLabel}>{t('common.details', 'Target Outbreak / Zone')}</Text>
               <Text style={styles.readOnlyBox}>
                 Zone: {targetZoneForRing?.zoneId} • {targetZoneForRing?.disease} ({targetZoneForRing?.district})
               </Text>
 
-              <Text style={styles.inputLabel}>Vaccination Post / Venue *</Text>
+              <Text style={styles.inputLabel}>{t('common.location', 'Vaccination Post / Venue *')}</Text>
               <TextInput
                 style={styles.modalInput}
                 value={ringVenue}
@@ -636,7 +638,7 @@ export default function VetContainmentScreen() {
 
               <View style={styles.coordsRow}>
                 <View style={styles.coordCol}>
-                  <Text style={styles.inputLabel}>Drive Date (YYYY-MM-DD) *</Text>
+                  <Text style={styles.inputLabel}>{t('common.date', 'Drive Date (YYYY-MM-DD) *')}</Text>
                   <TextInput
                     style={styles.modalInput}
                     value={ringDate}
@@ -654,7 +656,7 @@ export default function VetContainmentScreen() {
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Operational Directives</Text>
+              <Text style={styles.inputLabel}>{t('common.notes', 'Operational Directives')}</Text>
               <TextInput
                 style={[styles.modalInput, styles.modalTextArea]}
                 value={ringNotes}
@@ -668,7 +670,7 @@ export default function VetContainmentScreen() {
 
             <View style={styles.modalActionRow}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowRingModal(false)}>
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSubmitBtn}
@@ -678,7 +680,7 @@ export default function VetContainmentScreen() {
                 {submittingRing ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalSubmitBtnText}>Deploy Ring Drive</Text>
+                  <Text style={styles.modalSubmitBtnText}>{t('vet.launchRingDrive', 'Deploy Ring Drive')}</Text>
                 )}
               </TouchableOpacity>
             </View>

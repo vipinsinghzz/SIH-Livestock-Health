@@ -92,44 +92,52 @@ export default function VetHomeScreen() {
     if (!caseTargetId) return;
 
     Alert.alert(
-      'Claim Referral Case',
-      `Are you sure you want to take clinical responsibility for case ${caseItem.caseId} (${caseItem.disease})?`,
+      t('vet.claimReferralCase', 'Claim Referral Case'),
+      t('vet.confirmClaimMsg', 'Are you sure you want to take clinical responsibility for case {caseId} ({disease})?', {
+        caseId: caseItem.caseId,
+        disease: caseItem.disease,
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Confirm Claim',
+          text: t('vet.confirmClaim', 'Confirm Claim'),
           style: 'default',
           onPress: async () => {
             try {
               setClaimingId(caseTargetId);
               await veterinarianService.claimCase(caseTargetId);
-              Alert.alert('Case Claimed', `Case ${caseItem.caseId} has been assigned to your care.`);
+              Alert.alert(
+                t('common.success', 'Success'),
+                t('vet.caseClaimedSuccess', 'Case {caseId} has been assigned to your care.', {
+                  caseId: caseItem.caseId,
+                })
+              );
               loadDashboardData();
             } catch (claimErr: any) {
-              Alert.alert('Cannot Claim Case', claimErr.message || 'Failed to claim referral.');
+              Alert.alert(t('vet.cannotClaim', 'Cannot Claim Case'), claimErr.message || 'Failed to claim referral.');
             } finally {
               setClaimingId(null);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
   const handleSignOut = () => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out of the Veterinarian Portal?',
+      t('vet.signOutTitle', 'Sign Out'),
+      t('vet.signOutMsg', 'Are you sure you want to sign out of the Veterinarian Portal?'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: t('common.signOut', 'Sign Out'),
           style: 'destructive',
           onPress: async () => {
             await logout();
             router.replace('/(auth)/login');
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -186,7 +194,7 @@ export default function VetHomeScreen() {
           {isFromCache && (
             <View style={styles.cacheNotice}>
               <Text style={styles.cacheNoticeText}>
-                ⚡ Offline Mode: Displaying cached records from device storage.
+                {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved records from device cache.')}
               </Text>
             </View>
           )}
@@ -221,24 +229,24 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'New' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>{t('vet.pendingReferrals', 'New Referrals')}</Text>
+                <Text style={styles.metricLabel}>{t('vet.newReferrals', 'New Referrals')}</Text>
                 <Text style={[styles.metricValue, { color: '#D97706' }]}>
                   {metrics?.newReferralsCount ?? 0}
                 </Text>
-                <Text style={styles.metricSub}>Awaiting triage</Text>
+                <Text style={styles.metricSub}>{t('vet.awaitingTriage', 'Awaiting triage')}</Text>
               </TouchableOpacity>
 
-              {/* My Cases */}
+              {/* My Cases -> Navigates to dedicated assigned cases queue */}
               <TouchableOpacity
                 style={[styles.metricCard, { borderLeftColor: '#10B981' }]}
-                onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'my_cases' } })}
+                onPress={() => router.push('/(vet)/cases')}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>{t('cases.title', 'My Cases')}</Text>
+                <Text style={styles.metricLabel}>{t('vet.myCases', 'My Cases')}</Text>
                 <Text style={[styles.metricValue, { color: '#059669' }]}>
                   {metrics?.myCasesCount ?? 0}
                 </Text>
-                <Text style={styles.metricSub}>Under my care</Text>
+                <Text style={styles.metricSub}>{t('vet.underMyCare', 'Under my care')}</Text>
               </TouchableOpacity>
 
               {/* Investigating */}
@@ -247,11 +255,11 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Investigating' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>{t('cases.investigating', 'Investigating')}</Text>
+                <Text style={styles.metricLabel}>{t('vet.investigatingCount', 'Investigating')}</Text>
                 <Text style={[styles.metricValue, { color: '#2563EB' }]}>
                   {metrics?.investigatingCount ?? 0}
                 </Text>
-                <Text style={styles.metricSub}>Active diagnosis</Text>
+                <Text style={styles.metricSub}>{t('vet.activeDiagnosis', 'Active diagnosis')}</Text>
               </TouchableOpacity>
 
               {/* Confirmed */}
@@ -260,11 +268,11 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Confirmed' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>{t('cases.confirmed', 'Confirmed')}</Text>
+                <Text style={styles.metricLabel}>{t('vet.confirmedCount', 'Confirmed')}</Text>
                 <Text style={[styles.metricValue, { color: '#DC2626' }]}>
                   {metrics?.confirmedCount ?? 0}
                 </Text>
-                <Text style={styles.metricSub}>Clinical positive</Text>
+                <Text style={styles.metricSub}>{t('vet.clinicalPositive', 'Clinical positive')}</Text>
               </TouchableOpacity>
 
               {/* Containment */}
@@ -273,11 +281,11 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Containment' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>{t('containment.title', 'Containment')}</Text>
+                <Text style={styles.metricLabel}>{t('vet.containmentCount', 'Containment')}</Text>
                 <Text style={[styles.metricValue, { color: '#7C3AED' }]}>
                   {metrics?.containmentCount ?? 0}
                 </Text>
-                <Text style={styles.metricSub}>Buffer quarantine</Text>
+                <Text style={styles.metricSub}>{t('vet.bufferQuarantine', 'Buffer quarantine')}</Text>
               </TouchableOpacity>
 
               {/* Resolved */}
@@ -286,19 +294,19 @@ export default function VetHomeScreen() {
                 onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'Resolved' } })}
                 activeOpacity={0.75}
               >
-                <Text style={styles.metricLabel}>{t('cases.resolved', 'Resolved')}</Text>
+                <Text style={styles.metricLabel}>{t('vet.resolvedCount', 'Resolved')}</Text>
                 <Text style={[styles.metricValue, { color: '#047857' }]}>
                   {metrics?.resolvedCount ?? 0}
                 </Text>
-                <Text style={styles.metricSub}>Recovered herd</Text>
+                <Text style={styles.metricSub}>{t('vet.recoveredHerd', 'Recovered herd')}</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Honest Statistics Disclosure Note */}
+            {/* Statistics Disclosure Note */}
             {metrics?.sampleWindowNote && (
               <View style={styles.sampleNoteContainer}>
                 <Text style={styles.sampleNoteText}>
-                  ℹ️ {metrics.sampleWindowNote}
+                  ℹ️ {t('vet.sampleNote', 'Metrics computed from latest {count} district referral records.', { count: metrics?.totalRecentCases ?? 0 })}
                 </Text>
               </View>
             )}
@@ -313,26 +321,27 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>📋</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>{t('nav.incomingReferrals', 'Triage & Referral Queue')}</Text>
+                    <Text style={styles.primaryActionTitle}>{t('vet.triageQueue', 'Triage & Referral Queue')}</Text>
                     <Text style={styles.primaryActionDesc}>
-                      Review incoming cases reported by farmers in {vetDistrict}
+                      {t('vet.triageQueueDesc', 'Review incoming cases reported by farmers in {district}', { district: vetDistrict })}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
 
+              {/* Dedicated Assigned Patient Cases */}
               <TouchableOpacity
                 style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
-                onPress={() => router.push({ pathname: '/(vet)/referrals', params: { filter: 'my_cases' } })}
+                onPress={() => router.push('/(vet)/cases')}
                 activeOpacity={0.8}
               >
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🩺</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>{t('cases.title', 'My Active Patient Cases')}</Text>
+                    <Text style={styles.primaryActionTitle}>{t('vet.myPatients', 'My Active Patient Cases')}</Text>
                     <Text style={styles.primaryActionDesc}>
-                      Manage treatments, prescriptions, and recovery timelines
+                      {t('vet.myPatientsDesc', 'Manage treatments, prescriptions, and recovery timelines')}
                     </Text>
                   </View>
                 </View>
@@ -347,16 +356,16 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🔬</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>{t('nav.labTests', 'Diagnostic Lab Tests')}</Text>
+                    <Text style={styles.primaryActionTitle}>{t('vet.labTests', 'Diagnostic Lab Tests')}</Text>
                     <Text style={styles.primaryActionDesc}>
-                      Sample chain-of-custody, lab testing & confirmation
+                      {t('vet.labTestsDesc', 'Sample chain-of-custody, lab testing & confirmation')}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
 
-              {/* Phase 9.4: Outbreak GIS Map & Surveillance */}
+              {/* Outbreak GIS Map & Surveillance */}
               <TouchableOpacity
                 style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
                 onPress={() => router.push('/(vet)/map')}
@@ -365,16 +374,16 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🗺️</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>{t('nav.fieldMap', 'Outbreak GIS Surveillance')}</Text>
+                    <Text style={styles.primaryActionTitle}>{t('vet.gisSurveillance', 'Outbreak GIS Surveillance')}</Text>
                     <Text style={styles.primaryActionDesc}>
-                      DBSCAN spatial clusters, risk heatmaps & perimeters
+                      {t('vet.gisSurveillanceDesc', 'DBSCAN spatial clusters, risk heatmaps & perimeters')}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
 
-              {/* Phase 9.4: Containment & Ring Vaccination Drives */}
+              {/* Containment & Ring Vaccination Drives */}
               <TouchableOpacity
                 style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
                 onPress={() => router.push('/(vet)/containment')}
@@ -383,16 +392,16 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🛡️</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>{t('nav.containmentRings', 'Containment & Ring Drives')}</Text>
+                    <Text style={styles.primaryActionTitle}>{t('vet.containmentDrives', 'Containment & Ring Drives')}</Text>
                     <Text style={styles.primaryActionDesc}>
-                      Active quarantine perimeters & emergency vaccination
+                      {t('vet.containmentDrivesDesc', 'Active quarantine perimeters & emergency vaccination')}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.arrowIcon}>➔</Text>
               </TouchableOpacity>
 
-              {/* Phase 9.5: Clinical Alerts & Notifications Shortcut */}
+              {/* Clinical Alerts & Notifications Shortcut */}
               <TouchableOpacity
                 style={[styles.primaryActionBtn, styles.secondaryActionBtn]}
                 onPress={() => router.push('/(vet)/notifications')}
@@ -401,11 +410,11 @@ export default function VetHomeScreen() {
                 <View style={styles.primaryActionLeft}>
                   <Text style={styles.primaryActionIcon}>🚨</Text>
                   <View>
-                    <Text style={styles.primaryActionTitle}>{t('nav.clinicalAlerts', 'Clinical Alerts & Triage Pings')}</Text>
+                    <Text style={styles.primaryActionTitle}>{t('vet.clinicalAlerts', 'Clinical Alerts')}</Text>
                     <Text style={styles.primaryActionDesc}>
                       {unreadAlertsCount > 0
-                        ? `${unreadAlertsCount} unread alert${unreadAlertsCount > 1 ? 's' : ''} awaiting triage`
-                        : 'Urgent referrals, cluster detections & containment updates'}
+                        ? t('vet.clinicalAlertsCount', '{count} unread alert(s) awaiting triage', { count: unreadAlertsCount })
+                        : t('vet.clinicalAlertsDesc', 'Urgent referrals, cluster detections & containment updates')}
                     </Text>
                   </View>
                 </View>
@@ -416,21 +425,23 @@ export default function VetHomeScreen() {
             {/* Recent District Referrals Section */}
             <View style={styles.recentSection}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{t('vet.pendingReferrals', 'Recent District Referrals')}</Text>
+                <Text style={styles.sectionTitle}>{t('vet.recentReferrals', 'Recent District Referrals')}</Text>
                 <TouchableOpacity
                   onPress={() => router.push('/(vet)/referrals')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.seeAllText}>{t('common.all', 'View All')} ({metrics?.totalRecentCases ?? 0})</Text>
+                  <Text style={styles.seeAllText}>
+                    {t('common.viewAll', 'View All')} ({metrics?.totalRecentCases ?? 0})
+                  </Text>
                 </TouchableOpacity>
               </View>
 
               {recentCases.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyIcon}>✅</Text>
-                  <Text style={styles.emptyTitle}>No Active Cases</Text>
+                  <Text style={styles.emptyTitle}>{t('vet.noActiveCases', 'No Active Cases')}</Text>
                   <Text style={styles.emptySubtitle}>
-                    There are no recorded disease referrals in {vetDistrict} district.
+                    {t('vet.noActiveCasesDesc', 'There are no recorded disease referrals in {district} district.', { district: vetDistrict })}
                   </Text>
                 </View>
               ) : (
@@ -484,12 +495,12 @@ export default function VetHomeScreen() {
                             {claimingId === targetId ? (
                               <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
-                              <Text style={styles.claimButtonText}>Claim Case</Text>
+                              <Text style={styles.claimButtonText}>{t('vet.claimCase', 'Claim Case')}</Text>
                             )}
                           </TouchableOpacity>
                         ) : isMine ? (
                           <View style={styles.myCaseBadge}>
-                            <Text style={styles.myCaseBadgeText}>Assigned to You</Text>
+                            <Text style={styles.myCaseBadgeText}>{t('vet.assignedToYou', 'Assigned to You')}</Text>
                           </View>
                         ) : null}
                       </View>

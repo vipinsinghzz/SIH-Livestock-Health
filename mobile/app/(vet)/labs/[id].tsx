@@ -32,18 +32,20 @@ import {
   getLabStatusTheme
 } from '../../../src/types/lab';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
-
-const PIPELINE_STAGES: Array<{ id: LabReferralStatus; label: string; desc: string }> = [
-  { id: 'Collected', label: '1. Collected', desc: 'Sample harvested in aseptic field collection' },
-  { id: 'In Transit', label: '2. In Transit', desc: 'Cold chain transit to diagnostic laboratory' },
-  { id: 'Received', label: '3. Received', desc: 'Logged into destination laboratory accession register' },
-  { id: 'Result Pending', label: '4. Testing', desc: 'PCR / ELISA / culture analysis active' },
-  { id: 'Result Confirmed', label: '5. Confirmed', desc: 'Pathogen detected; clinical confirmation established' },
-];
+import { useAppLanguage } from '../../../src/services/i18n';
 
 export default function LabReferralDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t } = useAppLanguage();
+
+  const PIPELINE_STAGES: Array<{ id: LabReferralStatus; label: string; desc: string }> = [
+    { id: 'Collected', label: t('vet.stageCollected', '1. Collected'), desc: t('vet.stageCollectedDesc', 'Sample harvested in aseptic field collection') },
+    { id: 'In Transit', label: t('vet.stageInTransit', '2. In Transit'), desc: t('vet.stageInTransitDesc', 'Cold chain transit to diagnostic laboratory') },
+    { id: 'Received', label: t('vet.stageReceived', '3. Received'), desc: t('vet.stageReceivedDesc', 'Logged into destination laboratory accession register') },
+    { id: 'Result Pending', label: t('vet.stageTesting', '4. Testing'), desc: t('vet.stageTestingDesc', 'PCR / ELISA / culture analysis active') },
+    { id: 'Result Confirmed', label: t('vet.stageConfirmed', '5. Confirmed'), desc: t('vet.stageConfirmedDesc', 'Pathogen detected; clinical confirmation established') },
+  ];
 
   const [referral, setReferral] = useState<LabReferral | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -153,7 +155,7 @@ export default function LabReferralDetailScreen() {
     return (
       <View style={styles.centerBox}>
         <ActivityIndicator size="large" color={colors.light.primary} />
-        <Text style={styles.loadingText}>Loading laboratory referral...</Text>
+        <Text style={styles.loadingText}>{t('common.loading', 'Loading laboratory referral...')}</Text>
       </View>
     );
   }
@@ -162,17 +164,17 @@ export default function LabReferralDetailScreen() {
     return (
       <View style={styles.centerBox}>
         <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorTitle}>Referral Unavailable</Text>
+        <Text style={styles.errorTitle}>{t('vet.referralUnavailable', 'Referral Unavailable')}</Text>
         <Text style={styles.errorMessage}>{error || 'Diagnostic sample record could not be found.'}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={loadDetail} activeOpacity={0.8}>
-          <Text style={styles.retryBtnText}>Retry Loading</Text>
+          <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.backLinkBtn}
           onPress={() => router.replace('/(vet)/labs')}
           activeOpacity={0.7}
         >
-          <Text style={styles.backLinkText}>← Back to Diagnostic Labs</Text>
+          <Text style={styles.backLinkText}>{t('vet.backToLabs', '← Back to Diagnostic Labs')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -200,7 +202,7 @@ export default function LabReferralDetailScreen() {
         {isFromCache && (
           <View style={styles.cacheNoticeBanner}>
             <Text style={styles.cacheNoticeBannerText}>
-              ⚡ Offline Mode: Displaying saved diagnostic record from device storage.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved diagnostic record from device storage.')}
             </Text>
           </View>
         )}
@@ -219,13 +221,13 @@ export default function LabReferralDetailScreen() {
           <Text style={styles.referredLabTitle}>{referral.referredLab}</Text>
 
           <Text style={styles.dateRow}>
-            Collection Date: {referral.collectionDate ? new Date(referral.collectionDate).toLocaleString() : 'Recorded'}
+            {t('common.date', 'Collection Date')}: {referral.collectionDate ? new Date(referral.collectionDate).toLocaleString() : 'Recorded'}
           </Text>
         </View>
 
         {/* 5-Stage Chain of Custody Stepper */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Diagnostic Chain of Custody</Text>
+          <Text style={styles.sectionHeader}>{t('vet.chainOfCustody', 'Diagnostic Chain of Custody')}</Text>
           <View style={styles.stepperContainer}>
             {PIPELINE_STAGES.map((st, idx) => {
               const isPassed = currentStep >= idx;
@@ -262,26 +264,26 @@ export default function LabReferralDetailScreen() {
 
         {/* Specimen & Patient Information */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Patient Livestock & Surveillance Context</Text>
+          <Text style={styles.sectionHeader}>{t('vet.patientProfile', 'Patient Livestock & Surveillance Context')}</Text>
 
           <View style={styles.infoGrid}>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Linked Case</Text>
+              <Text style={styles.infoLabel}>{t('common.details', 'Linked Case')}</Text>
               <Text style={[styles.infoValue, styles.monospace]}>{linkedCaseId || 'N/A'}</Text>
             </View>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Animal Species</Text>
+              <Text style={styles.infoLabel}>{t('vet.species', 'Animal Species')}</Text>
               <Text style={styles.infoValue}>{referral.report?.species || 'Cattle / Livestock'}</Text>
             </View>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Farm Location</Text>
+              <Text style={styles.infoLabel}>{t('common.location', 'Farm Location')}</Text>
               <Text style={styles.infoValue}>
                 {referral.report?.village ? `${referral.report.village}, ` : ''}
                 {referral.report?.district || 'Pune'}
               </Text>
             </View>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Collector Official</Text>
+              <Text style={styles.infoLabel}>{t('vet.assignedDoctorLabel', 'Collector Official')}</Text>
               <Text style={styles.infoValue}>{referral.collector?.name || 'Attending Field Doctor'}</Text>
             </View>
           </View>
@@ -292,7 +294,7 @@ export default function LabReferralDetailScreen() {
               onPress={() => handleCallCollector(referral.collector?.phone)}
               activeOpacity={0.8}
             >
-              <Text style={styles.collectorPhoneText}>📞 Contact Collector: {referral.collector.phone}</Text>
+              <Text style={styles.collectorPhoneText}>📞 {t('common.call', 'Contact Collector')}: {referral.collector.phone}</Text>
             </TouchableOpacity>
           ) : null}
 
@@ -302,38 +304,38 @@ export default function LabReferralDetailScreen() {
               onPress={() => router.push(`/(vet)/referrals/${linkedCaseId}` as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.viewCaseBtnText}>📋 View Linked Clinical Case Record ➔</Text>
+              <Text style={styles.viewCaseBtnText}>{t('vet.viewLinkedCase', '📋 View Linked Clinical Case Record ➔')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
         {/* Diagnostic Results Card */}
         <View style={[styles.card, styles.resultCard]}>
-          <Text style={styles.sectionHeader}>Laboratory Diagnostic Findings</Text>
+          <Text style={styles.sectionHeader}>{t('vet.labFindings', 'Laboratory Diagnostic Findings')}</Text>
 
           {referral.resultSummary?.confirmedDisease ? (
             <View style={styles.confirmedBox}>
-              <Text style={styles.confirmedHeader}>🔬 CONFIRMED PATHOGEN IDENTIFICATION</Text>
+              <Text style={styles.confirmedHeader}>{t('vet.confirmedPathogen', '🔬 CONFIRMED PATHOGEN IDENTIFICATION')}</Text>
               <Text style={styles.confirmedDiseaseText}>
                 {referral.resultSummary.confirmedDisease}
               </Text>
               {referral.resultSummary.confirmedDate ? (
                 <Text style={styles.confirmedDateText}>
-                  Confirmed on: {new Date(referral.resultSummary.confirmedDate).toLocaleString()}
+                  {t('common.date', 'Confirmed on')}: {new Date(referral.resultSummary.confirmedDate).toLocaleString()}
                 </Text>
               ) : null}
             </View>
           ) : (
             <View style={styles.pendingBox}>
               <Text style={styles.pendingText}>
-                ⏳ Pathogen confirmation pending. Specimen is undergoing diagnostic processing.
+                {t('vet.pathogenPending', '⏳ Pathogen confirmation pending. Specimen is undergoing diagnostic processing.')}
               </Text>
             </View>
           )}
 
           {referral.resultSummary?.notes ? (
             <View style={styles.notesBlock}>
-              <Text style={styles.notesTitle}>Sampling / Laboratory Notes</Text>
+              <Text style={styles.notesTitle}>{t('common.notes', 'Sampling / Laboratory Notes')}</Text>
               <Text style={styles.notesContent}>{referral.resultSummary.notes}</Text>
             </View>
           ) : null}
@@ -347,7 +349,7 @@ export default function LabReferralDetailScreen() {
             activeOpacity={0.85}
           >
             <Text style={styles.primaryActionBtnIcon}>✏️</Text>
-            <Text style={styles.primaryActionBtnText}>Update Pipeline Status & Results</Text>
+            <Text style={styles.primaryActionBtnText}>{t('vet.updatePipelineStatus', 'Update Pipeline Status & Results')}</Text>
           </TouchableOpacity>
         )}
 
@@ -357,7 +359,7 @@ export default function LabReferralDetailScreen() {
             <View style={styles.actionFormHeader}>
               <View>
                 <Text style={styles.actionBadge}>CHAIN-OF-CUSTODY & RESULT</Text>
-                <Text style={styles.actionTitle}>Update Laboratory Referral</Text>
+                <Text style={styles.actionTitle}>{t('vet.updatePipelineStatus', 'Update Laboratory Referral')}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowUpdateModal(false)}>
                 <Text style={styles.actionCloseText}>✕</Text>
@@ -365,7 +367,7 @@ export default function LabReferralDetailScreen() {
             </View>
 
             {/* Target Status Selector */}
-            <Text style={styles.inputLabel}>Select Pipeline Stage *</Text>
+            <Text style={styles.inputLabel}>{t('vet.targetStage', 'Select Pipeline Stage *')}</Text>
             <View style={styles.stageWrap}>
               {PIPELINE_STAGES.map((st) => {
                 const isSelected = targetStatus === st.id;
@@ -388,7 +390,7 @@ export default function LabReferralDetailScreen() {
             {targetStatus === 'Result Confirmed' && (
               <View style={styles.confirmedInputBlock}>
                 <Text style={styles.confirmedInputLabel}>
-                  Confirmed Pathogen / Disease Result *
+                  {t('vet.confirmedDiagnosis', 'Confirmed Pathogen / Disease Result *')}
                 </Text>
                 <TextInput
                   style={styles.confirmedInput}
@@ -406,7 +408,7 @@ export default function LabReferralDetailScreen() {
             )}
 
             {/* Notes Input */}
-            <Text style={styles.inputLabel}>Laboratory / Examination Notes</Text>
+            <Text style={styles.inputLabel}>{t('common.notes', 'Laboratory / Examination Notes')}</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
               placeholder="Record specimen condition, PCR cycle threshold (Ct), viral clade, or technician observations..."
@@ -423,7 +425,7 @@ export default function LabReferralDetailScreen() {
                 style={styles.cancelBtn}
                 onPress={() => setShowUpdateModal(false)}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -434,7 +436,7 @@ export default function LabReferralDetailScreen() {
                 {submittingUpdate ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.submitBtnText}>Submit Status Update</Text>
+                  <Text style={styles.submitBtnText}>{t('common.submit', 'Submit Status Update')}</Text>
                 )}
               </TouchableOpacity>
             </View>

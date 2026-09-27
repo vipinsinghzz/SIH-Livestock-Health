@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import { veterinarianService } from '../../../src/services/veterinarianService';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../../src/types/case';
@@ -29,6 +30,7 @@ import { OfflineNotice } from '../../../src/components/OfflineNotice';
 export default function VetClinicalCasesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [cases, setCases] = useState<DiseaseCase[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -122,7 +124,7 @@ export default function VetClinicalCasesScreen() {
 
         {item.prescription ? (
           <View style={styles.rxPreviewBox}>
-            <Text style={styles.rxPreviewLabel}>Rx Medication:</Text>
+            <Text style={styles.rxPreviewLabel}>{t('vet.rxMedication', 'Rx Medication:')}</Text>
             <Text style={styles.rxPreviewText} numberOfLines={1}>
               {item.prescription}
             </Text>
@@ -134,7 +136,7 @@ export default function VetClinicalCasesScreen() {
             👤 {item.farmerContact?.name || 'Farmer'}
             {item.farmerContact?.phone ? ` • 📞 ${item.farmerContact.phone}` : ''}
           </Text>
-          <Text style={styles.openCaseLink}>View & Update ➔</Text>
+          <Text style={styles.openCaseLink}>{t('vet.viewAndUpdate', 'View & Update ➔')}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -147,9 +149,9 @@ export default function VetClinicalCasesScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.headerTitle}>Assigned Patient Cases</Text>
+            <Text style={styles.headerTitle}>{t('vet.assignedPatients', 'Assigned Patient Cases')}</Text>
             <Text style={styles.headerSubtitle}>
-              Dr. {vetName} • {cases.length} active patient case(s)
+              Dr. {vetName} • {t('vet.activePatientCasesCount', '{count} active patient case(s)', { count: cases.length })}
             </Text>
           </View>
           <TouchableOpacity
@@ -157,7 +159,7 @@ export default function VetClinicalCasesScreen() {
             onPress={() => router.push('/(vet)/referrals')}
             activeOpacity={0.8}
           >
-            <Text style={styles.triageQueueBtnText}>📋 Triage Queue</Text>
+            <Text style={styles.triageQueueBtnText}>📋 {t('vet.triageQueue', 'Triage Queue')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -165,7 +167,7 @@ export default function VetClinicalCasesScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search patient, disease, diagnosis, tag, village..."
+            placeholder={t('vet.searchPatientsPlaceholder', 'Search patient, disease, diagnosis, tag, village...')}
             placeholderTextColor={colors.light.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -181,7 +183,7 @@ export default function VetClinicalCasesScreen() {
         {isFromCache && (
           <View style={styles.cacheNoticeBanner}>
             <Text style={styles.cacheNoticeBannerText}>
-              ⚡ Offline Mode: Displaying saved patient cases from device cache.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved records from device cache.')}
             </Text>
           </View>
         )}
@@ -190,15 +192,15 @@ export default function VetClinicalCasesScreen() {
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading assigned patient cases...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading assigned patient cases...')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Error Loading Patient Cases</Text>
+          <Text style={styles.errorTitle}>{t('common.error', 'Error Loading Patient Cases')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadMyCases} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+            <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -218,11 +220,11 @@ export default function VetClinicalCasesScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>🩺</Text>
-              <Text style={styles.emptyTitle}>No Active Patient Cases</Text>
+              <Text style={styles.emptyTitle}>{t('vet.noAssignedPatients', 'No Active Patient Cases')}</Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery
-                  ? `No patient cases matched "${searchQuery}".`
-                  : 'You have not claimed any referral cases yet. Visit the Triage Queue to review and claim district cases.'}
+                  ? t('vet.noPatientsMatch', 'No patient cases matched "{query}".', { query: searchQuery })
+                  : t('vet.noAssignedPatientsDesc', 'You have not claimed any referral cases yet. Visit the Triage Queue to review and claim district cases.')}
               </Text>
               {!searchQuery && (
                 <TouchableOpacity
@@ -230,7 +232,7 @@ export default function VetClinicalCasesScreen() {
                   onPress={() => router.push('/(vet)/referrals')}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.gotoTriageBtnText}>Go to Triage Queue</Text>
+                  <Text style={styles.gotoTriageBtnText}>{t('vet.goToTriageQueue', 'Go to Triage Queue')}</Text>
                 </TouchableOpacity>
               )}
             </View>

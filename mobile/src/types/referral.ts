@@ -30,7 +30,10 @@ export interface ReferralQueueState {
 export function isCaseClaimable(c: DiseaseCase): boolean {
   if (!c) return false;
   const s = String(c.status || '').toUpperCase();
-  return s === 'NEW' || s === 'OPEN';
+  if (s !== 'NEW' && s !== 'OPEN') return false;
+  // If assignedVetId is already present, it is not claimable
+  if (c.assignedVetId || (c as any).assignedVet) return false;
+  return true;
 }
 
 /**

@@ -35,6 +35,7 @@ import { SAMPLE_TYPES, DESTINATION_LABS, LabSampleType } from '../../../src/type
 import { DEFAULT_CONTAINMENT_RULES } from '../../../src/types/containment';
 import { isCaseClaimable, isCaseAssignedToVet } from '../../../src/types/referral';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
+import { useAppLanguage } from '../../../src/services/i18n';
 
 const CLINICAL_STAGES: Array<{ id: ClinicalStage; label: string; desc: string }> = [
   { id: 'Investigating', label: 'Investigating', desc: 'Active clinical examination & diagnostic workup' },
@@ -47,6 +48,7 @@ export default function VetReferralDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [caseItem, setCaseItem] = useState<DiseaseCase | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -125,25 +127,31 @@ export default function VetReferralDetailScreen() {
     const targetId = caseItem.id || caseItem._id || caseItem.caseId;
 
     Alert.alert(
-      'Take Clinical Responsibility',
-      `Confirm claiming case ${caseItem.caseId} (${caseItem.disease})?\n\nThis will record Dr. ${user?.name || 'You'} as the attending veterinarian and transition status to Investigating.`,
+      t('vet.takeResponsibilityTitle', 'Take Clinical Responsibility'),
+      t('vet.takeResponsibilityMsg', 'Confirm claiming case {caseId} ({disease})?\n\nThis will record your identity as the attending veterinarian and transition status to Investigating.', {
+        caseId: caseItem.caseId,
+        disease: caseItem.disease,
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Confirm Claim',
+          text: t('vet.confirmClaim', 'Confirm Claim'),
           style: 'default',
           onPress: async () => {
             try {
               setClaiming(true);
               const res = await veterinarianService.claimCase(targetId);
-              Alert.alert('Case Claimed Successfully', `You are now the attending doctor for case ${caseItem.caseId}.`);
+              Alert.alert(
+                t('vet.caseClaimSuccess', 'Case Claimed Successfully'),
+                t('vet.caseClaimedSuccess', 'Case {caseId} has been assigned to your care.', { caseId: caseItem.caseId })
+              );
               if (res.case) {
                 setCaseItem(res.case);
               } else {
                 loadCaseDetail();
               }
             } catch (claimErr: any) {
-              Alert.alert('Unable to Claim Case', claimErr.message || 'Failed to claim referral.');
+              Alert.alert(t('vet.cannotClaim', 'Unable to Claim Case'), claimErr.message || 'Failed to claim referral.');
             } finally {
               setClaiming(false);
             }
@@ -189,8 +197,8 @@ export default function VetReferralDetailScreen() {
     // Validation
     if (actionTargetStatus === 'Confirmed' && !clinicalDiagnosisInput.trim()) {
       Alert.alert(
-        'Clinical Diagnosis Required',
-        'Please enter a confirmed clinical diagnosis before advancing the case to Confirmed status.'
+        t('vet.diagnosisRequired', 'Clinical Diagnosis Required'),
+        t('vet.confirmedDiagRequired', 'Please enter a confirmed clinical diagnosis before advancing the case to Confirmed status.')
       );
       return;
     }
@@ -209,7 +217,7 @@ export default function VetReferralDetailScreen() {
         });
 
         Alert.alert(
-          'Clinical Records Updated',
+          t('vet.recordsUpdated', 'Clinical Records Updated'),
           res.message || `Case ${caseItem.caseId} transitioned to ${actionTargetStatus}.`
         );
         setShowActionForm(false);
@@ -227,11 +235,11 @@ export default function VetReferralDetailScreen() {
 
     if (actionTargetStatus === 'Resolved') {
       Alert.alert(
-        'Confirm Case Resolution',
-        `Confirm that livestock patient has fully recovered and biosecurity criteria are met?\n\nThis will update the animal health status to "Recovered".`,
+        t('vet.confirmResolutionTitle', 'Confirm Case Resolution'),
+        t('vet.confirmResolutionMsg', 'Confirm that livestock patient has fully recovered and biosecurity criteria are met?\n\nThis will update the animal health status to "Recovered".'),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Confirm Resolution', style: 'default', onPress: doSubmit }
+          { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+          { text: t('common.confirm', 'Confirm Resolution'), style: 'default', onPress: doSubmit }
         ]
       );
     } else {
@@ -390,7 +398,7 @@ export default function VetReferralDetailScreen() {
     return (
       <View style={styles.centerWrapper}>
         <ActivityIndicator size="large" color={colors.light.primary} />
-        <Text style={styles.centerLoadingText}>Loading clinical referral details...</Text>
+        <Text style={styles.centerLoadingText}>{t('common.loading', 'Loading clinical referral details...')}</Text>
       </View>
     );
   }
@@ -399,17 +407,17 @@ export default function VetReferralDetailScreen() {
     return (
       <View style={styles.centerWrapper}>
         <Text style={styles.centerErrorIcon}>⚠️</Text>
-        <Text style={styles.centerErrorTitle}>Referral Unavailable</Text>
+        <Text style={styles.centerErrorTitle}>{t('vet.referralUnavailable', 'Referral Unavailable')}</Text>
         <Text style={styles.centerErrorMessage}>{error || 'Case could not be found.'}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadCaseDetail} activeOpacity={0.8}>
-          <Text style={styles.retryButtonText}>Retry Loading</Text>
+          <Text style={styles.retryButtonText}>{t('common.retry', 'Retry Loading')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.backLinkButton}
           onPress={() => router.replace('/(vet)/referrals')}
           activeOpacity={0.7}
         >
-          <Text style={styles.backLinkText}>← Back to Referral Queue</Text>
+          <Text style={styles.backLinkText}>{t('vet.backToQueue', '← Back to Referral Queue')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -428,6 +436,8 @@ export default function VetReferralDetailScreen() {
   } else if ((caseItem as any).assignedVet?.name) {
     assignedDoctorName = (caseItem as any).assignedVet.name;
   }
+  const cleanAssignedDoctorName = assignedDoctorName.replace(/^(Dr\.?|Doctor)\s*/i, '');
+  const cleanCurrentUserName = (user?.name || '').replace(/^(Dr\.?|Doctor)\s*/i, '');
 
   // Animal tag resolution
   let animalTag = 'N/A';
@@ -455,7 +465,7 @@ export default function VetReferralDetailScreen() {
         {isFromCache && (
           <View style={styles.cacheBanner}>
             <Text style={styles.cacheBannerText}>
-              ⚡ Offline Mode: Displaying saved clinical record from device storage.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved clinical record from device storage.')}
             </Text>
           </View>
         )}
@@ -481,7 +491,7 @@ export default function VetReferralDetailScreen() {
           </Text>
 
           <Text style={styles.dateText}>
-            Reported: {new Date(caseItem.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            {t('common.date', 'Reported')}: {new Date(caseItem.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
           </Text>
         </View>
 
@@ -489,20 +499,20 @@ export default function VetReferralDetailScreen() {
         <View style={styles.card}>
           <View style={styles.aiHeaderRow}>
             <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText}>AI PRELIMINARY SCREENING</Text>
+              <Text style={styles.aiBadgeText}>{t('vet.aiPreliminaryScreening', 'AI PRELIMINARY SCREENING')}</Text>
             </View>
             {caseItem.confidence ? (
-              <Text style={styles.confidenceText}>{caseItem.confidence}% model match</Text>
+              <Text style={styles.confidenceText}>{caseItem.confidence}% match</Text>
             ) : null}
           </View>
 
           <Text style={styles.aiObservedDisease}>
-            Screening Indication: <Text style={styles.aiDiseaseBold}>{caseItem.disease}</Text>
+            {t('vet.screeningIndication', 'Screening Indication:')} <Text style={styles.aiDiseaseBold}>{caseItem.disease}</Text>
           </Text>
 
           <View style={styles.disclaimerBox}>
             <Text style={styles.disclaimerText}>
-              ⚠️ AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis.
+              {t('vet.aiDisclaimer', '⚠️ AI-assisted preliminary screening / risk assessment — not a final veterinary diagnosis.')}
             </Text>
           </View>
         </View>
@@ -510,7 +520,7 @@ export default function VetReferralDetailScreen() {
         {/* Lesion / Screening Image if present */}
         {(caseItem.image || (caseItem as any).imageUrl) && (
           <View style={styles.card}>
-            <Text style={styles.sectionHeader}>Lesion / Clinical Image</Text>
+            <Text style={styles.sectionHeader}>{t('vet.lesionImage', 'Lesion / Clinical Image')}</Text>
             <View style={styles.imageContainer}>
               <Image
                 source={{ uri: caseItem.image || (caseItem as any).imageUrl }}
@@ -518,7 +528,7 @@ export default function VetReferralDetailScreen() {
                 resizeMode="cover"
               />
               <View style={styles.imageOverlayBadge}>
-                <Text style={styles.imageOverlayText}>AI Screening Snapshot</Text>
+                <Text style={styles.imageOverlayText}>{t('vet.aiSnapshot', 'AI Screening Snapshot')}</Text>
               </View>
             </View>
           </View>
@@ -526,35 +536,35 @@ export default function VetReferralDetailScreen() {
 
         {/* Patient Animal Information */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Patient Livestock Profile</Text>
+          <Text style={styles.sectionHeader}>{t('vet.patientProfile', 'Patient Livestock Profile')}</Text>
 
           <View style={styles.infoGrid}>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Species</Text>
+              <Text style={styles.infoLabel}>{t('vet.species', 'Species')}</Text>
               <Text style={styles.infoValue}>{caseItem.species || 'Livestock'}</Text>
             </View>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Animal Name</Text>
+              <Text style={styles.infoLabel}>{t('vet.animalName', 'Animal Name')}</Text>
               <Text style={styles.infoValue}>{caseItem.animalName || 'Unnamed'}</Text>
             </View>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Tag ID</Text>
+              <Text style={styles.infoLabel}>{t('vet.tagId', 'Tag ID')}</Text>
               <Text style={[styles.infoValue, styles.monospace]}>{animalTag}</Text>
             </View>
             <View style={styles.infoCol}>
-              <Text style={styles.infoLabel}>Affected Herd Count</Text>
+              <Text style={styles.infoLabel}>{t('vet.affectedHerdCount', 'Affected Herd Count')}</Text>
               <Text style={styles.infoValue}>{caseItem.affectedCount || 1} animal(s)</Text>
             </View>
             {caseItem.temperature ? (
               <View style={styles.infoCol}>
-                <Text style={styles.infoLabel}>Body Temperature</Text>
+                <Text style={styles.infoLabel}>{t('vet.bodyTemperature', 'Body Temperature')}</Text>
                 <Text style={styles.infoValue}>{caseItem.temperature}°C</Text>
               </View>
             ) : null}
             {caseItem.duration ? (
               <View style={styles.infoCol}>
-                <Text style={styles.infoLabel}>Symptom Duration</Text>
-                <Text style={styles.infoValue}>{caseItem.duration} hours</Text>
+                <Text style={styles.infoLabel}>{t('vet.symptomDuration', 'Symptom Duration')}</Text>
+                <Text style={styles.infoValue}>{caseItem.duration} {t('vet.hours', 'hours')}</Text>
               </View>
             ) : null}
           </View>
@@ -562,7 +572,7 @@ export default function VetReferralDetailScreen() {
           {/* Reported Symptoms */}
           {caseItem.symptoms && caseItem.symptoms.length > 0 && (
             <View style={styles.symptomsBlock}>
-              <Text style={styles.symptomsTitle}>Reported Symptoms & Clinical Signs</Text>
+              <Text style={styles.symptomsTitle}>{t('vet.reportedSymptoms', 'Reported Symptoms & Clinical Signs')}</Text>
               <View style={styles.symptomsRow}>
                 {caseItem.symptoms.map((s, idx) => (
                   <View key={idx} style={styles.symptomPill}>
@@ -575,7 +585,7 @@ export default function VetReferralDetailScreen() {
 
           {caseItem.notes ? (
             <View style={styles.farmerNotesBlock}>
-              <Text style={styles.farmerNotesTitle}>Farmer Observations / Field Notes</Text>
+              <Text style={styles.farmerNotesTitle}>{t('vet.farmerObservations', 'Farmer Observations / Field Notes')}</Text>
               <Text style={styles.farmerNotesBody}>{caseItem.notes}</Text>
             </View>
           ) : null}
@@ -583,7 +593,7 @@ export default function VetReferralDetailScreen() {
 
         {/* Farmer Contact & Farm Location Card */}
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>Farmer Contact & Farm Location</Text>
+          <Text style={styles.sectionHeader}>{t('vet.farmerContactAndLocation', 'Farmer Contact & Farm Location')}</Text>
 
           <View style={styles.contactRow}>
             <View style={styles.contactDetails}>
@@ -606,7 +616,7 @@ export default function VetReferralDetailScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={styles.callButtonIcon}>📞</Text>
-                <Text style={styles.callButtonText}>Call Farmer</Text>
+                <Text style={styles.callButtonText}>{t('common.call', 'Call Farmer')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -615,69 +625,73 @@ export default function VetReferralDetailScreen() {
         {/* Attending Veterinarian Clinical Record */}
         <View style={[styles.card, styles.clinicalCard]}>
           <View style={styles.cardHeaderWithAction}>
-            <Text style={styles.sectionHeaderNoMargin}>Attending Clinical Record</Text>
+            <Text style={styles.sectionHeaderNoMargin}>{t('vet.attendingClinicalRecord', 'Attending Clinical Record')}</Text>
             {canPerformClinicalAction && !showActionForm && (
               <TouchableOpacity
                 style={styles.editActionBtn}
                 onPress={() => handleOpenActionForm()}
                 activeOpacity={0.8}
               >
-                <Text style={styles.editActionBtnText}>✏️ Record Updates</Text>
+                <Text style={styles.editActionBtnText}>{t('vet.recordUpdates', '✏️ Record Updates')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           <View style={styles.doctorHeader}>
-            <Text style={styles.doctorLabel}>Assigned Doctor:</Text>
+            <Text style={styles.doctorLabel}>{t('vet.assignedDoctorLabel', 'Assigned Doctor:')}</Text>
             {isMine ? (
               <View style={styles.doctorBadgeMine}>
-                <Text style={styles.doctorBadgeMineText}>✓ Dr. {user?.name} (You)</Text>
+                <Text style={styles.doctorBadgeMineText}>
+                  {t('vet.youDoctor', '✓ Dr. {name} (You)', { name: cleanCurrentUserName || 'Doctor' })}
+                </Text>
               </View>
-            ) : assignedDoctorName ? (
-              <Text style={styles.doctorNameOther}>Dr. {assignedDoctorName}</Text>
+            ) : cleanAssignedDoctorName ? (
+              <Text style={styles.doctorNameOther}>Dr. {cleanAssignedDoctorName}</Text>
             ) : (
               <View style={styles.unassignedBadge}>
-                <Text style={styles.unassignedBadgeText}>Unassigned — Awaiting Claim</Text>
+                <Text style={styles.unassignedBadgeText}>
+                  {t('vet.unassignedAwaiting', 'Unassigned — Awaiting Claim')}
+                </Text>
               </View>
             )}
           </View>
 
           {caseItem.clinicalDiagnosis ? (
             <View style={styles.clinicalField}>
-              <Text style={styles.fieldLabel}>Confirmed Diagnosis</Text>
+              <Text style={styles.fieldLabel}>{t('vet.confirmedDiagnosis', 'Confirmed Diagnosis')}</Text>
               <Text style={styles.fieldValueBold}>{caseItem.clinicalDiagnosis}</Text>
             </View>
           ) : (
             <View style={styles.clinicalField}>
-              <Text style={styles.fieldLabel}>Confirmed Diagnosis</Text>
-              <Text style={styles.fieldValuePending}>Pending clinical diagnosis by attending veterinarian</Text>
+              <Text style={styles.fieldLabel}>{t('vet.confirmedDiagnosis', 'Confirmed Diagnosis')}</Text>
+              <Text style={styles.fieldValuePending}>{t('vet.pendingDiagnosis', 'Pending clinical diagnosis by attending veterinarian')}</Text>
             </View>
           )}
 
           {caseItem.affectedCount ? (
             <View style={styles.clinicalField}>
-              <Text style={styles.fieldLabel}>Affected Herd Count</Text>
+              <Text style={styles.fieldLabel}>{t('vet.affectedHerdCount', 'Affected Herd Count')}</Text>
               <Text style={styles.fieldValue}>{caseItem.affectedCount} animal(s)</Text>
             </View>
           ) : null}
 
           {caseItem.investigationNotes ? (
             <View style={styles.clinicalField}>
-              <Text style={styles.fieldLabel}>Clinical Examination Findings</Text>
+              <Text style={styles.fieldLabel}>{t('vet.examFindings', 'Clinical Examination Findings')}</Text>
               <Text style={styles.fieldValue}>{caseItem.investigationNotes}</Text>
             </View>
           ) : null}
 
           {caseItem.treatmentNotes ? (
             <View style={styles.clinicalField}>
-              <Text style={styles.fieldLabel}>Treatment Plan & Bio-Interventions</Text>
+              <Text style={styles.fieldLabel}>{t('vet.treatmentPlan', 'Treatment Plan & Bio-Interventions')}</Text>
               <Text style={styles.fieldValue}>{caseItem.treatmentNotes}</Text>
             </View>
           ) : null}
 
           {caseItem.prescription ? (
             <View style={styles.rxBlock}>
-              <Text style={styles.rxTitle}>Rx Prescribed Medications</Text>
+              <Text style={styles.rxTitle}>{t('vet.rxPrescribed', 'Rx Prescribed Medications')}</Text>
               <Text style={styles.rxContent}>{caseItem.prescription}</Text>
             </View>
           ) : null}
@@ -689,7 +703,7 @@ export default function VetReferralDetailScreen() {
             <View style={styles.actionFormHeader}>
               <View>
                 <Text style={styles.actionFormBadge}>VETERINARY CLINICAL WORKFLOW</Text>
-                <Text style={styles.actionFormTitle}>Update Clinical Case & Advance Status</Text>
+                <Text style={styles.actionFormTitle}>{t('vet.workflowTitle', 'Update Clinical Case & Advance Status')}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setShowActionForm(false)}
@@ -702,7 +716,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Stage Selector */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Target Case Status / Stage</Text>
+              <Text style={styles.formLabel}>{t('vet.targetStage', 'Target Case Status / Stage')}</Text>
               <View style={styles.stageGrid}>
                 {CLINICAL_STAGES.map((st) => {
                   const isSelected = actionTargetStatus === st.id;
@@ -724,7 +738,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Clinical Diagnosis Input */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Confirmed Clinical Diagnosis</Text>
+              <Text style={styles.formLabel}>{t('vet.confirmedDiagnosis', 'Confirmed Clinical Diagnosis')}</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="e.g., Lumpy Skin Disease (Clinical Confirmation)"
@@ -736,7 +750,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Affected Animals Count */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Affected Livestock Count</Text>
+              <Text style={styles.formLabel}>{t('vet.affectedHerdCount', 'Affected Livestock Count')}</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="1"
@@ -749,7 +763,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Examination Findings / Investigation Notes */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Clinical Examination Findings / Notes</Text>
+              <Text style={styles.formLabel}>{t('vet.examFindings', 'Clinical Examination Findings / Notes')}</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 placeholder="Record clinical examination signs, body temperature, vitals, mucosal lesions, lymph node palpation..."
@@ -763,7 +777,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Treatment Plan & Interventions */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Treatment Plan & Supportive Therapy</Text>
+              <Text style={styles.formLabel}>{t('vet.treatmentPlan', 'Treatment Plan & Supportive Therapy')}</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 placeholder="Record clinical intervention, fluid therapy, antipyretics, isolation protocols..."
@@ -777,7 +791,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Rx Prescription */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Rx Prescribed Medications & Dosage</Text>
+              <Text style={styles.formLabel}>{t('vet.rxPrescribed', 'Rx Prescribed Medications & Dosage')}</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea, styles.rxInput]}
                 placeholder="e.g., Inj. Meloxicam 0.5 mg/kg IM OD x 3 days, Inj. Oxytetracycline 10 mg/kg..."
@@ -791,7 +805,7 @@ export default function VetReferralDetailScreen() {
 
             {/* Optional Custom Timeline Note */}
             <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Custom Timeline Audit Note (Optional)</Text>
+              <Text style={styles.formLabel}>{t('common.notes', 'Custom Timeline Audit Note (Optional)')}</Text>
               <TextInput
                 style={styles.textInput}
                 placeholder="e.g., Physical field checkup completed. Herd isolated."
@@ -808,7 +822,7 @@ export default function VetReferralDetailScreen() {
                 onPress={() => setShowActionForm(false)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.formCancelBtnText}>Cancel</Text>
+                <Text style={styles.formCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -820,7 +834,7 @@ export default function VetReferralDetailScreen() {
                 {savingStatus ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.formSubmitBtnText}>Submit Clinical Update</Text>
+                  <Text style={styles.formSubmitBtnText}>{t('common.submit', 'Submit Clinical Update')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -830,7 +844,7 @@ export default function VetReferralDetailScreen() {
         {/* Case Audit Timeline */}
         <View style={styles.card}>
           <Text style={styles.sectionHeader}>
-            Case Timeline Audit ({caseItem.timeline?.length || 0})
+            {t('vet.caseTimeline', 'Case Timeline Audit ({count})', { count: caseItem.timeline?.length || 0 })}
           </Text>
 
           {caseItem.timeline && caseItem.timeline.length > 0 ? (
@@ -852,7 +866,7 @@ export default function VetReferralDetailScreen() {
               ))}
             </View>
           ) : (
-            <Text style={styles.emptyTimelineText}>No status transition milestones recorded.</Text>
+            <Text style={styles.emptyTimelineText}>{t('vet.noTimelineMilestones', 'No status transition milestones recorded.')}</Text>
           )}
         </View>
 
@@ -869,7 +883,7 @@ export default function VetReferralDetailScreen() {
             ) : (
               <>
                 <Text style={styles.primaryClaimBtnIcon}>🩺</Text>
-                <Text style={styles.primaryClaimBtnText}>Claim Clinical Responsibility</Text>
+                <Text style={styles.primaryClaimBtnText}>{t('vet.claimClinicalResponsibility', 'Claim Clinical Responsibility')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -881,7 +895,7 @@ export default function VetReferralDetailScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.primaryClaimBtnIcon}>📋</Text>
-              <Text style={styles.primaryClaimBtnText}>Update Clinical Case & Advance Status</Text>
+              <Text style={styles.primaryClaimBtnText}>{t('vet.advanceCaseStatus', 'Update Clinical Case & Advance Status')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -890,7 +904,7 @@ export default function VetReferralDetailScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.secondaryLabBtnIcon}>🔬</Text>
-              <Text style={styles.secondaryLabBtnText}>Order Diagnostic Lab Test</Text>
+              <Text style={styles.secondaryLabBtnText}>{t('vet.orderLabTest', 'Order Diagnostic Lab Test')}</Text>
             </TouchableOpacity>
 
             {/* Phase 9.4: Containment & Ring Vaccination (Eligible for Confirmed / Containment cases) */}
@@ -902,7 +916,7 @@ export default function VetReferralDetailScreen() {
                   activeOpacity={0.85}
                 >
                   <Text style={styles.containmentActionBtnIcon}>🛡️</Text>
-                  <Text style={styles.containmentActionBtnText}>Declare Containment Zone</Text>
+                  <Text style={styles.containmentActionBtnText}>{t('vet.declareContainment', 'Declare Containment Zone')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -911,15 +925,15 @@ export default function VetReferralDetailScreen() {
                   activeOpacity={0.85}
                 >
                   <Text style={styles.ringActionBtnIcon}>💉</Text>
-                  <Text style={styles.ringActionBtnText}>Schedule Ring Vaccination</Text>
+                  <Text style={styles.ringActionBtnText}>{t('vet.scheduleRingVaccination', 'Schedule Ring Vaccination')}</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
-        ) : !canPerformClinicalAction && assignedDoctorName ? (
+        ) : !canPerformClinicalAction && cleanAssignedDoctorName ? (
           <View style={styles.unauthorizedBox}>
             <Text style={styles.unauthorizedText}>
-              🔒 Assigned to Dr. {assignedDoctorName}. Clinical updates and prescriptions can only be recorded by the attending veterinarian.
+              {t('vet.assignedToOtherDoctor', '🔒 Assigned to Dr. {name}. Clinical updates and prescriptions can only be recorded by the attending veterinarian.', { name: cleanAssignedDoctorName })}
             </Text>
           </View>
         ) : null}
@@ -1009,7 +1023,7 @@ export default function VetReferralDetailScreen() {
                 style={styles.formCancelBtn}
                 onPress={() => setShowLabModal(false)}
               >
-                <Text style={styles.formCancelBtnText}>Cancel</Text>
+                <Text style={styles.formCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.labSubmitBtn}
@@ -1019,7 +1033,7 @@ export default function VetReferralDetailScreen() {
                 {submittingLab ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.formSubmitBtnText}>Submit Lab Referral</Text>
+                  <Text style={styles.formSubmitBtnText}>{t('vet.orderLabTestBtn', 'Submit Lab Referral')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1039,7 +1053,7 @@ export default function VetReferralDetailScreen() {
             <View style={styles.labModalHeader}>
               <View>
                 <Text style={[styles.labModalBadge, { color: '#7C3AED' }]}>BIOSECURITY PROTOCOL</Text>
-                <Text style={styles.labModalTitle}>Declare Containment Zone</Text>
+                <Text style={styles.labModalTitle}>{t('vet.declareContainment', 'Declare Containment Zone')}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowContainmentModal(false)}>
                 <Text style={styles.labModalCloseText}>✕</Text>
@@ -1103,7 +1117,7 @@ export default function VetReferralDetailScreen() {
                 style={styles.formCancelBtn}
                 onPress={() => setShowContainmentModal(false)}
               >
-                <Text style={styles.formCancelBtnText}>Cancel</Text>
+                <Text style={styles.formCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.containmentSubmitBtn}
@@ -1113,7 +1127,7 @@ export default function VetReferralDetailScreen() {
                 {declaringContainment ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.formSubmitBtnText}>Declare Perimeter</Text>
+                  <Text style={styles.formSubmitBtnText}>{t('vet.declareZoneBtn', 'Declare Perimeter')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1133,7 +1147,7 @@ export default function VetReferralDetailScreen() {
             <View style={styles.labModalHeader}>
               <View>
                 <Text style={[styles.labModalBadge, { color: '#2563EB' }]}>EMERGENCY PROPHYLAXIS</Text>
-                <Text style={styles.labModalTitle}>Schedule Ring Vaccination</Text>
+                <Text style={styles.labModalTitle}>{t('vet.scheduleRingVaccination', 'Schedule Ring Vaccination')}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowRingModal(false)}>
                 <Text style={styles.labModalCloseText}>✕</Text>
@@ -1197,7 +1211,7 @@ export default function VetReferralDetailScreen() {
                 style={styles.formCancelBtn}
                 onPress={() => setShowRingModal(false)}
               >
-                <Text style={styles.formCancelBtnText}>Cancel</Text>
+                <Text style={styles.formCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.ringSubmitBtn}
@@ -1207,7 +1221,7 @@ export default function VetReferralDetailScreen() {
                 {schedulingRing ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.formSubmitBtnText}>Activate Ring Drive</Text>
+                  <Text style={styles.formSubmitBtnText}>{t('vet.launchRingDrive', 'Activate Ring Drive')}</Text>
                 )}
               </TouchableOpacity>
             </View>

@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
 import { veterinarianService } from '../../../src/services/veterinarianService';
 import { DiseaseCase, getStatusTheme, getRiskTheme } from '../../../src/types/case';
@@ -31,20 +32,21 @@ import {
 } from '../../../src/types/referral';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
 
-const FILTER_OPTIONS: Array<{ key: ReferralFilterType; label: string }> = [
-  { key: 'all', label: 'All Cases' },
-  { key: 'New', label: 'New Referrals' },
-  { key: 'my_cases', label: 'My Cases' },
-  { key: 'Investigating', label: 'Investigating' },
-  { key: 'Confirmed', label: 'Confirmed' },
-  { key: 'Containment', label: 'Containment' },
-  { key: 'Resolved', label: 'Resolved' },
+const FILTER_KEYS: ReferralFilterType[] = [
+  'all',
+  'New',
+  'my_cases',
+  'Investigating',
+  'Confirmed',
+  'Containment',
+  'Resolved',
 ];
 
 export default function VetReferralsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string; status?: string }>();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [activeFilter, setActiveFilter] = useState<ReferralFilterType>(
     (params.filter as ReferralFilterType) || (params.status as ReferralFilterType) || 'all'
@@ -59,6 +61,27 @@ export default function VetReferralsScreen() {
 
   const vetId = user?.id || user?._id;
   const vetDistrict = user?.district || 'District';
+
+  const getFilterLabel = (key: ReferralFilterType): string => {
+    switch (key) {
+      case 'all':
+        return t('vet.filterAll', 'All Cases');
+      case 'New':
+        return t('vet.filterNew', 'New Referrals');
+      case 'my_cases':
+        return t('vet.filterMyCases', 'My Cases');
+      case 'Investigating':
+        return t('vet.filterInvestigating', 'Investigating');
+      case 'Confirmed':
+        return t('vet.filterConfirmed', 'Confirmed');
+      case 'Containment':
+        return t('vet.filterContainment', 'Containment');
+      case 'Resolved':
+        return t('vet.filterResolved', 'Resolved');
+      default:
+        return key;
+    }
+  };
 
   const loadReferrals = useCallback(async () => {
     try {
@@ -84,9 +107,9 @@ export default function VetReferralsScreen() {
 
   // Update filter if route params change
   useEffect(() => {
-    if (params.filter && FILTER_OPTIONS.some((f) => f.key === params.filter)) {
+    if (params.filter && FILTER_KEYS.includes(params.filter as ReferralFilterType)) {
       setActiveFilter(params.filter as ReferralFilterType);
-    } else if (params.status && FILTER_OPTIONS.some((f) => f.key === params.status)) {
+    } else if (params.status && FILTER_KEYS.includes(params.status as ReferralFilterType)) {
       setActiveFilter(params.status as ReferralFilterType);
     }
   }, [params.filter, params.status]);
@@ -101,26 +124,35 @@ export default function VetReferralsScreen() {
     if (!caseTargetId) return;
 
     Alert.alert(
-      'Take Clinical Responsibility',
-      `Confirm claiming case ${caseItem.caseId} (${caseItem.disease})?\n\nThis will record your identity as the attending veterinarian and transition status to Investigating.`,
+      t('vet.takeResponsibilityTitle', 'Take Clinical Responsibility'),
+      t(
+        'vet.takeResponsibilityMsg',
+        'Confirm claiming case {caseId} ({disease})?\n\nThis will record your identity as the attending veterinarian and transition status to Investigating.',
+        { caseId: caseItem.caseId, disease: caseItem.disease }
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Claim Case',
+          text: t('vet.claimCase', 'Claim Case'),
           style: 'default',
           onPress: async () => {
             try {
               setClaimingId(caseTargetId);
               await veterinarianService.claimCase(caseTargetId);
-              Alert.alert('Case Claimed', `You are now the attending doctor for case ${caseItem.caseId}.`);
+              Alert.alert(
+                t('common.success', 'Success'),
+                t('vet.caseClaimedSuccess', 'Case {caseId} has been assigned to your care.', {
+                  caseId: caseItem.caseId,
+                })
+              );
               loadReferrals();
             } catch (claimErr: any) {
-              Alert.alert('Unable to Claim Case', claimErr.message || 'Failed to claim case.');
+              Alert.alert(t('vet.cannotClaim', 'Unable to Claim Case'), claimErr.message || 'Failed to claim case.');
             } finally {
               setClaimingId(null);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -277,15 +309,15 @@ export default function VetReferralsScreen() {
               {claimingId === targetId ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.claimButtonText}>Claim Case</Text>
+                <Text style={styles.claimButtonText}>{t('vet.claimCase', 'Claim Case')}</Text>
               )}
             </TouchableOpacity>
           ) : isMine ? (
             <View style={styles.myCaseBadge}>
-              <Text style={styles.myCaseBadgeText}>Assigned to You</Text>
+              <Text style={styles.myCaseBadgeText}>{t('vet.assignedToYou', 'Assigned to You')}</Text>
             </View>
           ) : assignedDoctorName ? (
-            <Text style={styles.assignedOtherText}>Dr. {assignedDoctorName}</Text>
+            <Text style={styles.assignedOtherText}>{t('vet.assignedToDoctor', 'Assigned to Dr. {name}', { name: assignedDoctorName })}</Text>
           ) : null}
         </View>
       </TouchableOpacity>
@@ -302,7 +334,7 @@ export default function VetReferralsScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search disease, case ID, animal, village..."
+            placeholder={t('vet.searchReferralsPlaceholder', 'Search disease, case ID, animal, village...')}
             placeholderTextColor={colors.light.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -319,20 +351,20 @@ export default function VetReferralsScreen() {
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={FILTER_OPTIONS}
-          keyExtractor={(item) => item.key}
+          data={FILTER_KEYS}
+          keyExtractor={(item) => item}
           contentContainerStyle={styles.filterList}
           renderItem={({ item }) => {
-            const count = filterCounts[item.key] ?? 0;
-            const isSelected = activeFilter === item.key;
+            const count = filterCounts[item] ?? 0;
+            const isSelected = activeFilter === item;
             return (
               <TouchableOpacity
                 style={[styles.filterPill, isSelected && styles.filterPillActive]}
-                onPress={() => setActiveFilter(item.key)}
+                onPress={() => setActiveFilter(item)}
                 activeOpacity={0.75}
               >
                 <Text style={[styles.filterPillText, isSelected && styles.filterPillTextActive]}>
-                  {item.label} ({count})
+                  {getFilterLabel(item)} ({count})
                 </Text>
               </TouchableOpacity>
             );
@@ -342,7 +374,7 @@ export default function VetReferralsScreen() {
         {isFromCache && (
           <View style={styles.cacheNoticeBanner}>
             <Text style={styles.cacheNoticeBannerText}>
-              ⚡ Offline Mode: Displaying saved referrals from local device cache.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved records from device cache.')}
             </Text>
           </View>
         )}
@@ -352,15 +384,15 @@ export default function VetReferralsScreen() {
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading district referral queue...</Text>
+          <Text style={styles.loadingText}>{t('vet.loadingReferrals', 'Loading district referral queue...')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Error Loading Referrals</Text>
+          <Text style={styles.errorTitle}>{t('vet.errorLoadingReferrals', 'Error Loading Referrals')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadReferrals} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+            <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -380,11 +412,11 @@ export default function VetReferralsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>No Matching Referrals</Text>
+              <Text style={styles.emptyTitle}>{t('vet.noMatchingReferrals', 'No Matching Referrals')}</Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery
-                  ? `No cases matched "${searchQuery}".`
-                  : `There are currently no cases matching filter "${activeFilter}".`}
+                  ? t('vet.noReferralsMatchQuery', 'No cases matched "{query}".', { query: searchQuery })
+                  : t('vet.noReferralsMatchFilter', 'There are currently no cases matching filter "{filter}".', { filter: getFilterLabel(activeFilter) })}
               </Text>
             </View>
           }

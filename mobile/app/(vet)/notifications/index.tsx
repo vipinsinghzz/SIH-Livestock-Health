@@ -32,76 +32,79 @@ import {
   resolveVetNotificationNavigation,
 } from '../../../src/types/notification';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
+import { useAppLanguage } from '../../../src/services/i18n';
 
-const FILTER_CHIPS: { key: VetNotificationCategory; label: string }[] = [
-  { key: 'All', label: 'All' },
-  { key: 'Unread', label: 'Unread' },
-  { key: 'Cases', label: 'Cases' },
-  { key: 'Outbreaks', label: 'Outbreaks' },
-  { key: 'Containment', label: 'Containment' },
-];
-
-function getNotificationTypeBadge(type: NotificationType): { label: string; bg: string; text: string; icon: string } {
+function getNotificationTypeBadge(
+  type: NotificationType,
+  t: (key: string, def?: any, params?: any) => string
+): { label: string; bg: string; text: string; icon: string } {
   switch (type) {
     case 'NEW_CASE_ALERT':
-      return { label: 'New Referral', bg: '#FEE2E2', text: '#B91C1C', icon: '🚨' };
+      return { label: t('vet.badgeNewReferral', 'New Referral'), bg: '#FEE2E2', text: '#B91C1C', icon: '🚨' };
     case 'CASE_STATUS_UPDATE':
-      return { label: 'Status Update', bg: '#DBEAFE', text: '#1D4ED8', icon: '🔄' };
+      return { label: t('vet.badgeStatusUpdate', 'Status Update'), bg: '#DBEAFE', text: '#1D4ED8', icon: '🔄' };
     case 'CASE_CLAIMED':
-      return { label: 'Case Claimed', bg: '#D1FAE5', text: '#047857', icon: '✅' };
+      return { label: t('vet.badgeCaseClaimed', 'Case Claimed'), bg: '#D1FAE5', text: '#047857', icon: '✅' };
     case 'CASE_ASSIGNED':
-      return { label: 'Assigned Care', bg: '#E0E7FF', text: '#4338CA', icon: '🩺' };
+      return { label: t('vet.badgeAssignedCare', 'Assigned Care'), bg: '#E0E7FF', text: '#4338CA', icon: '🩺' };
     case 'OUTBREAK_CLUSTER_ALERT':
-      return { label: 'Outbreak Cluster', bg: '#FEF3C7', text: '#B45309', icon: '⚠️' };
+      return { label: t('vet.badgeOutbreakCluster', 'Outbreak Cluster'), bg: '#FEF3C7', text: '#B45309', icon: '⚠️' };
     case 'CONTAINMENT_ZONE_CREATED':
-      return { label: 'Containment Declared', bg: '#F3E8FF', text: '#7E22CE', icon: '🛡️' };
+      return { label: t('vet.badgeContainmentDeclared', 'Containment Declared'), bg: '#F3E8FF', text: '#7E22CE', icon: '🛡️' };
     case 'CONTAINMENT_ZONE_UPDATED':
-      return { label: 'Containment Update', bg: '#F3E8FF', text: '#7E22CE', icon: '🛡️' };
+      return { label: t('vet.badgeContainmentUpdate', 'Containment Update'), bg: '#F3E8FF', text: '#7E22CE', icon: '🛡️' };
     case 'RING_VACCINATION_SCHEDULED':
-      return { label: 'Ring Vaccination', bg: '#CCFBF1', text: '#0F766E', icon: '💉' };
+      return { label: t('vet.badgeRingVaccination', 'Ring Vaccination'), bg: '#CCFBF1', text: '#0F766E', icon: '💉' };
     case 'ADVISORY':
-      return { label: 'Advisory Bulletin', bg: '#E0F2FE', text: '#0369A1', icon: '📢' };
+      return { label: t('vet.badgeAdvisoryBulletin', 'Advisory Bulletin'), bg: '#E0F2FE', text: '#0369A1', icon: '📢' };
     case 'GENERAL':
     default:
-      return { label: 'Clinical Alert', bg: '#F1F5F9', text: '#475569', icon: '📋' };
+      return { label: t('vet.badgeClinicalAlert', 'Clinical Alert'), bg: '#F1F5F9', text: '#475569', icon: '📋' };
   }
 }
 
-function getSeverityBadge(severity?: NotificationSeverity): { bg: string; text: string } | null {
+function getSeverityBadge(
+  severity?: NotificationSeverity,
+  t?: (key: string, def?: any, params?: any) => string
+): { bg: string; text: string; label: string } | null {
   if (!severity) return null;
   switch (severity) {
     case 'Critical':
-      return { bg: '#FEE2E2', text: '#DC2626' };
+      return { bg: '#FEE2E2', text: '#DC2626', label: t ? t('vet.priorityCritical', 'Critical') : 'Critical' };
     case 'High':
-      return { bg: '#FFEDD5', text: '#EA580C' };
+      return { bg: '#FFEDD5', text: '#EA580C', label: t ? t('vet.priorityHigh', 'High') : 'High' };
     case 'Moderate':
-      return { bg: '#FEF3C7', text: '#D97706' };
+      return { bg: '#FEF3C7', text: '#D97706', label: t ? t('vet.priorityMedium', 'Moderate') : 'Moderate' };
     case 'Low':
-      return { bg: '#D1FAE5', text: '#059669' };
+      return { bg: '#D1FAE5', text: '#059669', label: t ? t('vet.priorityLow', 'Low') : 'Low' };
     default:
       return null;
   }
 }
 
-function formatTimeAgo(isoString?: string): string {
+function formatTimeAgo(
+  isoString?: string,
+  t?: (key: string, def?: any, params?: any) => string
+): string {
   if (!isoString) return '';
   const date = new Date(isoString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0 || isNaN(diffMs)) return 'Just now';
+  if (diffMs < 0 || isNaN(diffMs)) return t ? t('common.justNow', 'Just now') : 'Just now';
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1) return t ? t('common.justNow', 'Just now') : 'Just now';
+  if (diffMins < 60) return `${diffMins}m ${t ? t('common.ago', 'ago') : 'ago'}`;
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) return `${diffHours}h ${t ? t('common.ago', 'ago') : 'ago'}`;
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 7) return `${diffDays}d ${t ? t('common.ago', 'ago') : 'ago'}`;
   return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 }
 
 export default function VetNotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useAppLanguage();
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,6 +112,14 @@ export default function VetNotificationsScreen() {
   const [selectedFilter, setSelectedFilter] = useState<VetNotificationCategory>('All');
   const [isOffline, setIsOffline] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const filterChips = useMemo<{ key: VetNotificationCategory; label: string }[]>(() => [
+    { key: 'All', label: t('common.all', 'All') },
+    { key: 'Unread', label: t('notifications.unread', 'Unread') },
+    { key: 'Cases', label: t('vet.filterCases', 'Cases') },
+    { key: 'Outbreaks', label: t('vet.filterOutbreaks', 'Outbreaks') },
+    { key: 'Containment', label: t('vet.filterContainment', 'Containment') },
+  ], [t]);
 
   const loadNotifications = useCallback(
     async (isPullToRefresh = false) => {
@@ -201,7 +212,7 @@ export default function VetNotificationsScreen() {
     } else if (target.type === 'containment') {
       router.push('/(vet)/containment');
     } else if (target.type === 'none' && target.reason) {
-      Alert.alert('Notice', target.reason);
+      Alert.alert(t('common.notice', 'Notice'), target.reason);
     }
   };
 
@@ -218,9 +229,9 @@ export default function VetNotificationsScreen() {
   };
 
   const renderItem = ({ item }: { item: AppNotification }) => {
-    const typeBadge = getNotificationTypeBadge(item.type);
-    const sevBadge = getSeverityBadge(item.severity);
-    const timeAgo = formatTimeAgo(item.createdAt);
+    const typeBadge = getNotificationTypeBadge(item.type, t);
+    const sevBadge = getSeverityBadge(item.severity, t);
+    const timeAgo = formatTimeAgo(item.createdAt, t);
     const navTarget = resolveVetNotificationNavigation(item);
 
     const hasAiScreening = Boolean(
@@ -251,7 +262,7 @@ export default function VetNotificationsScreen() {
             {sevBadge && (
               <View style={[styles.sevBadge, { backgroundColor: sevBadge.bg }]}>
                 <Text style={[styles.sevLabel, { color: sevBadge.text }]}>
-                  {item.severity}
+                  {sevBadge.label}
                 </Text>
               </View>
             )}
@@ -286,7 +297,7 @@ export default function VetNotificationsScreen() {
           {item.caseNumber || item.caseId ? (
             <View style={styles.entityTag}>
               <Text style={styles.entityTagText}>
-                📋 Case {item.caseNumber || String(item.caseId).slice(0, 8)}
+                📋 {t('common.case', 'Case')} {item.caseNumber || String(item.caseId).slice(0, 8)}
               </Text>
             </View>
           ) : null}
@@ -308,7 +319,7 @@ export default function VetNotificationsScreen() {
         {hasAiScreening && (
           <View style={styles.aiNoticeContainer}>
             <Text style={styles.aiNoticeText}>
-              ⚠️ AI-assisted preliminary screening — not a final veterinary diagnosis.
+              {t('vet.aiDisclaimer', '⚠️ AI-assisted preliminary screening — not a final veterinary diagnosis.')}
             </Text>
           </View>
         )}
@@ -317,9 +328,9 @@ export default function VetNotificationsScreen() {
         {navTarget.type !== 'none' && (
           <View style={styles.actionRow}>
             <Text style={styles.actionBtnText}>
-              {navTarget.type === 'referral' && 'Examine Referral Case ➔'}
-              {navTarget.type === 'map' && 'View Outbreak GIS Map ➔'}
-              {navTarget.type === 'containment' && 'View Containment Zone ➔'}
+              {navTarget.type === 'referral' && t('vet.examineReferral', 'Examine Referral Case ➔')}
+              {navTarget.type === 'map' && t('vet.viewGisMap', 'View Outbreak GIS Map ➔')}
+              {navTarget.type === 'containment' && t('vet.viewContainmentZone', 'View Containment Zone ➔')}
             </Text>
           </View>
         )}
@@ -334,13 +345,15 @@ export default function VetNotificationsScreen() {
       {/* Top Controls Header */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
-          <Text style={styles.topBarTitle}>Clinical Alerts</Text>
+          <Text style={styles.topBarTitle}>{t('vet.clinicalAlerts', 'Clinical Alerts')}</Text>
           {unreadCount > 0 ? (
             <View style={styles.unreadCountBadge}>
-              <Text style={styles.unreadCountText}>{unreadCount} unread</Text>
+              <Text style={styles.unreadCountText}>
+                {t('vet.unreadCountBadge', '{count} unread', { count: unreadCount })}
+              </Text>
             </View>
           ) : (
-            <Text style={styles.allReadSubtext}>All caught up</Text>
+            <Text style={styles.allReadSubtext}>{t('vet.allCaughtUp', 'All caught up')}</Text>
           )}
         </View>
 
@@ -350,7 +363,7 @@ export default function VetNotificationsScreen() {
             onPress={handleMarkAllAsRead}
             activeOpacity={0.7}
           >
-            <Text style={styles.markAllReadText}>Mark all read</Text>
+            <Text style={styles.markAllReadText}>{t('vet.markAllRead', 'Mark All Read')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -359,7 +372,7 @@ export default function VetNotificationsScreen() {
       {isOffline && (
         <View style={styles.offlineNoticeBox}>
           <Text style={styles.offlineNoticeText}>
-            ⚡ Offline Mode: Displaying cached alerts from device storage. Read updates require network connectivity.
+            {t('vet.offlineAlertsNotice', '⚡ Offline Mode: Displaying cached alerts from device storage. Read updates require network connectivity.')}
           </Text>
         </View>
       )}
@@ -367,7 +380,7 @@ export default function VetNotificationsScreen() {
       {/* Filter Chips Bar */}
       <View style={styles.filtersWrapper}>
         <FlatList
-          data={FILTER_CHIPS}
+          data={filterChips}
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={(item) => item.key}
@@ -402,19 +415,19 @@ export default function VetNotificationsScreen() {
       {loading && !refreshing ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading clinical alerts...</Text>
+          <Text style={styles.loadingText}>{t('vet.loadingAlerts', 'Loading clinical alerts...')}</Text>
         </View>
       ) : errorMessage && notifications.length === 0 ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Unable to Load Alerts</Text>
+          <Text style={styles.errorTitle}>{t('vet.unableToLoadAlerts', 'Unable to Load Alerts')}</Text>
           <Text style={styles.errorText}>{errorMessage}</Text>
           <TouchableOpacity
             style={styles.retryBtn}
             onPress={() => loadNotifications()}
             activeOpacity={0.8}
           >
-            <Text style={styles.retryBtnText}>Retry</Text>
+            <Text style={styles.retryBtnText}>{t('common.retry', 'Retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -436,13 +449,13 @@ export default function VetNotificationsScreen() {
               <Text style={styles.emptyIcon}>🔔</Text>
               <Text style={styles.emptyTitle}>
                 {selectedFilter === 'All'
-                  ? 'No Clinical Alerts'
-                  : `No ${selectedFilter} Alerts`}
+                  ? t('vet.noClinicalAlerts', 'No Clinical Alerts')
+                  : t('vet.noAlertsFilter', 'No {filter} Alerts', { filter: selectedFilter })}
               </Text>
               <Text style={styles.emptySub}>
                 {selectedFilter === 'All'
-                  ? 'Your clinical inbox is clear. Incoming referral cases and epidemic cluster alerts will appear here.'
-                  : `No alerts currently match the "${selectedFilter}" filter.`}
+                  ? t('vet.clinicalInboxClear', 'Your clinical inbox is clear. Incoming referral cases and epidemic cluster alerts will appear here.')
+                  : t('vet.noAlertsMatchFilter', 'No alerts currently match the "{filter}" filter.', { filter: selectedFilter })}
               </Text>
               {selectedFilter !== 'All' && (
                 <TouchableOpacity
@@ -450,7 +463,7 @@ export default function VetNotificationsScreen() {
                   onPress={() => setSelectedFilter('All')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.clearFilterText}>View All Alerts</Text>
+                  <Text style={styles.clearFilterText}>{t('vet.viewAllAlerts', 'View All Alerts')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -458,6 +471,7 @@ export default function VetNotificationsScreen() {
         />
       )}
     </View>
+
   );
 }
 

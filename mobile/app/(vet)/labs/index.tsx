@@ -32,18 +32,20 @@ import {
   LabSampleType
 } from '../../../src/types/lab';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
-
-const STATUS_FILTERS: Array<{ key: string; label: string }> = [
-  { key: 'all', label: 'All Samples' },
-  { key: 'Collected', label: '1. Collected' },
-  { key: 'In Transit', label: '2. In Transit' },
-  { key: 'Received', label: '3. Received' },
-  { key: 'Result Pending', label: '4. Testing' },
-  { key: 'Result Confirmed', label: '5. Confirmed' },
-];
+import { useAppLanguage } from '../../../src/services/i18n';
 
 export default function VetLabsScreen() {
   const router = useRouter();
+  const { t } = useAppLanguage();
+
+  const STATUS_FILTERS: Array<{ key: string; label: string }> = [
+    { key: 'all', label: t('vet.filterAll', 'All Samples') },
+    { key: 'Collected', label: t('vet.stageCollected', '1. Collected') },
+    { key: 'In Transit', label: t('vet.stageInTransit', '2. In Transit') },
+    { key: 'Received', label: t('vet.stageReceived', '3. Received') },
+    { key: 'Result Pending', label: t('vet.stageTesting', '4. Testing') },
+    { key: 'Result Confirmed', label: t('vet.stageConfirmed', '5. Confirmed') },
+  ];
 
   const [referrals, setReferrals] = useState<LabReferral[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -166,7 +168,7 @@ export default function VetLabsScreen() {
 
         {item.resultSummary?.confirmedDisease ? (
           <View style={styles.confirmedBox}>
-            <Text style={styles.confirmedLabel}>🔬 Confirmed Pathogen / Finding:</Text>
+            <Text style={styles.confirmedLabel}>{t('vet.confirmedPathogen', '🔬 Confirmed Pathogen / Finding:')}</Text>
             <Text style={styles.confirmedValue}>{item.resultSummary.confirmedDisease}</Text>
           </View>
         ) : item.resultSummary?.notes ? (
@@ -177,9 +179,9 @@ export default function VetLabsScreen() {
 
         <View style={styles.cardFooter}>
           <Text style={styles.dateText}>
-            Collected: {item.collectionDate ? new Date(item.collectionDate).toLocaleDateString() : 'N/A'}
+            {t('common.date', 'Collected')}: {item.collectionDate ? new Date(item.collectionDate).toLocaleDateString() : 'N/A'}
           </Text>
-          <Text style={styles.viewLink}>View Details & Results ➔</Text>
+          <Text style={styles.viewLink}>{t('vet.viewLabDetails', 'View Details & Results ➔')}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -193,9 +195,9 @@ export default function VetLabsScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.headerTitle}>Diagnostic Lab Tests</Text>
+            <Text style={styles.headerTitle}>{t('nav.diagnosticLabs', 'Diagnostic Lab Tests')}</Text>
             <Text style={styles.headerSubtitle}>
-              Chain-of-custody tracking • {referrals.length} active sample(s)
+              {t('vet.chainOfCustody', 'Diagnostic Chain of Custody')} • {t('vet.activeSamplesCount', '{count} active sample(s)', { count: referrals.length })}
             </Text>
           </View>
           <TouchableOpacity
@@ -203,7 +205,7 @@ export default function VetLabsScreen() {
             onPress={() => setShowCreateModal(true)}
             activeOpacity={0.8}
           >
-            <Text style={styles.orderSampleBtnText}>+ Order Lab Test</Text>
+            <Text style={styles.orderSampleBtnText}>{t('vet.orderLabTestBtn', '+ Order Lab Test')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -212,7 +214,7 @@ export default function VetLabsScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search sample, lab, case ID, pathogen, village..."
+            placeholder={t('vet.searchLabsPlaceholder', 'Search sample, lab, case ID, pathogen, village...')}
             placeholderTextColor={colors.light.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -252,7 +254,7 @@ export default function VetLabsScreen() {
         {isFromCache && (
           <View style={styles.cacheNoticeBanner}>
             <Text style={styles.cacheNoticeBannerText}>
-              ⚡ Offline Mode: Displaying saved diagnostic lab records from device cache.
+              {t('vet.offlineNotice', '⚡ Offline Mode: Displaying saved records from device cache.')}
             </Text>
           </View>
         )}
@@ -262,15 +264,15 @@ export default function VetLabsScreen() {
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.primary} />
-          <Text style={styles.loadingText}>Loading laboratory referrals...</Text>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading laboratory referrals...')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Error Loading Lab Referrals</Text>
+          <Text style={styles.errorTitle}>{t('common.error', 'Error Loading Lab Referrals')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadReferrals} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+            <Text style={styles.retryBtnText}>{t('common.retry', 'Retry Loading')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -290,11 +292,11 @@ export default function VetLabsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>🔬</Text>
-              <Text style={styles.emptyTitle}>No Laboratory Samples Found</Text>
+              <Text style={styles.emptyTitle}>{t('vet.noLabSamples', 'No Laboratory Samples Found')}</Text>
               <Text style={styles.emptySubtitle}>
                 {searchQuery || activeStatusFilter !== 'all'
-                  ? 'No samples match the selected status filter or search term.'
-                  : 'No diagnostic lab referrals currently recorded. Click "+ Order Lab Test" to submit a field specimen.'}
+                  ? t('vet.noMatchingReferrals', 'No samples match the selected status filter or search term.')
+                  : t('vet.noLabSamplesDesc', 'No diagnostic lab referrals currently recorded. Click "+ Order Lab Test" to submit a field specimen.')}
               </Text>
             </View>
           }
@@ -311,7 +313,7 @@ export default function VetLabsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Order Diagnostic Lab Test</Text>
+              <Text style={styles.modalTitle}>{t('vet.orderLabTest', 'Order Diagnostic Lab Test')}</Text>
               <TouchableOpacity onPress={() => setShowCreateModal(false)}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
@@ -386,7 +388,7 @@ export default function VetLabsScreen() {
                 style={styles.modalCancelBtn}
                 onPress={() => setShowCreateModal(false)}
               >
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{t('common.cancel', 'Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalSubmitBtn}
@@ -396,7 +398,7 @@ export default function VetLabsScreen() {
                 {submittingCreate ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalSubmitBtnText}>Submit Lab Referral</Text>
+                  <Text style={styles.modalSubmitBtnText}>{t('vet.orderLabTestBtn', 'Submit Lab Referral')}</Text>
                 )}
               </TouchableOpacity>
             </View>
