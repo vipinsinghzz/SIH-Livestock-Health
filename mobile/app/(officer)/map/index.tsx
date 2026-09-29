@@ -12,7 +12,7 @@
  * - Interactive layer toggles, entity inspection bottom sheet, and GPS centering
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import MapView, { Marker, Circle } from 'react-native-maps';
+import { LeafletGisWebView } from '../../../src/components/LeafletGisWebView';
 import * as Location from 'expo-location';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
@@ -31,6 +31,7 @@ import { officerService } from '../../../src/services/officerService';
 import { ContainmentZone, OutbreakCluster } from '../../../src/types/containment';
 import { OfficerNearbyCase, OfficerMapLayer } from '../../../src/types/officer';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
+import { useAppLanguage } from '../../../src/services/i18n';
 
 const DEFAULT_MAHARASHTRA_CENTER = {
   latitude: 18.5204,
@@ -41,7 +42,7 @@ export default function OfficerMapScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ focusLat?: string; focusLng?: string; clusterId?: string }>();
   const { user } = useAuth();
-  const mapRef = useRef<MapView>(null);
+  const { t } = useAppLanguage();
 
   const district = user?.district;
 
@@ -71,13 +72,14 @@ export default function OfficerMapScreen() {
     | null
   >(null);
 
-  // Map region
+  // Map region & user GPS coordinates
   const [region, setRegion] = useState({
     latitude: DEFAULT_MAHARASHTRA_CENTER.latitude,
     longitude: DEFAULT_MAHARASHTRA_CENTER.longitude,
     latitudeDelta: 0.25,
     longitudeDelta: 0.25,
   });
+  const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   // Handle focus parameters from navigation
   useEffect(() => {
@@ -85,14 +87,12 @@ export default function OfficerMapScreen() {
       const lat = parseFloat(params.focusLat);
       const lng = parseFloat(params.focusLng);
       if (!isNaN(lat) && !isNaN(lng)) {
-        const targetRegion = {
+        setRegion({
           latitude: lat,
           longitude: lng,
           latitudeDelta: 0.08,
           longitudeDelta: 0.08,
-        };
-        setRegion(targetRegion);
-        mapRef.current?.animateToRegion(targetRegion, 1000);
+        });
       }
     }
   }, [params.focusLat, params.focusLng]);
@@ -105,14 +105,16 @@ export default function OfficerMapScreen() {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status === 'granted') {
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            const userCoords = {
+            const coords = {
               latitude: loc.coords.latitude,
               longitude: loc.coords.longitude,
+            };
+            setUserCoords(coords);
+            setRegion({
+              ...coords,
               latitudeDelta: 0.2,
               longitudeDelta: 0.2,
-            };
-            setRegion(userCoords);
-            mapRef.current?.animateToRegion(userCoords, 1000);
+            });
           }
         } catch (e) {
           // Fall back to default district center
@@ -280,119 +282,35 @@ export default function OfficerMapScreen() {
         </View>
       ) : (
         <View style={styles.mapContainer}>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={region}
-            showsUserLocation
-            showsMyLocationButton
-            toolbarEnabled={false}
-          >
-            {/* 1. Containment Zones Circles & Center Markers */}
-            {activeLayers.containment &&
-              validZones.map((zone) => {
-                const centerLat = zone.center?.lat ?? zone.centerLat!;
-                const centerLng = zone.center?.lng ?? zone.centerLng!;
-                const radiusMeters = (zone.radiusKm || 5.0) * 1000;
-                const isContained = zone.status === 'CONTAINED';
-                const isLifted = zone.status === 'LIFTED';
-
-                const fillColor = isLifted
-                  ? 'rgba(16, 185, 129, 0.15)'
-                  : isContained
-                  ? 'rgba(245, 158, 11, 0.20)'
-                  : 'rgba(239, 68, 68, 0.22)';
-                const strokeColor = isLifted
-                  ? '#059669'
-                  : isContained
-                  ? '#D97706'
-                  : '#DC2626';
-
-                return (
-                  <React.Fragment key={`zone_${zone.id || zone.zoneId}`}>
-                    <Circle
-                      center={{ latitude: centerLat, longitude: centerLng }}
-                      radius={radiusMeters}
-                      fillColor={fillColor}
-                      strokeColor={strokeColor}
-                      strokeWidth={2}
-                    />
-                    <Marker
-                      coordinate={{ latitude: centerLat, longitude: centerLng }}
-                      title={`Quarantine Zone: ${zone.disease}`}
-                      description={`${zone.radiusKm} km radius • Status: ${zone.status}`}
-                      onPress={() => setSelectedEntity({ type: 'zone', data: zone })}
-                    >
-                      <View style={[styles.zoneMarkerIcon, { borderColor: strokeColor }]}>
-                        <Text style={styles.zoneMarkerEmoji}>🛡️</Text>
-                      </View>
-                    </Marker>
-                  </React.Fragment>
-                );
-              })}
-
-            {/* 2. Outbreak Clusters Markers */}
-            {activeLayers.clusters &&
-              validClusters.map((cluster, idx) => {
-                const cLat = cluster.centroidLat!;
-                const cLng = cluster.centroidLng!;
-                const tier = String(cluster.riskTier || cluster.risk || '').toUpperCase();
-                const isCritical = tier.includes('CRITICAL') || cluster.isOutbreak;
-
-                return (
-                  <Marker
-                    key={`cluster_${cluster.clusterId || idx}`}
-                    coordinate={{ latitude: cLat, longitude: cLng }}
-                    title={`Outbreak Cluster: ${cluster.disease}`}
-                    description={`${cluster.count || cluster.caseCount || 2} confirmed cases • Risk: ${tier || 'High'}`}
-                    onPress={() => setSelectedEntity({ type: 'cluster', data: cluster })}
-                  >
-                    <View style={[styles.clusterMarker, isCritical && styles.clusterMarkerCritical]}>
-                      <Text style={styles.clusterMarkerText}>
-                        {cluster.count || cluster.caseCount || '!'}
-                      </Text>
-                    </View>
-                  </Marker>
-                );
-              })}
-
-            {/* 3. Clinical Cases Markers */}
-            {activeLayers.cases &&
-              validCases.map((c) => {
-                const cLat = c.latitude;
-                const cLng = c.longitude;
-                const isConfirmed = c.status === 'Confirmed' || c.status === 'Containment';
-
-                return (
-                  <Marker
-                    key={`case_${c.id || c.caseId}`}
-                    coordinate={{ latitude: cLat, longitude: cLng }}
-                    title={`Case: ${c.caseId}`}
-                    description={`${c.disease} (${c.species}) • ${c.status}`}
-                    onPress={() => setSelectedEntity({ type: 'case', data: c })}
-                  >
-                    <View style={[styles.caseMarker, isConfirmed && styles.caseMarkerConfirmed]}>
-                      <Text style={styles.caseMarkerEmoji}>📍</Text>
-                    </View>
-                  </Marker>
-                );
-              })}
-          </MapView>
+          <LeafletGisWebView
+            containmentZones={validZones}
+            clusters={validClusters}
+            cases={validCases}
+            activeLayers={activeLayers}
+            center={{
+              latitude: region.latitude,
+              longitude: region.longitude,
+            }}
+            userLocation={userCoords}
+            selectedEntity={selectedEntity}
+            onSelectEntity={setSelectedEntity}
+            loadingText={t('common.loading', 'Rendering district GIS surveillance layers...')}
+          />
 
           {/* Floating Map Legend */}
           <View style={styles.legendCard}>
-            <Text style={styles.legendTitle}>Surveillance Legend</Text>
+            <Text style={styles.legendTitle}>{t('vet.legendTitle', 'Surveillance Legend')}</Text>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#DC2626' }]} />
-              <Text style={styles.legendText}>Active Quarantine Buffer</Text>
+              <Text style={styles.legendText}>{t('vet.legendQuarantine', 'Active Quarantine Buffer')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#D97706' }]} />
-              <Text style={styles.legendText}>DBSCAN Cluster (&lt;=5km)</Text>
+              <Text style={styles.legendText}>{t('vet.legendCluster', 'DBSCAN Cluster (<= 5km)')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#0284C7' }]} />
-              <Text style={styles.legendText}>District Clinical Case</Text>
+              <Text style={styles.legendText}>{t('vet.legendCasePoint', 'District Clinical Case')}</Text>
             </View>
           </View>
 

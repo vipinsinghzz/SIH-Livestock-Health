@@ -15,12 +15,13 @@ import { StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { ContainmentZone, OutbreakCluster } from '../types/containment';
 import { DiseaseCase } from '../types/case';
+import { OfficerNearbyCase } from '../types/officer';
 import { colors, typography } from '../theme';
 
 export interface LeafletGisWebViewProps {
   containmentZones: ContainmentZone[];
   clusters: OutbreakCluster[];
-  cases: DiseaseCase[];
+  cases: (DiseaseCase | OfficerNearbyCase)[];
   activeLayers: {
     containment: boolean;
     clusters: boolean;
@@ -36,13 +37,13 @@ export interface LeafletGisWebViewProps {
   } | null;
   selectedEntity: {
     type: 'zone' | 'cluster' | 'case';
-    data: ContainmentZone | OutbreakCluster | DiseaseCase;
+    data: ContainmentZone | OutbreakCluster | DiseaseCase | OfficerNearbyCase | any;
   } | null;
   onSelectEntity: (
     entity:
       | { type: 'zone'; data: ContainmentZone }
       | { type: 'cluster'; data: OutbreakCluster }
-      | { type: 'case'; data: DiseaseCase }
+      | { type: 'case'; data: any }
       | null
   ) => void;
   loadingText?: string;
@@ -121,8 +122,8 @@ export const LeafletGisWebView: React.FC<LeafletGisWebViewProps> = ({
 
     const validCases = cases
       .map((c) => {
-        const lat = c.coordinates?.lat ?? (c as any).latitude;
-        const lng = c.coordinates?.lng ?? (c as any).longitude;
+        const lat = (c as any).coordinates?.lat ?? (c as any).latitude;
+        const lng = (c as any).coordinates?.lng ?? (c as any).longitude;
         if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
         return {
           id: `case_${c.id || c.caseId}`,
@@ -133,7 +134,7 @@ export const LeafletGisWebView: React.FC<LeafletGisWebViewProps> = ({
           species: c.species || 'Livestock',
           status: c.status || 'New',
           risk: c.risk || 'Moderate',
-          village: c.farmerLocation?.village || '',
+          village: (c as any).farmerLocation?.village || (c as any).village || '',
         };
       })
       .filter(Boolean);
