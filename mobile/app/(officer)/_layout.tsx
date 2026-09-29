@@ -84,6 +84,12 @@ export default function OfficerLayout() {
           title: t('nav.forewarning', 'NADRES Forewarning & Alerts'),
         }}
       />
+      <Stack.Screen
+        name="profile/index"
+        options={{
+          title: t('nav.officerProfile', 'Officer Profile & Settings'),
+        }}
+      />
     </Stack>
   );
 }

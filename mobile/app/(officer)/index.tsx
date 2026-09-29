@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
@@ -71,9 +72,22 @@ export default function OfficerHomeScreen() {
     loadDashboardData(selectedBlock);
   }, [selectedBlock, loadDashboardData]);
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/(auth)/login');
+  const handleLogout = () => {
+    Alert.alert(
+      t('common.logOut', 'Sign Out'),
+      t('officer.signOutConfirm', 'Are you sure you want to sign out from the Officer Command Center?'),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('common.logOut', 'Sign Out'),
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
   };
 
   const formatLastUpdated = (timestamp: number | null): string => {
@@ -119,9 +133,19 @@ export default function OfficerHomeScreen() {
             </View>
             <View style={styles.pulseDot} />
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
-            <Text style={styles.logoutButtonText}>{t('common.signOut', 'Sign Out')}</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/(officer)/profile' as any)}
+              style={styles.profileButton}
+              activeOpacity={0.7}
+              accessibilityLabel={t('common.profile', 'Profile')}
+            >
+              <Text style={styles.profileButtonText}>👤 {t('common.profile', 'Profile')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
+              <Text style={styles.logoutButtonText}>{t('common.signOut', 'Sign Out')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.title}>{officerName}</Text>
@@ -237,7 +261,7 @@ export default function OfficerHomeScreen() {
           )}
 
           {/* 5. KPI Metric Grid */}
-          <Text style={styles.sectionTitle}>District Epidemiological KPIs</Text>
+          <Text style={styles.sectionTitle}>{t('officer.kpis', 'District Epidemiological KPIs')}</Text>
           <View style={styles.kpiGrid}>
             {/* Total Reports */}
             <View style={styles.kpiCard}>
@@ -248,7 +272,7 @@ export default function OfficerHomeScreen() {
 
             {/* Active Cases */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('farmer.activeCases', 'ACTIVE CASES')}</Text>
+              <Text style={styles.kpiLabel}>{t('officer.activeCases', 'ACTIVE CASES')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.info }]}>
                 {summary.activeCases}
               </Text>
@@ -278,7 +302,7 @@ export default function OfficerHomeScreen() {
 
             {/* Outbreaks */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.activeOutbreaks', 'OUTBREAKS')}</Text>
+              <Text style={styles.kpiLabel}>{t('officer.activeClusters', 'OUTBREAKS')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.danger }]}>
                 {summary.triageMetrics?.outbreakCount || 0}
               </Text>
@@ -287,7 +311,7 @@ export default function OfficerHomeScreen() {
 
             {/* Vaccination Coverage */}
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.vaccinationCoverage', 'VACCINATION')}</Text>
+              <Text style={styles.kpiLabel}>{t('officer.vaccineCoverage', 'VACCINATION')}</Text>
               <Text style={[styles.kpiValue, { color: colors.light.success }]}>
                 {summary.vaccination?.coveragePct ?? 0}%
               </Text>
@@ -296,11 +320,11 @@ export default function OfficerHomeScreen() {
           </View>
 
           {/* 6. Operational Status & Capacity Strips */}
-          <Text style={styles.sectionTitle}>Operational Capacity & Diagnostics</Text>
+          <Text style={styles.sectionTitle}>{t('officer.capacityDiagnostics', 'Operational Capacity & Diagnostics')}</Text>
           <View style={styles.capacityCard}>
             <View style={styles.capacityRow}>
               <View>
-                <Text style={styles.capacityTitle}>Vaccination Drive Coverage</Text>
+                <Text style={styles.capacityTitle}>{t('officer.vaccineDriveCoverage', 'Vaccination Drive Coverage')}</Text>
                 <Text style={styles.capacitySubtitle}>
                   {summary.vaccination?.totalCovered?.toLocaleString() || '0'} of{' '}
                   {summary.vaccination?.totalTarget?.toLocaleString() || '0'} livestock protected
@@ -325,7 +349,7 @@ export default function OfficerHomeScreen() {
           {/* Lab Pipeline Summary */}
           {summary.labPipeline && Object.keys(summary.labPipeline).length > 0 && (
             <View style={styles.labCard}>
-              <Text style={styles.labCardTitle}>Diagnostic Lab Pipeline</Text>
+              <Text style={styles.labCardTitle}>{t('officer.labPipeline', 'Diagnostic Lab Pipeline')}</Text>
               <View style={styles.labStatsRow}>
                 {Object.entries(summary.labPipeline).map(([status, count]) => (
                   <View key={status} style={styles.labStatItem}>
@@ -341,7 +365,7 @@ export default function OfficerHomeScreen() {
           {summary.blockDistribution && summary.blockDistribution.length > 0 && (
             <View style={styles.blockSection}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Sub-District Disease Burden</Text>
+                <Text style={styles.sectionTitle}>{t('officer.subDistrictBurden', 'Sub-District Disease Burden')}</Text>
                 <TouchableOpacity
                   onPress={() => router.push('/(officer)/surveillance' as any)}
                   activeOpacity={0.7}
@@ -366,82 +390,92 @@ export default function OfficerHomeScreen() {
               </View>
             </View>
           )}
-
-          {/* 7. Quick Navigation to Officer Modules */}
-          <Text style={styles.sectionTitle}>Surveillance & Operations Modules</Text>
-          <View style={styles.navGrid}>
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/surveillance' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>📊</Text>
-              <Text style={styles.navTitle}>{t('nav.surveillance', 'Epidemic Surveillance')}</Text>
-              <Text style={styles.navDesc}>30-day epidemic curve, triage funnel, disease breakdown</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/outbreaks' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>⚠️</Text>
-              <Text style={styles.navTitle}>{t('nav.outbreaks', 'Outbreak Alerts')}</Text>
-              <Text style={styles.navDesc}>DBSCAN proximity clusters, threshold alarms, high-risk villages</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/containment' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>🛡️</Text>
-              <Text style={styles.navTitle}>{t('nav.containmentZones', 'Containment Zones')}</Text>
-              <Text style={styles.navDesc}>Quarantine buffers, movement restrictions, ring vaccination</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/vaccination' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>⛺</Text>
-              <Text style={styles.navTitle}>{t('nav.camps', 'Mass Vaccination Camps')}</Text>
-              <Text style={styles.navDesc}>District camp scheduling, slot allocation, and logistics</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/map' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>🗺️</Text>
-              <Text style={styles.navTitle}>{t('nav.districtMap', 'District GIS Map')}</Text>
-              <Text style={styles.navDesc}>High-density outbreak heatmaps and zone boundaries</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/advisories' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>📢</Text>
-              <Text style={styles.navTitle}>{t('nav.advisories', 'Official Advisories')}</Text>
-              <Text style={styles.navDesc}>Biosecurity bulletins, emergency directives, and broadcasts</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.navCard}
-              onPress={() => router.push('/(officer)/forewarning' as any)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.navIcon}>📡</Text>
-              <Text style={styles.navTitle}>{t('nav.forewarning', 'NADRES Forewarning')}</Text>
-              <Text style={styles.navDesc}>ICAR-NIVEDI early warnings, meteorological risk, and alerts</Text>
-            </TouchableOpacity>
-          </View>
         </>
       )}
+
+      {/* 7. Quick Navigation to Officer Modules (Always Accessible) */}
+      <Text style={styles.sectionTitle}>{t('officer.operationsModules', 'Surveillance & Operations Modules')}</Text>
+      <View style={styles.navGrid}>
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/surveillance' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={styles.navTitle}>{t('nav.epidemicSurveillance', 'Epidemic Surveillance')}</Text>
+          <Text style={styles.navDesc}>30-day epidemic curve, triage funnel, disease breakdown</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/outbreaks' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>⚠️</Text>
+          <Text style={styles.navTitle}>{t('nav.outbreakAlerts', 'Outbreak Alerts')}</Text>
+          <Text style={styles.navDesc}>DBSCAN proximity clusters, threshold alarms, high-risk villages</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/containment' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>🛡️</Text>
+          <Text style={styles.navTitle}>{t('nav.containmentZones', 'Containment Zones')}</Text>
+          <Text style={styles.navDesc}>Quarantine buffers, movement restrictions, ring vaccination</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/vaccination' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>⛺</Text>
+          <Text style={styles.navTitle}>{t('nav.massVaccination', 'Mass Vaccination Camps')}</Text>
+          <Text style={styles.navDesc}>District camp scheduling, slot allocation, and logistics</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/map' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>🗺️</Text>
+          <Text style={styles.navTitle}>{t('nav.districtGisMap', 'District GIS Map')}</Text>
+          <Text style={styles.navDesc}>High-density outbreak heatmaps and zone boundaries</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/advisories' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>📢</Text>
+          <Text style={styles.navTitle}>{t('nav.officialAdvisories', 'Official Advisories')}</Text>
+          <Text style={styles.navDesc}>Biosecurity bulletins, emergency directives, and broadcasts</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/forewarning' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>📡</Text>
+          <Text style={styles.navTitle}>{t('nav.nadresForewarning', 'NADRES Forewarning')}</Text>
+          <Text style={styles.navDesc}>ICAR-NIVEDI early warnings, meteorological risk, and alerts</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navCard}
+          onPress={() => router.push('/(officer)/profile' as any)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.navIcon}>🏛️</Text>
+          <Text style={styles.navTitle}>{t('nav.officerProfile', 'Officer Profile & Settings')}</Text>
+          <Text style={styles.navDesc}>Administrative credentials, district jurisdiction, language, and system configuration</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -483,6 +517,24 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: colors.light.success,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  profileButton: {
+    backgroundColor: colors.light.officerBadgeBg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.light.officerBadge,
+  },
+  profileButtonText: {
+    color: colors.light.officerBadge,
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
   },
   logoutButton: {
     backgroundColor: colors.light.dangerBg,

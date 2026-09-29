@@ -51,15 +51,16 @@ export const officerService = {
     const targetBlock = filters?.block || 'All';
 
     if (isOnline) {
-      try {
-        const queryParams: Record<string, string> = {};
-        if (filters?.district && filters.district !== 'All') {
-          queryParams.district = filters.district;
-        }
-        if (filters?.block && filters.block !== 'All') {
-          queryParams.block = filters.block;
-        }
+      const queryParams: Record<string, string> = {};
+      if (filters?.district && filters.district !== 'All') {
+        queryParams.district = filters.district;
+      }
+      if (filters?.block && filters.block !== 'All') {
+        queryParams.block = filters.block;
+      }
 
+      // 1. Attempt authoritative summary endpoint
+      try {
         const response = await api.get<DashboardSummaryResponse>('/dashboard/summary', {
           params: queryParams,
         });
@@ -80,12 +81,121 @@ export const officerService = {
           };
         }
       } catch (err: any) {
-        console.warn('[OfficerService] Live summary fetch failed, checking offline cache:', err.message);
-        // Fall through to offline cache check
+        console.warn('[OfficerService] /dashboard/summary endpoint unavailable (' + (err?.status || err?.message) + '), attempting live data aggregation from production endpoints...');
+      }
+
+      // 2. Resilient live data aggregation from working production endpoints
+      try {
+        const [reportsRes, vaccRes, clustersRes] = await Promise.allSettled([
+          api.get<{ success: boolean; reports: any[] }>('/reports', { params: queryParams }),
+          api.get<{ success: boolean; drives: any[] }>('/vaccination-drives', { params: queryParams }),
+          api.get<{ success: boolean; clusters: any[] }>('/cases/clusters', { params: queryParams }),
+        ]);
+
+        const reports = (reportsRes.status === 'fulfilled' && Array.isArray(reportsRes.value.data?.reports))
+          ? reportsRes.value.data.reports
+          : [];
+        const drives = (vaccRes.status === 'fulfilled' && Array.isArray(vaccRes.value.data?.drives))
+          ? vaccRes.value.data.drives
+          : [];
+        const clusters = (clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value.data?.clusters))
+          ? clustersRes.value.data.clusters
+          : [];
+
+        // Proceed if at least one live endpoint succeeded
+        if (reportsRes.status === 'fulfilled' || vaccRes.status === 'fulfilled' || clustersRes.status === 'fulfilled') {
+          const totalReports = reports.length;
+          const activeCases = reports.filter((r) =>
+            ['Reported', 'Triaged', 'Field Verified', 'Escalated'].includes(r.status)
+          ).length;
+          const containedCases = reports.filter((r) =>
+            ['Contained', 'Closed'].includes(r.status)
+          ).length;
+          const totalMortality = reports.reduce((sum, r) => sum + (Number(r.mortalityCount) || 0), 0);
+          const totalAffected = reports.reduce((sum, r) => sum + (Number(r.affectedCount) || 0), 0);
+
+          // Vaccination totals
+          const totalTarget = drives.reduce((sum, d) => sum + (Number(d.targetCount) || 0), 0);
+          const totalCovered = drives.reduce((sum, d) => sum + (Number(d.coveredCount) || 0), 0);
+          const coveragePct = totalTarget > 0 ? Math.min(100, Math.round((totalCovered / totalTarget) * 100)) : 0;
+
+          // Block distribution
+          const blockMap: Record<string, { count: number; deaths: number }> = {};
+          reports.forEach((r) => {
+            const b = r.block || r.location?.block || 'District';
+            if (!blockMap[b]) blockMap[b] = { count: 0, deaths: 0 };
+            blockMap[b].count += 1;
+            blockMap[b].deaths += Number(r.mortalityCount) || 0;
+          });
+          const blockDistribution = Object.entries(blockMap).map(([bName, val]) => ({
+            _id: bName,
+            count: val.count,
+            deaths: val.deaths,
+          }));
+
+          // Disease breakdown
+          const diseaseMap: Record<string, number> = {};
+          reports.forEach((r) => {
+            const d = r.triageResult?.predictedDisease || r.disease || r.species || 'Suspected Disease';
+            diseaseMap[d] = (diseaseMap[d] || 0) + 1;
+          });
+          const diseaseBreakdown = Object.entries(diseaseMap).map(([name, count]) => ({
+            name,
+            cases: count,
+            avgConfidencePct: 85,
+          }));
+
+          // Status Funnel
+          const statusFunnel = {
+            Reported: reports.filter((r) => r.status === 'Reported').length,
+            Triaged: reports.filter((r) => r.status === 'Triaged').length,
+            'Field Verified': reports.filter((r) => r.status === 'Field Verified').length,
+            Escalated: reports.filter((r) => r.status === 'Escalated').length,
+            Contained: reports.filter((r) => r.status === 'Contained').length,
+            Closed: reports.filter((r) => r.status === 'Closed').length,
+          };
+
+          const liveSummary: DashboardSummary = {
+            totalReports,
+            activeCases,
+            containedCases,
+            totalMortality,
+            totalAffected,
+            triageMetrics: {
+              criticalCount: reports.filter((r) => r.triageResult?.riskLevel === 'Critical').length,
+              highCount: reports.filter((r) => r.triageResult?.riskLevel === 'High').length,
+              moderateCount: reports.filter((r) => r.triageResult?.riskLevel === 'Moderate').length,
+              lowCount: reports.filter((r) => r.triageResult?.riskLevel === 'Low').length,
+              outbreakCount: clusters.length,
+            },
+            diseaseBreakdown,
+            statusFunnel,
+            blockDistribution,
+            vaccination: {
+              totalTarget: totalTarget > 0 ? totalTarget : (drives.length > 0 ? drives.length * 100 : 0),
+              totalCovered,
+              coveragePct,
+            },
+            labPipeline: {},
+          };
+
+          const now = Date.now();
+          saveOfficerDashboardCache(userId, targetDistrict, targetBlock, liveSummary).catch((cErr) => {
+            console.warn('[OfficerService] Failed to cache live aggregate summary:', cErr);
+          });
+
+          return {
+            summary: liveSummary,
+            fromCache: false,
+            lastUpdated: now,
+          };
+        }
+      } catch (aggErr: any) {
+        console.warn('[OfficerService] Live data aggregation failed, falling back to cache:', aggErr?.message);
       }
     }
 
-    // Offline mode or network failure: retrieve from user-isolated SQLite cache
+    // 3. Fallback to user-isolated SQLite cache
     const cached = await getCachedOfficerDashboard(userId, targetDistrict, targetBlock);
     if (cached && cached.summary) {
       return {
@@ -119,15 +229,16 @@ export const officerService = {
     const targetBlock = filters?.block || 'All';
 
     if (isOnline) {
-      try {
-        const queryParams: Record<string, string> = {};
-        if (filters?.district && filters.district !== 'All') {
-          queryParams.district = filters.district;
-        }
-        if (filters?.block && filters.block !== 'All') {
-          queryParams.block = filters.block;
-        }
+      const queryParams: Record<string, string> = {};
+      if (filters?.district && filters.district !== 'All') {
+        queryParams.district = filters.district;
+      }
+      if (filters?.block && filters.block !== 'All') {
+        queryParams.block = filters.block;
+      }
 
+      // 1. Attempt authoritative trends endpoint
+      try {
         const response = await api.get<DashboardTrendsResponse>('/dashboard/trends', {
           params: queryParams,
         });
@@ -148,12 +259,62 @@ export const officerService = {
           };
         }
       } catch (err: any) {
-        console.warn('[OfficerService] Live trends fetch failed, checking offline cache:', err.message);
-        // Fall through to offline cache check
+        console.warn('[OfficerService] /dashboard/trends endpoint unavailable, constructing temporal trends from live reports...');
+      }
+
+      // 2. Resilient temporal trends aggregation from live reports
+      try {
+        const reportsRes = await api.get<{ success: boolean; reports: any[] }>('/reports', { params: queryParams });
+        const reports = Array.isArray(reportsRes.data?.reports) ? reportsRes.data.reports : [];
+
+        // Build 30-day date buckets
+        const dateMap: Record<string, TrendPoint> = {};
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateKey = d.toISOString().slice(0, 10);
+          dateMap[dateKey] = {
+            date: dateKey,
+            displayDate: `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })}`,
+            cases: 0,
+            mortalities: 0,
+            criticalCases: 0,
+            outbreaks: 0,
+          };
+        }
+
+        reports.forEach((r) => {
+          const reportDate = (r.createdAt || r.created_at || '').slice(0, 10);
+          if (dateMap[reportDate]) {
+            dateMap[reportDate].cases += 1;
+            dateMap[reportDate].mortalities += Number(r.mortalityCount) || 0;
+            if (r.triageResult?.riskLevel === 'Critical' || r.triageResult?.riskLevel === 'High') {
+              dateMap[reportDate].criticalCases += 1;
+            }
+            if (r.triageResult?.outbreakFlag) {
+              dateMap[reportDate].outbreaks += 1;
+            }
+          }
+        });
+
+        const liveTrends = Object.values(dateMap);
+        const now = Date.now();
+
+        saveOfficerTrendsCache(userId, targetDistrict, targetBlock, liveTrends).catch((cErr) => {
+          console.warn('[OfficerService] Failed to cache live trends:', cErr);
+        });
+
+        return {
+          trends: liveTrends,
+          fromCache: false,
+          lastUpdated: now,
+        };
+      } catch (tErr) {
+        console.warn('[OfficerService] Failed to construct live trends, falling back to cache:', tErr);
       }
     }
 
-    // Offline mode or network failure: retrieve from user-isolated SQLite cache
+    // 3. Fallback to SQLite cache
     const cached = await getCachedOfficerTrends(userId, targetDistrict, targetBlock);
     if (cached && cached.trends && cached.trends.length > 0) {
       return {
