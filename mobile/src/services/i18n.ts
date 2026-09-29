@@ -133,6 +133,11 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
     'nav.officerProfile': 'Officer Profile & Settings',
     'nav.passwordRecovery': 'Password Recovery',
 
+    // PashuCare Welcome Screen
+    'welcome.startUsing': 'Start Using PashuCare',
+    'welcome.alreadyRegistered': 'Already registered?',
+    'welcome.loginHere': 'Login here',
+
     // Authentication
     'auth.gateway': 'Authentication Gateway',
     'auth.welcomeBack': 'Welcome Back',
@@ -732,6 +737,11 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
     'nav.officerProfile': 'अधिकारी प्रोफ़ाइल एवं सेटिंग्स',
     'nav.passwordRecovery': 'पासवर्ड पुनर्प्राप्ति',
 
+    // PashuCare Welcome Screen
+    'welcome.startUsing': 'पशुकेयर का उपयोग शुरू करें',
+    'welcome.alreadyRegistered': 'पहले से पंजीकृत हैं?',
+    'welcome.loginHere': 'यहाँ लॉगिन करें',
+
     // Authentication
     'auth.gateway': 'प्रमाणीकरण प्रवेश द्वार',
     'auth.welcomeBack': 'वापसी पर स्वागत है',
@@ -1330,6 +1340,11 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
     'nav.nadresForewarning': 'नाड्रेस (NADRES) रोग अंदाज',
     'nav.officerProfile': 'अधिकारी प्रोफाइल आणि सेटिंग्ज',
     'nav.passwordRecovery': 'पासवर्ड पुनर्प्राप्ती',
+
+    // PashuCare Welcome Screen
+    'welcome.startUsing': 'पशूकेअर वापरण्यास सुरुवात करा',
+    'welcome.alreadyRegistered': 'आधीच नोंदणीकृत आहात?',
+    'welcome.loginHere': 'येथे लॉगिन करा',
 
     // Authentication
     'auth.gateway': 'प्रवेश व प्रमाणीकरण',

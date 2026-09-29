@@ -1,544 +1,252 @@
 /**
- * Livestock Saathi - Main App Launcher / Role Gateway
+ * PashuCare - Welcome Screen (Initial App Entry)
  * File: mobile/app/index.tsx
+ *
+ * Full-bleed authentic Indian rural livestock health artwork with organic
+ * green/cream visual language, subtle entrance animation, full localization (en/hi/mr),
+ * and responsive layout preservation with true vertical center alignment of buttons.
  */
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Animated,
+  useWindowDimensions,
+  Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../src/context/AuthContext';
-import { useAppLanguage, SUPPORTED_LANGUAGES } from '../src/services/i18n';
-import { colors, typography, spacing, radii, shadows } from '../src/theme';
-import { ENV } from '../src/config/env';
+import { useAppLanguage } from '../src/services/i18n';
+import { typography, radii } from '../src/theme';
 
-export default function HomeScreen() {
+// Artwork native aspect ratio: 853 x 1844 (0.46258)
+const ARTWORK_NATIVE_WIDTH = 853;
+const ARTWORK_NATIVE_HEIGHT = 1844;
+const ARTWORK_ASPECT_RATIO = ARTWORK_NATIVE_WIDTH / ARTWORK_NATIVE_HEIGHT; // ~0.46258
+
+export default function WelcomeScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, logout, loginAsPersona } = useAuth();
-  const { language, changeLanguage, t } = useAppLanguage();
-  const [evalLoading, setEvalLoading] = useState(false);
-  const [evalError, setEvalError] = useState<string | null>(null);
+  const { user, isAuthenticated, loading } = useAuth();
+  const { t } = useAppLanguage();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
-  const handleQuickEval = async (persona: 'farmer' | 'vet' | 'officer') => {
-    console.log('[DIAGNOSTIC] Quick persona switch initiated for persona:', persona);
-    setEvalLoading(true);
-    setEvalError(null);
-    try {
-      const loggedUser = await loginAsPersona(persona);
-      const role = loggedUser.role.toLowerCase();
-      console.log('[DIAGNOSTIC] Quick evaluation login completed. Role:', role);
+  // Subtle entrance animation for the action area (fade-in & gentle translate)
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateYAnim = useRef(new Animated.Value(14)).current;
+
+  // Preserve authentication: redirect active authenticated sessions directly to their portal
+  useEffect(() => {
+    if (!loading && isAuthenticated && user) {
+      const role = (user.role || '').toLowerCase();
+      console.log('[PashuCare] Active session detected, directing to portal for role:', role);
       if (role === 'farmer') {
-        console.log('[DIAGNOSTIC] QuickEval pushing destination: /(farmer)');
-        router.push('/(farmer)');
+        router.replace('/(farmer)');
       } else if (role === 'veterinarian' || role === 'field_worker') {
-        console.log('[DIAGNOSTIC] QuickEval pushing destination: /(vet)');
-        router.push('/(vet)');
+        router.replace('/(vet)');
       } else if (role === 'officer' || role === 'admin') {
-        console.log('[DIAGNOSTIC] QuickEval pushing destination: /(officer)');
-        router.push('/(officer)');
+        router.replace('/(officer)');
       }
-    } catch (err: any) {
-      console.warn('[DIAGNOSTIC] Quick evaluation login failed:', err.message);
-      setEvalError(err.message || 'Quick evaluation login failed');
-    } finally {
-      setEvalLoading(false);
     }
+  }, [loading, isAuthenticated, user, router]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 550,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateYAnim, {
+        toValue: 0,
+        duration: 550,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, translateYAnim]);
+
+  // Reliable responsive dimensions:
+  // Render artwork at full screen width, preserving the 853:1844 aspect ratio.
+  const artworkWidth = windowWidth;
+  const artworkHeight = windowWidth / ARTWORK_ASPECT_RATIO;
+
+  // Reserved Action Zone coordinates:
+  // - Top boundary (immediately below the feature icons text): 71.2% of artwork height (y = 1312px)
+  // - Bottom boundary (immediately above the rolling green landscape wave): 89.0% of artwork height (y = 1641px)
+  // Using flexbox `justifyContent: 'center'` guarantees true vertical center alignment of the buttons
+  // within this reserved space across all devices and screen aspect ratios.
+  const actionZoneTop = artworkHeight * 0.712;
+  const actionZoneHeight = artworkHeight * (0.89 - 0.712);
+
+  const handleStart = () => {
+    console.log('[PashuCare] Tapped "Start Using PashuCare" -> navigating to /(auth)/register');
+    router.push('/(auth)/register');
   };
 
-  const navigateToRolePortal = () => {
-    if (!user) return;
-    const role = user.role.toLowerCase();
-    console.log('[DIAGNOSTIC] navigateToRolePortal invoked. Selected role portal for:', role);
-    if (role === 'farmer') {
-      console.log('[DIAGNOSTIC] Role portal navigating to /(farmer)');
-      router.push('/(farmer)');
-    } else if (role === 'veterinarian' || role === 'field_worker') {
-      console.log('[DIAGNOSTIC] Role portal navigating to /(vet)');
-      router.push('/(vet)');
-    } else if (role === 'officer' || role === 'admin') {
-      console.log('[DIAGNOSTIC] Role portal navigating to /(officer)');
-      router.push('/(officer)');
-    }
+  const handleLogin = () => {
+    console.log('[PashuCare] Tapped "Login here" -> navigating to /(auth)/login');
+    router.push('/(auth)/login');
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header Branding */}
-        <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoIcon}>🐄</Text>
-          </View>
-          <Text style={styles.appTitle}>{t('common.appTitle')}</Text>
-          <Text style={styles.appSubtitle}>{t('common.appSubtitle')}</Text>
-          <View style={styles.phaseBadge}>
-            <Text style={styles.phaseBadgeText}>PHASE 2 AUTHENTICATION</Text>
-          </View>
-        </View>
+    <View style={styles.outerContainer}>
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
 
-        {/* Backend Connectivity Status */}
-        <View style={styles.statusCard}>
-          <View style={styles.statusIndicator} />
-          <View style={styles.statusContent}>
-            <Text style={styles.statusTitle}>{t('common.connected')}</Text>
-            <Text style={styles.statusEndpoint} numberOfLines={1}>
-              {ENV.API_URL}
-            </Text>
-          </View>
-        </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { minHeight: windowHeight },
+        ]}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.artworkWrapper, { width: artworkWidth, height: artworkHeight }]}>
+          {/* Welcome Background Artwork */}
+          <Image
+            source={require('../assets/pashucare-welcome.png')}
+            style={[styles.artworkImage, { width: artworkWidth, height: artworkHeight }]}
+            resizeMode="cover"
+            accessible={true}
+            accessibilityLabel="PashuCare - Healthy Animals, Prosperous Farmers"
+          />
 
-        {evalError ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>⚠️ {evalError}</Text>
-          </View>
-        ) : null}
-
-        {/* Dynamic Authenticated vs Unauthenticated View */}
-        {isAuthenticated && user ? (
-          <View style={styles.userCard}>
-            <View style={styles.userCardHeader}>
-              <View>
-                <Text style={styles.userGreeting}>{t('auth.signedInAs')}</Text>
-                <Text style={styles.userName}>{user.name}</Text>
-                <Text style={styles.userEmail}>{user.email}</Text>
-              </View>
-              <View style={[styles.roleBadge, { backgroundColor: colors.light.primarySubtle }]}>
-                <Text style={[styles.roleBadgeText, { color: colors.light.primary }]}>
-                  {user.role.toUpperCase()}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.userActions}>
-              <TouchableOpacity
-                style={styles.enterPortalBtn}
-                onPress={navigateToRolePortal}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.enterPortalBtnText}>{t('auth.openPortal')}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.logoutBtn}
-                onPress={logout}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.logoutBtnText}>{t('common.logOut')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('auth.gateway')}</Text>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.primaryButton]}
-                onPress={() => {
-                  console.log('[DIAGNOSTIC] Tapped "Sign In" button -> router.push("/(auth)/login")');
-                  router.push('/(auth)/login');
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.primaryButtonText}>{t('common.signIn')}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionButton, styles.secondaryButton]}
-                onPress={() => {
-                  console.log('[DIAGNOSTIC] Tapped "Create Account" button -> router.push("/(auth)/register")');
-                  router.push('/(auth)/register');
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.secondaryButtonText}>{t('common.createAccount')}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Quick Persona Evaluator */}
-            <View style={styles.personaBox}>
-              <Text style={styles.personaBoxTitle}>{t('auth.quickPersonaTitle')}</Text>
-              <Text style={styles.personaBoxSubtitle}>
-                {t('auth.quickPersonaSubtitle')}
+          {/* Reserved Action Zone (Light/Cream Region) with True Vertical Center Alignment */}
+          <Animated.View
+            style={[
+              styles.actionZone,
+              {
+                top: actionZoneTop,
+                height: actionZoneHeight,
+                opacity: fadeAnim,
+                transform: [{ translateY: translateYAnim }],
+              },
+            ]}
+          >
+            {/* Primary Action: Start Using PashuCare */}
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleStart}
+              activeOpacity={0.85}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={t('welcome.startUsing', 'Start Using PashuCare')}
+              accessibilityHint="Opens account registration and role selection"
+            >
+              <Text style={styles.primaryButtonText}>
+                {t('welcome.startUsing', 'Start Using PashuCare')}
               </Text>
-              {evalLoading ? (
-                <ActivityIndicator size="small" color={colors.light.primary} style={{ marginVertical: 8 }} />
-              ) : (
-                <View style={styles.personaRow}>
-                  <TouchableOpacity
-                    style={[styles.personaChip, { borderColor: colors.light.farmerBadge }]}
-                    onPress={() => handleQuickEval('farmer')}
-                  >
-                    <Text style={styles.personaChipText}>🌾 {t('auth.farmer')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.personaChip, { borderColor: colors.light.vetBadge }]}
-                    onPress={() => handleQuickEval('vet')}
-                  >
-                    <Text style={styles.personaChipText}>🩺 {t('auth.veterinarian')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.personaChip, { borderColor: colors.light.officerBadge }]}
-                    onPress={() => handleQuickEval('officer')}
-                  >
-                    <Text style={styles.personaChipText}>🏛️ {t('auth.officer')}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+            </TouchableOpacity>
+
+            {/* Secondary Action: Login Here */}
+            <View style={styles.secondaryRow}>
+              <Text style={styles.secondaryPrompt}>
+                {t('welcome.alreadyRegistered', 'Already registered?')}{' '}
+              </Text>
+              <TouchableOpacity
+                onPress={handleLogin}
+                activeOpacity={0.7}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={t('welcome.loginHere', 'Login here')}
+                accessibilityHint="Opens sign in screen"
+                hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              >
+                <Text style={styles.loginLink}>
+                  {t('welcome.loginHere', 'Login here')}
+                </Text>
+              </TouchableOpacity>
             </View>
-          </View>
-        )}
-
-        {/* App Language Selection Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('common.appLanguage')}</Text>
-
-          <View style={styles.languageCardsContainer}>
-            {SUPPORTED_LANGUAGES.map((langOption) => {
-              const isSelected = language === langOption.code;
-              return (
-                <TouchableOpacity
-                  key={langOption.code}
-                  style={[
-                    styles.languageCard,
-                    isSelected && styles.languageCardSelected,
-                  ]}
-                  onPress={() => changeLanguage(langOption.code)}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select ${langOption.label}`}
-                >
-                  <Text style={styles.languageIcon}>{langOption.flagEmoji}</Text>
-                  <View style={styles.languageInfo}>
-                    <Text style={[styles.languageNativeName, isSelected && styles.languageTextSelected]}>
-                      {langOption.nativeLabel}
-                    </Text>
-                    <Text style={styles.languageSubName}>
-                      {langOption.subLabel}
-                    </Text>
-                  </View>
-                  <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
-                    {isSelected ? <View style={styles.radioDot} /> : null}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Livestock Saathi • Android Package: com.helloworld.livestocksaathi
-          </Text>
+          </Animated.View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  outerContainer: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: '#274E18', // Seamlessly matches bottom landscape green
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
-    padding: spacing.base,
-    paddingBottom: spacing.xxl,
+    flexGrow: 1,
+    backgroundColor: '#274E18',
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.base,
-    paddingTop: spacing.xs,
+  artworkWrapper: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#F5F5E3',
   },
-  logoBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: radii.lg,
-    backgroundColor: colors.light.primarySubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.light.primaryHighlight,
+  artworkImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
-  logoIcon: {
-    fontSize: 32,
-  },
-  appTitle: {
-    fontSize: typography.sizes.xxl,
-    fontWeight: typography.weights.bold,
-    color: colors.light.primary,
-    marginBottom: 2,
-  },
-  appSubtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  phaseBadge: {
-    backgroundColor: colors.light.primaryHighlight,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 3,
-    borderRadius: radii.round,
-  },
-  phaseBadgeText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.primaryDark,
-    letterSpacing: 0.5,
-  },
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.light.surface,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    marginBottom: spacing.base,
-    ...shadows.sm,
-  },
-  statusIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.light.success,
-    marginRight: spacing.sm,
-  },
-  statusContent: {
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  statusEndpoint: {
-    fontSize: 11,
-    color: colors.light.textMuted,
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  errorBanner: {
-    backgroundColor: colors.light.dangerBg,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-    marginBottom: spacing.base,
-  },
-  errorBannerText: {
-    color: colors.light.danger,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-  },
-  userCard: {
-    backgroundColor: colors.light.surface,
-    padding: spacing.base,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    marginBottom: spacing.lg,
-    ...shadows.sm,
-  },
-  userCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  userGreeting: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
-    textTransform: 'uppercase',
-    fontWeight: typography.weights.semibold,
-  },
-  userName: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  userEmail: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
-    fontFamily: 'monospace',
-  },
-  roleBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radii.round,
-  },
-  roleBadgeText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-  },
-  userActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  enterPortalBtn: {
-    flex: 2,
-    backgroundColor: colors.light.primary,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-    alignItems: 'center',
-  },
-  enterPortalBtnText: {
-    color: colors.light.textInverse,
-    fontWeight: typography.weights.bold,
-    fontSize: typography.sizes.sm,
-  },
-  logoutBtn: {
-    flex: 1,
-    backgroundColor: colors.light.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-    alignItems: 'center',
-  },
-  logoutBtnText: {
-    color: colors.light.danger,
-    fontWeight: typography.weights.semibold,
-    fontSize: typography.sizes.sm,
-  },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: radii.md,
-    alignItems: 'center',
+  actionZone: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    justifyContent: 'center', // True vertical center alignment of buttons
+    alignItems: 'center',     // Horizontal center alignment
+    paddingHorizontal: 28,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
   },
   primaryButton: {
-    backgroundColor: colors.light.primary,
-  },
-  primaryButtonText: {
-    color: colors.light.textInverse,
-    fontWeight: typography.weights.semibold,
-    fontSize: typography.sizes.sm,
-  },
-  secondaryButton: {
-    backgroundColor: colors.light.surface,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-  },
-  secondaryButtonText: {
-    color: colors.light.textPrimary,
-    fontWeight: typography.weights.semibold,
-    fontSize: typography.sizes.sm,
-  },
-  personaBox: {
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    ...shadows.sm,
-  },
-  personaBoxTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  personaBoxSubtitle: {
-    fontSize: 11,
-    color: colors.light.textMuted,
-    marginTop: 2,
-    marginBottom: spacing.sm,
-  },
-  personaRow: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  personaChip: {
-    flex: 1,
-    backgroundColor: colors.light.surfaceAlt,
-    borderWidth: 1,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
-    alignItems: 'center',
-  },
-  personaChipText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-    color: colors.light.textPrimary,
-  },
-  languageCardsContainer: {
-    gap: spacing.xs,
-  },
-  languageCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.light.surface,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: colors.light.border,
-    marginBottom: spacing.xs,
-    ...shadows.sm,
-  },
-  languageCardSelected: {
-    borderColor: colors.light.primary,
-    backgroundColor: colors.light.primarySubtle,
-  },
-  languageIcon: {
-    fontSize: 24,
-    marginRight: spacing.md,
-  },
-  languageInfo: {
-    flex: 1,
-  },
-  languageNativeName: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  languageTextSelected: {
-    color: colors.light.primary,
-  },
-  languageSubName: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
-    marginTop: 2,
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.light.border,
+    width: '100%',
+    backgroundColor: '#0F5132', // Rich organic brand emerald green
+    paddingVertical: 15,
+    paddingHorizontal: 24,
+    borderRadius: radii.round,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: spacing.sm,
+    minHeight: 54,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F5132',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
-  radioCircleSelected: {
-    borderColor: colors.light.primary,
-  },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.light.primary,
-  },
-  footer: {
-    marginTop: spacing.md,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 0.3,
     textAlign: 'center',
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  secondaryPrompt: {
+    fontSize: typography.sizes.xs + 1,
+    color: '#556356', // Warm, calm slate/charcoal over light cream
+    fontWeight: typography.weights.medium,
+  },
+  loginLink: {
+    fontSize: typography.sizes.xs + 1,
+    color: '#0F5132', // Emphasized brand green
+    fontWeight: typography.weights.bold,
+    textDecorationLine: 'underline',
   },
 });
