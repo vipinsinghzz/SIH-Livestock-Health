@@ -1,0 +1,24 @@
+# EAS Build Root Ignore
+backend/
+database/
+deployment/
+docs/
+farmer-app/
+frontend/
+ml/
+newmodel/
+scratch/
+supabase/
+tests/
+vet-portal/
+*.apk
+*.idsig
+*.aab
+*.xml
+node_modules/
+.expo/
+mobile/*.apk
+mobile/*.idsig
+mobile/*.aab
+mobile/node_modules/
+mobile/.expo/
