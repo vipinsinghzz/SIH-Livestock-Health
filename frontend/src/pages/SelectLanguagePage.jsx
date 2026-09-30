@@ -22,7 +22,7 @@ const LANGUAGES = [
     badge: 'राष्ट्रीय भाषा',
     tagline: 'सरल एवं सुगम किसान भाषा',
     description: 'पशु स्वास्थ्य पहचान, किसान साथी आवाज़ सहायक, सरकारी योजनाएं और सभी परामर्श हिंदी में देखें।',
-    greeting: 'नमस्ते! पशु साथी में आपका स्वागत है।',
+    greeting: 'नमस्ते! PashuCare में आपका स्वागत है।',
     features: ['पूर्ण हिंदी समर्थन', 'किसान साथी वॉइस असिस्टेंट', 'AI रोग पहचान']
   },
   {
@@ -33,7 +33,7 @@ const LANGUAGES = [
     badge: 'Global Standard',
     tagline: 'Official Veterinary & Diagnostic Mode',
     description: 'Access AI disease detection, veterinary clinical triage, surveillance maps and official alerts in English.',
-    greeting: 'Welcome to Livestock Saathi veterinary platform.',
+    greeting: 'Welcome to PashuCare veterinary platform.',
     features: ['Full English UI', 'Clinical Triage Reports', 'GIS Disease Mapping']
   },
   {
@@ -44,7 +44,7 @@ const LANGUAGES = [
     badge: 'राज्यभाषा महाराष्ट्र',
     tagline: 'महाराष्ट्रातील पशुपालकांसाठी सुलभ',
     description: 'पशु आरोग्य तपासणी, किसान साथी आवाज सहाय्यक, शासकीय योजना आणि सर्व माहिती मराठीत पहा.',
-    greeting: 'नमस्कार! पशु साथी पोर्टलवर आपले स्वागत आहे.',
+    greeting: 'नमस्कार! PashuCare पोर्टलवर आपले स्वागत आहे.',
     features: ['मराठी भाषेचा पूर्ण पाठिंबा', 'किसान साथी व्हॉईस असिस्टंट', 'त्वरित डॉक्टर संपर्क']
   }
 ];

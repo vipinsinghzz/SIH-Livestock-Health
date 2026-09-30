@@ -405,9 +405,9 @@ export default function LeafletMap({
   };
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-stone-200 shadow-sm bg-white">
+    <div className="map-surface relative rounded-2xl overflow-hidden border border-stone-200 shadow-sm bg-white">
       {/* Map Header / Controls Overlay */}
-      <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2.5 rounded-xl shadow-md border border-stone-200 text-xs">
+      <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 bg-white/95 backdrop-blur-md px-3.5 py-2.5 rounded-lg shadow-sm border border-stone-200 text-xs">
         {/* Risk Filter Buttons */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-bold text-slate-700 mr-1 flex items-center gap-1">

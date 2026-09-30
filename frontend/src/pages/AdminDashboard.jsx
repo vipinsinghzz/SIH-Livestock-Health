@@ -156,7 +156,7 @@ export default function AdminDashboard() {
   const districtName = user?.district || 'Pune';
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
+    <div className="app-page dashboard-page admin-dashboard space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
       {/* Top Banner & Block Filter */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 pb-4">
         <div className="flex items-center gap-3.5">

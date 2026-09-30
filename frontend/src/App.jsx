@@ -128,8 +128,12 @@ function AppContent() {
   const { user } = useAuth();
   const isFarmer = !user || user.role === 'farmer';
 
+  React.useEffect(() => {
+    document.title = 'PashuCare — स्वस्थ पशु • समृद्ध किसान | AI Animal Health & Disease Surveillance';
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#fafaf9] flex flex-col font-sans">
+    <div className="app-shell min-h-screen flex flex-col font-sans">
       <OfflineBanner />
       <Navbar />
       <main className="flex-grow">

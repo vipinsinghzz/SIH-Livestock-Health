@@ -1,8 +1,8 @@
 import React from 'react';
 
 /**
- * LivestockSaathiEmblem
- * Official Livestock Saathi circular emblem integrating the exact attached artwork:
+ * LivestockSaathiEmblem / PashuCareEmblem
+ * Official PashuCare circular emblem integrating the exact attached artwork:
  * - Circular green foliage outer frame
  * - Cattle and goat silhouettes in deep forest green
  * - Medical veterinary cross (+) in vibrant green
@@ -13,11 +13,11 @@ export function LivestockSaathiEmblem({ size = 44, className = '', imgClassName 
     <div
       className={`relative inline-flex items-center justify-center shrink-0 select-none ${className}`}
       style={{ width: size, height: size }}
-      aria-label="Livestock Saathi Logo"
+      aria-label="PashuCare Logo"
     >
       <img
         src="/livestock-saathi-logo.png"
-        alt="Livestock Saathi"
+        alt="PashuCare"
         width={size}
         height={size}
         className={`w-full h-full object-contain filter drop-shadow-xs transition-transform duration-200 hover:scale-105 ${imgClassName}`}
@@ -97,10 +97,10 @@ export default function LivestockSaathiLogo({
 
         {/* Wordmark */}
         <div className={`mt-3 ${textClassName}`}>
-          <div className={`${currentSize.text} tracking-tight text-slate-900 leading-none flex items-center justify-center gap-1.5 whitespace-nowrap`}>
-            <span>LIVESTOCK</span>
+          <div className={`${currentSize.text} tracking-tight text-slate-900 leading-none flex items-center justify-center whitespace-nowrap`}>
+            <span>Pashu</span>
             <span className="text-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
-              SAATHI
+              Care
             </span>
           </div>
 
@@ -139,9 +139,9 @@ export default function LivestockSaathiLogo({
       <div className={`leading-tight ${textClassName}`}>
         <div className="flex items-center gap-2 whitespace-nowrap">
           <span className={`${currentSize.text} tracking-tight text-slate-900 leading-none`}>
-            LIVESTOCK{' '}
+            <span>Pashu</span>
             <span className="text-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
-              SAATHI
+              Care
             </span>
           </span>
 
@@ -166,3 +166,6 @@ export default function LivestockSaathiLogo({
     </div>
   );
 }
+
+export const PashuCareEmblem = LivestockSaathiEmblem;
+export const PashuCareLogo = LivestockSaathiLogo;

@@ -168,7 +168,7 @@ export const animalService = {
           type: 'Health Check',
           title: 'Animal Registered',
           date: new Date().toLocaleDateString('en-GB'),
-          notes: 'Profile added to Livestock Saathi'
+          notes: 'Profile added to PashuCare'
         }
       ]
     };

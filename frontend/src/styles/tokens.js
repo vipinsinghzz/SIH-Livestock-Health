@@ -1,4 +1,4 @@
-// Livestock Saathi Design Tokens
+// PashuCare Design Tokens
 export const tokens = {
   colors: {
     primary: {

@@ -442,7 +442,7 @@ export default function DiseaseDetectionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] py-6 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-12">
+    <div className="app-page screening-page min-h-screen bg-[#fafaf9] py-6 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-12">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header & Step Indicator */}
         <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/80 shadow-2xs">
@@ -455,12 +455,12 @@ export default function DiseaseDetectionPage() {
                     {isEnglish ? 'Livestock Disease Early Detection' : 'पशु रोग पहचान (Disease Detection)'}
                   </h1>
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-200">
-                    <Cpu className="w-3.5 h-3.5" /> lsd_model.keras
+                    <Cpu className="w-3.5 h-3.5" /> AI-assisted triage
                   </span>
                 </div>
                 <p className="text-sm text-slate-600 mt-1">
                   {isEnglish
-                    ? 'AI-assisted clinical evaluation and veterinary guidance using EfficientNetB0 CNN'
+                  ? 'Decision support for early review. Results should be confirmed by a veterinary professional.'
                     : 'lsd_model.keras डीप लर्निंग मॉडल एवं 27 क्लीनिकल लक्षणों द्वारा जांच'}
                 </p>
               </div>
@@ -921,10 +921,10 @@ export default function DiseaseDetectionPage() {
                 <div className="text-xs space-y-0.5">
                   <strong className="block font-black text-rose-900 text-xs sm:text-sm">
                     {isEnglish
-                      ? '⚠️ Immediate Veterinary Consultation Recommended'
+                      ? 'Immediate Veterinary Consultation Recommended'
                       : isMarathi
-                      ? '⚠️ तातडीने पशुवैद्यकीय सल्ला घेणे आवश्यक'
-                      : '⚠️ तत्काल पशु चिकित्सा परामर्श अनुशंसित'}
+                      ? 'तातडीने पशुवैद्यकीय सल्ला घेणे आवश्यक'
+                      : 'तत्काल पशु चिकित्सा परामर्श अनुशंसित'}
                   </strong>
                   <p className="text-[11px] text-rose-800 font-medium">
                     {isEnglish

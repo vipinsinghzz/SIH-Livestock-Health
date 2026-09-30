@@ -484,7 +484,7 @@ export default function LandingPage() {
         <div className="flex justify-center mb-3">
           <LivestockSaathiLogo variant="horizontal" size="sm" showSubtitle={true} showTagline={false} />
         </div>
-        <p>© 2026 Livestock Saathi • {t('tagline')}</p>
+        <p>© 2026 PashuCare • {t('tagline')}</p>
         <p className="text-[11px] text-slate-400 mt-1">
           {t('landing.footer_sub')}
         </p>

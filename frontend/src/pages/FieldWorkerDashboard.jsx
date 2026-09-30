@@ -481,7 +481,7 @@ export default function FieldWorkerDashboard({ initialModule }) {
   const activeOutbreaksCount = spatialClusters.filter((cl) => cl.isOutbreak).length;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
+    <div className="app-page dashboard-page field-dashboard space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
       {/* Header with Professional Doctor Title & District Jurisdiction */}
       {/* Header with Professional Doctor Title & District Jurisdiction */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 pb-5">
@@ -600,9 +600,9 @@ export default function FieldWorkerDashboard({ initialModule }) {
 
       {/* New Case Incoming Alert Banner */}
       {newCaseAlertBanner && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 text-white flex items-center justify-between gap-4 shadow-lg animate-bounce">
+        <div className="p-4 sm:p-5 rounded-2xl bg-red-700 text-white flex items-center justify-between gap-4 shadow-sm border border-red-800">
           <div className="flex items-center gap-3">
-            <BellRing className="w-6 h-6 animate-pulse" />
+            <BellRing className="w-6 h-6" />
             <div>
               <div className="font-black text-base">
                 {t('vet_portal.incoming_alert_title', { risk: newCaseAlertBanner.risk, disease: newCaseAlertBanner.disease })}

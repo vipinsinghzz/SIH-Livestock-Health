@@ -1,7 +1,7 @@
 import React from 'react';
 import { LivestockSaathiEmblem } from './LivestockSaathiLogo';
 
-export default function AppLoadingScreen({ message = 'लोड हो रहा है... Loading Livestock Saathi...' }) {
+export default function AppLoadingScreen({ message = 'लोड हो रहा है... Loading PashuCare...' }) {
   return (
     <div className="min-h-screen bg-[#fafaf9] flex flex-col items-center justify-center p-4 font-sans select-none">
       <div className="flex flex-col items-center text-center max-w-sm space-y-4 animate-fade-in">
@@ -14,9 +14,9 @@ export default function AppLoadingScreen({ message = 'लोड हो रहा
         {/* Wordmark & Badging */}
         <div className="space-y-1">
           <div className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
-            LIVESTOCK{' '}
+            <span>Pashu</span>
             <span className="text-emerald-700 bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
-              SAATHI
+              Care
             </span>
           </div>
           <div className="flex items-center justify-center gap-1.5 mt-1">

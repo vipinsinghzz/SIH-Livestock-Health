@@ -131,7 +131,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-white/95 backdrop-blur-md border-b border-stone-200/90 sticky top-0 z-40 shadow-xs w-full">
+    <nav className="app-nav bg-white/95 backdrop-blur-md border-b border-stone-200/90 sticky top-0 z-40 shadow-xs w-full">
       {/* Full-width responsive container with consistent 24-40px horizontal padding */}
       <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10">
         <div className="flex justify-between h-[74px] sm:h-[78px] items-center gap-3 sm:gap-4">
@@ -156,10 +156,10 @@ export default function Navbar() {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`px-2.5 xl:px-3 py-2 rounded-xl text-xs xl:text-sm font-bold transition-all duration-150 whitespace-nowrap ${
+                  className={`px-2.5 xl:px-3 py-2 rounded-lg text-xs xl:text-sm font-bold transition-all duration-150 whitespace-nowrap ${
                     isActive
-                      ? 'text-emerald-950 bg-emerald-100/90 font-black shadow-2xs border border-emerald-300/80 relative after:absolute after:bottom-1 after:left-3 after:right-3 after:h-0.5 after:bg-emerald-700 after:rounded-full'
-                      : 'text-slate-700 hover:text-slate-950 hover:bg-stone-100 font-bold'
+                      ? 'text-emerald-950 bg-emerald-100/90 font-black border border-emerald-200 relative after:absolute after:bottom-1 after:left-3 after:right-3 after:h-0.5 after:bg-emerald-800 after:rounded-full'
+                      : 'text-slate-700 hover:text-emerald-950 hover:bg-emerald-50 font-bold'
                   }`}
                 >
                   {link.label}
@@ -173,11 +173,11 @@ export default function Navbar() {
             {/* Emergency SOS Button (Always Prominent on the Right) */}
             <Link
               to="/emergency-sos"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 xl:px-4 py-2 rounded-xl text-sm font-black text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-700 hover:to-rose-700 transition-all duration-200 shadow-xs hover:shadow-md border border-red-500/80 animate-pulse shrink-0"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 xl:px-4 py-2 rounded-lg text-sm font-black text-white bg-red-700 hover:bg-red-800 transition-all duration-200 shadow-xs hover:shadow-md border border-red-800 shrink-0"
               title={isVet ? "24×7 Emergency Veterinary Helpline (Dial 1962)" : "24×7 Emergency Veterinary SOS"}
             >
               <AlertTriangle className="w-4 h-4" />
-              <span>{isVet ? '🚨 Emergency 1962' : t('nav.emergency_sos')}</span>
+              <span>{isVet ? 'Emergency 1962' : t('nav.emergency_sos')}</span>
             </Link>
 
             {/* Minimalist Online/Offline indicator */}

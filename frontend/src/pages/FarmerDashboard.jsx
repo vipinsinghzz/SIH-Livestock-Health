@@ -285,7 +285,7 @@ export default function FarmerDashboard() {
   upcomingVaccinationReminders.sort((a, b) => a.diffDays - b.diffDays);
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] pb-24 lg:pb-12 px-4 sm:px-6 lg:px-8 py-6 space-y-6 max-w-6xl mx-auto">
+    <div className="app-page dashboard-page farmer-dashboard min-h-screen bg-[#fafaf9] pb-24 lg:pb-12 px-4 sm:px-6 lg:px-8 py-6 space-y-6 max-w-6xl mx-auto">
       {/* 1. Clean Header Card */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
@@ -293,7 +293,7 @@ export default function FarmerDashboard() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                {t('farmer_dash.greeting')} {farmerName} 👋
+                {t('farmer_dash.greeting')} {farmerName}
               </h1>
             </div>
             <p className="text-sm sm:text-base text-slate-600 flex items-center gap-1.5 font-medium">
