@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,16 +10,13 @@ import {
   ArrowRight,
   ArrowLeft,
   RefreshCw,
-  Info,
-  Check,
-  AlertTriangle,
   AlertCircle,
+  AlertTriangle,
   Activity,
   Cpu,
   Thermometer,
   Clock,
   Sparkles,
-  FileText,
   CheckCircle2,
   Plus,
   Radio,
@@ -28,10 +25,11 @@ import {
   Send,
   Loader2,
   ShieldCheck,
-  AlertOctagon,
   MapPin,
   Eye,
-  X
+  X,
+  Check,
+  ChevronRight
 } from 'lucide-react';
 import api from '../services/api';
 import diseaseDetectionService, { SYMPTOMS_27 } from '../services/diseaseDetectionService';
@@ -41,8 +39,87 @@ import caseService from '../services/caseService';
 import { getCleanLang, getSpeciesDisplayName, getBreedDisplayName } from '../constants/livestockData';
 import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 
+// Species metadata for species-aware presentation
+const SPECIES_PROFILES = {
+  Cattle: {
+    key: 'Cattle',
+    labelEn: 'Cow',
+    labelHi: 'गाय / गोवंश',
+    labelMr: 'गाय / गोवंश',
+    aiNameEn: 'Cow Health AI',
+    aiNameHi: 'गोवंश स्वास्थ्य AI',
+    aiNameMr: 'गोवंश आरोग्य AI',
+    emoji: '🐄',
+    analysisTitleEn: 'Cow Health Analysis',
+    analysisTitleHi: 'गोवंश स्वास्थ्य विश्लेषण',
+    analysisTitleMr: 'गोवंश आरोग्य तपासणी',
+    scopeNoteEn: 'Evaluates bovine skin lesions (including Lumpy Skin Disease) & clinical signs',
+    scopeNoteHi: 'गोवंश त्वचा विकार (लम्पी त्वचा रोग सहित) एवं क्लीनिकल लक्षणों का मूल्यांकन',
+    scopeNoteMr: 'गोवंश त्वचेवरील आजार (लंपी चर्मरोग सह) आणि शारीरिक लक्षणांचे मूल्यांकन'
+  },
+  Goat: {
+    key: 'Goat',
+    labelEn: 'Goat',
+    labelHi: 'बकरी',
+    labelMr: 'शेळी',
+    aiNameEn: 'Goat Health AI',
+    aiNameHi: 'बकरी स्वास्थ्य AI',
+    aiNameMr: 'शेळी आरोग्य AI',
+    emoji: '🐐',
+    analysisTitleEn: 'Goat Health Analysis',
+    analysisTitleHi: 'बकरी स्वास्थ्य विश्लेषण',
+    analysisTitleMr: 'शेळी आरोग्य तपासणी',
+    scopeNoteEn: 'Evaluates goat skin conditions (Mange, Lice, Orf, Caseous Lymphadenitis, Ringworm)',
+    scopeNoteHi: 'बकरी त्वचा रोग (खुजली, जूं, ऑर्फ़, केसियस लिम्फैडेनाइटिस, दाद) की जांच',
+    scopeNoteMr: 'शेळीच्या त्वचेचे आजार (खरुज, गोचीड/ऊ, ऑर्फ, गाठी, नायटा) तपासणी'
+  },
+  Sheep: {
+    key: 'Sheep',
+    labelEn: 'Sheep',
+    labelHi: 'भेड़',
+    labelMr: 'मेंढी',
+    aiNameEn: 'Sheep Health AI',
+    aiNameHi: 'भेड़ स्वास्थ्य AI',
+    aiNameMr: 'मेंढी आरोग्य AI',
+    emoji: '🐑',
+    analysisTitleEn: 'Sheep Health Analysis',
+    analysisTitleHi: 'भेड़ स्वास्थ्य विश्लेषण',
+    analysisTitleMr: 'मेंढी आरोग्य तपासणी',
+    scopeNoteEn: 'Evaluates ovine skin conditions (Contagious Ecthyma / Orf & cutaneous health)',
+    scopeNoteHi: 'भेड़ त्वचा रोग (कंटेजियस एक्टिमा / ऑर्फ़ एवं त्वचा स्वास्थ्य) का मूल्यांकन',
+    scopeNoteMr: 'मेंढीच्या त्वचेचे आजार (ऑर्फ, त्वचेचे आरोग्य) तपासणी'
+  },
+  Buffalo: {
+    key: 'Buffalo',
+    labelEn: 'Buffalo',
+    labelHi: 'भैंस',
+    labelMr: 'म्हैस',
+    aiNameEn: 'Buffalo Health AI',
+    aiNameHi: 'भैंस स्वास्थ्य AI',
+    aiNameMr: 'म्हैस आरोग्य AI',
+    emoji: '🐃',
+    analysisTitleEn: 'Buffalo Health Analysis',
+    analysisTitleHi: 'भैंस स्वास्थ्य विश्लेषण',
+    analysisTitleMr: 'म्हैस आरोग्य तपासणी',
+    scopeNoteEn: 'Evaluates buffalo dermatological and systemic symptoms',
+    scopeNoteHi: 'भैंस के त्वचा संबंधी विकार और लक्षणों का मूल्यांकन',
+    scopeNoteMr: 'म्हैशीचे त्वचेचे विकार आणि लक्षणांचे मूल्यांकन'
+  }
+};
+
+const isNormalDiagnosis = (condition) => {
+  if (!condition) return false;
+  const lower = String(condition).toLowerCase();
+  return (
+    lower.includes('normal') ||
+    lower.includes('healthy') ||
+    lower.includes('निरोगी') ||
+    lower.includes('स्वस्थ')
+  );
+};
+
 export default function DiseaseDetectionPage() {
-    const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const currentLang = getCleanLang(i18n.language);
@@ -58,12 +135,30 @@ export default function DiseaseDetectionPage() {
   const [loadingAnimals, setLoadingAnimals] = useState(true);
   const [autoSyncSuccess, setAutoSyncSuccess] = useState(false);
 
-  // Step 1: Animal Selection
+  // Step 1: Species Selection (Cow by default)
   const [selectedSpecies, setSelectedSpecies] = useState('Cattle');
-  const [animalName, setAnimalName] = useState('Lakshmi');
+  const [animalName, setAnimalName] = useState('');
+
+  // Active species profile
+  const speciesProfile = SPECIES_PROFILES[selectedSpecies] || SPECIES_PROFILES.Cattle;
+  const speciesDisplayName = isEnglish
+    ? speciesProfile.labelEn
+    : isMarathi
+    ? speciesProfile.labelMr
+    : speciesProfile.labelHi;
+  const aiDisplayName = isEnglish
+    ? speciesProfile.aiNameEn
+    : isMarathi
+    ? speciesProfile.aiNameMr
+    : speciesProfile.aiNameHi;
+  const analysisPageTitle = isEnglish
+    ? speciesProfile.analysisTitleEn
+    : isMarathi
+    ? speciesProfile.analysisTitleMr
+    : speciesProfile.analysisTitleHi;
 
   // Load user registered animals and check query param
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchHerd = async () => {
       try {
         const herd = await animalService.getAnimals();
@@ -75,7 +170,7 @@ export default function DiseaseDetectionPage() {
           const match = herd.find((a) => a._id === targetId || a.tagId === targetId || a.id === targetId);
           if (match) {
             setSelectedAnimal(match);
-            setSelectedSpecies(match.species || 'Cattle');
+            setSelectedSpecies(match.species === 'Goat' ? 'Goat' : match.species === 'Sheep' ? 'Sheep' : match.species === 'Buffalo' ? 'Buffalo' : 'Cattle');
             setAnimalName(match.name);
             setIsOtherAnimal(false);
             return;
@@ -84,7 +179,7 @@ export default function DiseaseDetectionPage() {
 
         if (herd && herd.length > 0) {
           setSelectedAnimal(herd[0]);
-          setSelectedSpecies(herd[0].species || 'Cattle');
+          setSelectedSpecies(herd[0].species === 'Goat' ? 'Goat' : herd[0].species === 'Sheep' ? 'Sheep' : herd[0].species === 'Buffalo' ? 'Buffalo' : 'Cattle');
           setAnimalName(herd[0].name);
           setIsOtherAnimal(false);
         } else {
@@ -104,7 +199,7 @@ export default function DiseaseDetectionPage() {
     if (animal) {
       setSelectedAnimal(animal);
       setIsOtherAnimal(false);
-      setSelectedSpecies(animal.species || 'Cattle');
+      setSelectedSpecies(animal.species === 'Goat' ? 'Goat' : animal.species === 'Sheep' ? 'Sheep' : animal.species === 'Buffalo' ? 'Buffalo' : 'Cattle');
       setAnimalName(animal.name);
     } else {
       setSelectedAnimal(null);
@@ -113,17 +208,17 @@ export default function DiseaseDetectionPage() {
     }
   };
 
-  // Step 2: Symptoms & Inputs (Matching Image 2)
-  const [selectedSymptoms, setSelectedSymptoms] = useState(['skin_nodules', 'high_fever']);
-  const [temperature, setTemperature] = useState('0');
-  const [duration, setDuration] = useState('0');
+  // Step 2: Symptoms & Inputs
+  const [selectedSymptoms, setSelectedSymptoms] = useState([]);
+  const [temperature, setTemperature] = useState('');
+  const [duration, setDuration] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);
   const [customNotes, setCustomNotes] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [symptomSearch, setSymptomSearch] = useState('');
 
-  // Dynamically filter 27 clinical symptoms based on search input
-  const filteredSymptoms = React.useMemo(() => {
+  // Filter symptoms based on search query
+  const filteredSymptoms = useMemo(() => {
     if (!symptomSearch || !symptomSearch.trim()) return SYMPTOMS_27;
     const q = symptomSearch.toLowerCase().trim();
     return SYMPTOMS_27.filter((sym) => {
@@ -144,7 +239,7 @@ export default function DiseaseDetectionPage() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [caseIdSaved, setCaseIdSaved] = useState('');
 
-  // PS-128 Disease-to-Veterinarian Referral State
+  // Referral State
   const [userCoords, setUserCoords] = useState({ lat: 18.5204, lng: 73.8567 });
   const [detectedDistrict, setDetectedDistrict] = useState('Pune');
   const [districtVets, setDistrictVets] = useState([]);
@@ -155,8 +250,8 @@ export default function DiseaseDetectionPage() {
   const [showReferralModal, setShowReferralModal] = useState(false);
   const [referralError, setReferralError] = useState('');
 
-  // 1. Detect location and district automatically
-  React.useEffect(() => {
+  // Geolocation detection
+  useEffect(() => {
     try {
       const raw = localStorage.getItem('pashurakshak_user');
       const storedUser = raw && raw !== 'undefined' ? JSON.parse(raw) : {};
@@ -187,8 +282,8 @@ export default function DiseaseDetectionPage() {
     }
   }, []);
 
-  // 2. Fetch active veterinarians in detected district
-  React.useEffect(() => {
+  // Fetch active veterinarians
+  useEffect(() => {
     if (!detectedDistrict) return;
     caseService.getDistrictVets(detectedDistrict)
       .then((data) => {
@@ -197,8 +292,8 @@ export default function DiseaseDetectionPage() {
       .catch(() => {});
   }, [detectedDistrict]);
 
-  // 3. Real-time Referral Case Status Listener (SSE + Polling fallback)
-  React.useEffect(() => {
+  // Referral Stream Listener (SSE + Polling)
+  useEffect(() => {
     if (!referralCase?._id) return;
     const unsub = caseService.subscribeToCaseStream(
       (event) => {
@@ -225,21 +320,25 @@ export default function DiseaseDetectionPage() {
     };
   }, [referralCase?._id]);
 
-  // 4. Dispatch Case to All Matching District Veterinarians
+  // Dispatch Referral to District Veterinarians
   const handleDispatchReferral = async () => {
     if (!analysisResult) return;
     setIsCreatingReferral(true);
     setReferralError('');
     try {
-      const cleanCondition = analysisResult.possibleCondition || analysisResult.predictedDisease || 'Lumpy Skin Disease (LSD)';
+      const conditionName =
+        analysisResult.possibleCondition ||
+        analysisResult.predictedDisease ||
+        (analysisResult.aiUnavailable ? 'Unspecified Clinical Condition' : 'Screened Condition');
+
       const payload = {
         animalId: selectedAnimal?._id || selectedAnimal?.id || null,
-        animalName: selectedAnimal?.name || animalName || 'Livestock',
+        animalName: selectedAnimal?.name || animalName || speciesDisplayName,
         species: selectedSpecies,
         image: photoPreview || '',
-        disease: cleanCondition,
-        confidence: analysisResult.confidenceScore || 88,
-        risk: analysisResult.riskLevel || 'High',
+        disease: conditionName,
+        confidence: analysisResult.confidenceScore || 0,
+        risk: analysisResult.riskLevel || 'Moderate',
         coordinates: userCoords,
         district: detectedDistrict,
         symptoms: selectedSymptoms,
@@ -299,13 +398,13 @@ export default function DiseaseDetectionPage() {
     }
   };
 
-    const handleStartAnalysis = async () => {
+  const handleStartAnalysis = async () => {
     setCurrentStep(3);
     setIsAnalyzing(true);
 
     await diseaseDetectionService.runAnalysisProgress((stage) => {
       setAiStage(stage.label);
-    });
+    }, speciesDisplayName);
 
     const result = await diseaseDetectionService.evaluateCase({
       species: selectedSpecies,
@@ -320,16 +419,16 @@ export default function DiseaseDetectionPage() {
     setIsAnalyzing(false);
     setCurrentStep(4);
 
-    // AUTOMATIC HEALTH RECORD SYNC WITH PERSISTENT IMAGE STORAGE
-    if (selectedAnimal) {
+    // Sync result with registered animal profile if an animal is selected
+    if (selectedAnimal && result && !result.aiUnavailable) {
       try {
         const animalId = selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId;
         const isCritical = result.riskLevel === 'Critical' || result.riskLevel === 'High';
         const isAttention = result.riskLevel === 'Moderate';
-        const newHealthStatus = isCritical ? 'Critical' : isAttention ? 'Needs Attention' : 'Healthy';
+        const isNormal = isNormalDiagnosis(result.possibleCondition);
+        const newHealthStatus = isCritical ? 'Critical' : isAttention ? 'Needs Attention' : isNormal ? 'Healthy' : 'Needs Attention';
 
-        // 1. Clean Condition Name (Remove parenthetical double languages)
-        const rawCondition = result.disease || result.possibleCondition || 'Lumpy Skin Disease (LSD)';
+        const rawCondition = result.disease || result.possibleCondition || 'Health Screening';
         let cleanCondition = rawCondition;
         const parenMatch = rawCondition.match(/^([^(]+)(?:\(([^)]+)\))?/);
         if (parenMatch) {
@@ -338,16 +437,13 @@ export default function DiseaseDetectionPage() {
           cleanCondition = isEnglish ? eng : (local || eng);
         }
 
-        // 2. Format localized symptoms
         const formattedSymptoms = selectedSymptoms.map((symId) => {
           const found = SYMPTOMS_27.find((s) => s.id === symId);
           if (!found) return symId;
           return isEnglish ? found.labelEn : isMarathi ? (found.labelMr || found.labelHi) : found.labelHi;
         });
 
-        // 3. Store Image in Supabase Storage and get secure signed URL
-        let storedImageUrl = '';
-        let storedStoragePath = '';
+        let storedImageUrl = photoPreview || '';
         if (photoPreview) {
           try {
             const uploadRes = await api.post('/upload/scan-image', {
@@ -355,18 +451,16 @@ export default function DiseaseDetectionPage() {
               animalId: selectedAnimal._id || selectedAnimal.id,
               disease: cleanCondition,
               riskLevel: result.riskLevel,
-              confidence: result.confidenceScore || result.confidence || 88,
+              confidence: result.confidenceScore || result.confidence || 0,
               symptoms: formattedSymptoms,
               temperature: parseFloat(temperature || 0),
               duration: parseFloat(duration || 0)
             });
             if (uploadRes.data?.signedUrl || uploadRes.data?.imageUrl) {
               storedImageUrl = uploadRes.data.signedUrl || uploadRes.data.imageUrl;
-              storedStoragePath = uploadRes.data.storagePath || '';
             }
           } catch (uploadErr) {
-            console.warn('Backend image upload failed, using local preview:', uploadErr.message);
-            storedImageUrl = photoPreview;
+            console.warn('Backend image upload fallback to preview:', uploadErr.message);
           }
         }
 
@@ -377,34 +471,32 @@ export default function DiseaseDetectionPage() {
         const scanTimelineEvent = {
           type: 'Health Check',
           title: isEnglish
-            ? `AI Disease Scan: ${cleanCondition} (${result.riskLevel} Risk)`
+            ? `AI Health Screening: ${cleanCondition} (${result.riskLevel} Risk)`
             : isMarathi
-            ? `AI रोग तपासणी: ${cleanCondition} (${result.riskLevel === 'High' || result.riskLevel === 'Critical' ? 'गंभीर धोका' : result.riskLevel === 'Moderate' ? 'मध्यम धोका' : 'कमी धोका'})`
-            : `AI रोग जांच: ${cleanCondition} (${result.riskLevel === 'High' || result.riskLevel === 'Critical' ? 'गंभीर जोखिम' : result.riskLevel === 'Moderate' ? 'मध्यम जोखिम' : 'कम जोखिम'})`,
+            ? `AI आरोग्य तपासणी: ${cleanCondition} (${result.riskLevel === 'High' || result.riskLevel === 'Critical' ? 'गंभीर धोका' : result.riskLevel === 'Moderate' ? 'मध्यम धोका' : 'कमी धोका'})`
+            : `AI स्वास्थ्य जांच: ${cleanCondition} (${result.riskLevel === 'High' || result.riskLevel === 'Critical' ? 'गंभीर जोखिम' : result.riskLevel === 'Moderate' ? 'मध्यम जोखिम' : 'कम जोखिम'})`,
           date: new Date().toLocaleDateString('en-GB'),
           doctor: '',
-          assessedBy: 'AI-Assisted Preliminary Triage (lsd_model.keras)',
+          assessedBy: `AI-Assisted Preliminary Triage (${aiDisplayName})`,
           image: storedImageUrl,
           status: newHealthStatus,
           disease: cleanCondition,
-          confidence: result.confidenceScore || result.confidence || 88,
+          confidence: result.confidenceScore || result.confidence || 0,
           symptoms: formattedSymptoms,
           advisory: advisoryText,
           temperature: parseFloat(temperature || 0),
           duration: parseFloat(duration || 0),
-          notes: `${isEnglish ? 'Confidence' : 'सटीकता'}: ${result.confidenceScore || result.confidence || 88}%. ${isEnglish ? 'Symptoms' : isMarathi ? 'लक्षणे' : 'लक्षण'}: ${formattedSymptoms.join(', ')}.`
+          notes: `${isEnglish ? 'Confidence' : 'सटीकता'}: ${result.confidenceScore || 0}%. ${isEnglish ? 'Assessed by' : 'जांच'}: ${aiDisplayName}.`
         };
 
-        const updates = {
+        await animalService.updateAnimal(animalId, {
           healthStatus: newHealthStatus,
           lastCheckup: new Date().toLocaleDateString('en-GB'),
           newTimelineEvent: scanTimelineEvent
-        };
-
-        await animalService.updateAnimal(animalId, updates);
+        });
         setAutoSyncSuccess(true);
       } catch (err) {
-        console.warn('Auto sync to health record failed:', err);
+        console.warn('Auto sync to health record notice:', err);
       }
     }
   };
@@ -421,16 +513,16 @@ export default function DiseaseDetectionPage() {
         notes: customNotes,
         photos: photoPreview ? [photoPreview] : [],
         location: {
-          lat: 18.5204,
-          lng: 73.8567,
+          lat: userCoords.lat || 18.5204,
+          lng: userCoords.lng || 73.8567,
           village: user.village || 'Gram Panchayat',
           block: user.block || 'Taluka Block',
-          district: user.district || 'District'
+          district: user.district || detectedDistrict || 'District'
         }
       };
 
       const res = await diseaseDetectionService.submitFormalReport(payload);
-      if (res && res.report && res.report.caseId) {
+      if (res?.report?.caseId) {
         setCaseIdSaved(res.report.caseId);
       } else {
         setCaseIdSaved('CASE-' + Date.now().toString().slice(-6));
@@ -442,283 +534,292 @@ export default function DiseaseDetectionPage() {
   };
 
   return (
-    <div className="app-page screening-page min-h-screen bg-[#fafaf9] py-6 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-12">
+    <div className="app-page screening-page min-h-screen bg-[#fafaf8] py-6 px-4 sm:px-6 lg:px-8 pb-24 lg:pb-12 text-slate-800">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Header & Step Indicator */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/80 shadow-2xs">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <LivestockSaathiEmblem size={50} className="shrink-0 drop-shadow-xs" />
+
+        {/* TOP BRANDING & PROGRESS BAR */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-stone-200/90 shadow-xs">
+          <div className="flex items-center justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3.5">
+              <LivestockSaathiEmblem size={48} className="shrink-0 drop-shadow-xs" />
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-                    {isEnglish ? 'Livestock Disease Early Detection' : 'पशु रोग पहचान (Disease Detection)'}
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    {analysisPageTitle}
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-200">
-                    <Cpu className="w-3.5 h-3.5" /> AI-assisted triage
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-900 border border-emerald-200">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                    {aiDisplayName}
                   </span>
                 </div>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
                   {isEnglish
-                  ? 'Decision support for early review. Results should be confirmed by a veterinary professional.'
-                    : 'lsd_model.keras डीप लर्निंग मॉडल एवं 27 क्लीनिकल लक्षणों द्वारा जांच'}
+                    ? 'AI-assisted health triage & early detection for livestock'
+                    : isMarathi
+                    ? 'पशुधनासाठी AI-सहाय्यित प्राथमिक आरोग्य तपासणी'
+                    : 'पशुओं के लिए AI-सहायता प्राप्त प्रारंभिक स्वास्थ्य जांच'}
                 </p>
               </div>
             </div>
-            <span className="text-xs sm:text-sm font-bold bg-stone-100 text-slate-800 px-3.5 py-1.5 rounded-full shrink-0">
-              {isEnglish ? `Step ${currentStep} / 4` : `चरण ${currentStep} / 4`}
+            <span className="text-xs sm:text-sm font-extrabold bg-stone-100 text-slate-700 px-3 py-1.5 rounded-full shrink-0">
+              {isEnglish ? `Step ${currentStep} of 4` : `चरण ${currentStep} / 4`}
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 text-center text-xs sm:text-sm font-bold">
-            <div className={`py-2 rounded-xl border transition ${currentStep >= 1 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
-              1. {isEnglish ? 'Animal' : 'पशु चयन'}
+          {/* Stepper Progress */}
+          <div className="grid grid-cols-4 gap-2 text-center text-xs font-bold">
+            <div className={`py-2 px-1 rounded-xl border transition ${currentStep >= 1 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+              1. {isEnglish ? 'Livestock' : 'पशु चयन'}
             </div>
-            <div className={`py-2 rounded-xl border transition ${currentStep >= 2 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
-              2. {isEnglish ? 'Symptoms & Photo' : 'लक्षण व फोटो'}
+            <div className={`py-2 px-1 rounded-xl border transition ${currentStep >= 2 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+              2. {isEnglish ? 'Photo & Signs' : 'फोटो व लक्षण'}
             </div>
-            <div className={`py-2 rounded-xl border transition ${currentStep >= 3 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
-              3. {isEnglish ? 'AI Triage' : 'AI जांच'}
+            <div className={`py-2 px-1 rounded-xl border transition ${currentStep >= 3 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+              3. {isEnglish ? 'Screening' : 'AI जांच'}
             </div>
-            <div className={`py-2 rounded-xl border transition ${currentStep >= 4 ? 'bg-emerald-700 text-white border-emerald-700 font-black' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
+            <div className={`py-2 px-1 rounded-xl border transition ${currentStep >= 4 ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-stone-50 text-slate-400 border-stone-200'}`}>
               4. {isEnglish ? 'Result' : 'परिणाम'}
             </div>
           </div>
         </div>
 
-        {/* STEP 1: SELECT ANIMAL */}
+        {/* STEP 1: SELECT LIVESTOCK */}
         {currentStep === 1 && (
-          <div className="bg-white rounded-2xl p-6 sm:p-7 border border-stone-200/80 shadow-2xs space-y-6">
-            <div className="border-b border-stone-100 pb-3.5">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 border border-stone-200/90 shadow-xs space-y-6">
+            <div className="border-b border-stone-100 pb-4">
               <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                {isEnglish ? 'Step 1: Select Livestock for Disease Scan' : isMarathi ? 'चरण १: रोग तपासणीसाठी जनावर निवडा' : 'चरण 1: रोग जांच के लिए पशु चुनें'}
+                {isEnglish ? 'Step 1: Select Livestock Species' : isMarathi ? 'चरण १: जनावराची जात निवडा' : 'चरण 1: पशु की प्रजाति चुनें'}
               </h2>
               <p className="text-sm text-slate-600 mt-1 font-medium">
                 {isEnglish
-                  ? 'Select from your registered herd. The AI scan result will automatically update the animal\'s health record.'
+                  ? 'Select the animal species to engage the specialized health analysis model.'
                   : isMarathi
-                  ? 'नोंदणीकृत जनावरांमधून निवडा. AI चाचणीचा निकाल थेट या जनावराच्या आरोग्य नोंदवहीत जतन केला जाईल.'
-                  : 'अपने पंजीकृत पशुओं में से चुनें। AI जांच का परिणाम सीधे इस पशु के स्वास्थ्य रिकॉर्ड में जुड़ जाएगा।'}
+                  ? 'योग्य AI मॉडेलद्वारे तपासणी करण्यासाठी जनावराची प्रजात निवडा.'
+                  : 'सटीक AI विश्लेषण के लिए पशु की प्रजाति चुनें।'}
               </p>
             </div>
 
-            {/* Registered Livestock Selection Grid */}
+            {/* Species Selection Cards */}
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                {isEnglish ? 'Livestock Models Available' : 'उपलब्ध पशु स्वास्थ्य मॉडल'}
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                {[
+                  {
+                    species: 'Cattle',
+                    profile: SPECIES_PROFILES.Cattle,
+                    badge: isEnglish ? 'Cow Health AI' : 'गोवंश AI',
+                    highlight: isEnglish ? 'Lumpy Skin & Dermatitis' : 'लम्पी त्वचा रोग व चर्मरोग'
+                  },
+                  {
+                    species: 'Goat',
+                    profile: SPECIES_PROFILES.Goat,
+                    badge: isEnglish ? 'Goat Health AI' : 'बकरी AI',
+                    highlight: isEnglish ? 'Mange, Orf, Lice, CL' : 'खुजली, ऑर्फ़, जूं, गाठ'
+                  },
+                  {
+                    species: 'Sheep',
+                    profile: SPECIES_PROFILES.Sheep,
+                    badge: isEnglish ? 'Sheep Health AI' : 'भेड़ AI',
+                    highlight: isEnglish ? 'Orf & Skin Lesions' : 'ऑर्फ़ व चर्मरोग'
+                  }
+                ].map((item) => {
+                  const isSelected = selectedSpecies === item.species;
+                  return (
+                    <button
+                      key={item.species}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSpecies(item.species);
+                        setIsOtherAnimal(true);
+                        setSelectedAnimal(null);
+                      }}
+                      className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                        isSelected
+                          ? 'border-emerald-700 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-700'
+                          : 'border-stone-200 hover:border-emerald-300 bg-stone-50/50 hover:bg-white'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-3xl">{item.profile.emoji}</span>
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                            isSelected ? 'bg-emerald-700 text-white' : 'bg-stone-200 text-slate-700'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        </div>
+                        <h3 className="font-black text-lg text-slate-900">
+                          {isEnglish ? item.profile.labelEn : isMarathi ? item.profile.labelMr : item.profile.labelHi}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                          {isEnglish ? item.profile.scopeNoteEn : isMarathi ? item.profile.scopeNoteMr : item.profile.scopeNoteHi}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 mt-3 border-t border-stone-200/60 flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-emerald-800">{item.highlight}</span>
+                        <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-700' : 'text-slate-400'}`} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Registered Livestock Selection (if farmer has registered animals) */}
             {animals.length > 0 && (
-              <div className="space-y-2.5">
-                <label className="text-sm font-bold text-slate-700 block">
-                  {isEnglish ? 'Your Registered Livestock:' : isMarathi ? 'तुमची नोंदणीकृत जनावरे:' : 'आपके पंजीकृत पशु:'}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-3 pt-4 border-t border-stone-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                    {isEnglish ? 'Or Pick from Your Registered Herd:' : isMarathi ? 'किंवा तुमच्या कळपातील जनावर निवडा:' : 'या अपने पंजीकृत पशुओं में से चुनें:'}
+                  </label>
+                  <span className="text-xs text-emerald-800 font-semibold">
+                    {animals.length} {isEnglish ? 'animals registered' : 'पंजीकृत पशु'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
                   {animals.map((animal) => {
                     const isSelected = selectedAnimal && (selectedAnimal._id === animal._id || selectedAnimal.tagId === animal.tagId);
-                    const speciesLabel = getSpeciesDisplayName(animal.species, currentLang);
-                    const breedLabel = getBreedDisplayName(animal.breed, animal.species, currentLang);
-                    const statusLabel =
-                      animal.healthStatus === 'Healthy'
-                        ? (isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ')
-                        : animal.healthStatus === 'Needs Attention'
-                        ? (isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें')
-                        : (isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर');
+                    const animalSpeciesKey = animal.species === 'Goat' ? 'Goat' : animal.species === 'Sheep' ? 'Sheep' : animal.species === 'Buffalo' ? 'Buffalo' : 'Cattle';
+                    const animalEmoji = SPECIES_PROFILES[animalSpeciesKey]?.emoji || '🐄';
 
                     return (
                       <button
                         key={animal._id || animal.tagId}
                         type="button"
                         onClick={() => handleChooseAnimal(animal)}
-                        className={`p-3.5 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                        className={`p-3 rounded-xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
                           isSelected
-                            ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-600'
-                            : 'border-stone-200 hover:border-emerald-300 bg-stone-50/70 hover:bg-white'
+                            ? 'border-emerald-700 bg-emerald-50/70 shadow-2xs ring-2 ring-emerald-700'
+                            : 'border-stone-200 hover:border-emerald-300 bg-stone-50/50 hover:bg-white'
                         }`}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-3xl shrink-0">
-                            {animal.species === 'Buffalo' ? '🐃' : animal.species === 'Goat' ? '🐐' : animal.species === 'Sheep' ? '🐑' : '🐄'}
-                          </span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-2xl shrink-0">{animalEmoji}</span>
                           <div className="min-w-0">
-                            <h4 className="font-extrabold text-base sm:text-lg text-slate-900 truncate">{animal.name}</h4>
-                            <p className="text-xs text-slate-500 font-mono truncate">
-                              Tag: {animal.tagId} • {speciesLabel}
+                            <h4 className="font-extrabold text-sm text-slate-900 truncate">{animal.name}</h4>
+                            <p className="text-[11px] text-slate-500 truncate font-mono">
+                              Tag: {animal.tagId || 'N/A'} • {getSpeciesDisplayName(animal.species, currentLang)}
                             </p>
-                            {breedLabel && <p className="text-xs text-emerald-800 font-medium truncate">{breedLabel}</p>}
                           </div>
                         </div>
 
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
-                            animal.healthStatus === 'Healthy'
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                              : animal.healthStatus === 'Needs Attention'
-                              ? 'bg-amber-100 text-amber-900 border-amber-200'
-                              : 'bg-red-100 text-red-800 border-red-200'
-                          }`}
-                        >
-                          {statusLabel}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
+                          animal.healthStatus === 'Healthy'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : animal.healthStatus === 'Needs Attention'
+                            ? 'bg-amber-100 text-amber-900 border-amber-200'
+                            : 'bg-red-100 text-red-800 border-red-200'
+                        }`}>
+                          {animal.healthStatus || 'Healthy'}
                         </span>
                       </button>
                     );
                   })}
-
-                  {/* Option: Other / Unregistered Animal */}
-                  <button
-                    type="button"
-                    onClick={() => handleChooseAnimal(null)}
-                    className={`p-3.5 rounded-2xl border text-left transition flex items-center gap-3 cursor-pointer ${
-                      isOtherAnimal
-                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-600'
-                        : 'border-dashed border-stone-300 hover:border-emerald-400 bg-stone-50/50 hover:bg-white'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center text-slate-600 shrink-0">
-                      <Plus className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs text-slate-800">
-                        {isEnglish ? '+ Other / Unregistered Animal' : isMarathi ? '+ इतर / नवीन जनावर' : '+ अन्य / नया पशु'}
-                      </h4>
-                      <p className="text-[11px] text-slate-500">
-                        {isEnglish ? 'Scan animal without linking to registered profile' : 'नोंदणी न केलेल्या जनावराची तपासणी करा'}
-                      </p>
-                    </div>
-                  </button>
                 </div>
               </div>
             )}
 
-            {/* If Other / Unregistered animal is selected, pick species & name manually */}
-            {isOtherAnimal && (
-              <div className="space-y-4 pt-2 border-t border-stone-100">
-                <label className="text-xs font-bold text-slate-700 block">
-                  {isEnglish ? 'Select Species:' : isMarathi ? 'प्रजात निवडा:' : 'प्रजाति चुनें:'}
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { species: 'Cattle', label: isEnglish ? 'Cow / Cattle' : isMarathi ? 'गाय' : 'गाय', emoji: '🐄' },
-                    { species: 'Buffalo', label: isEnglish ? 'Buffalo' : isMarathi ? 'म्हैस' : 'भैंस', emoji: '🐃' },
-                    { species: 'Goat', label: isEnglish ? 'Goat' : isMarathi ? 'शेळी' : 'बकरी', emoji: '🐐' },
-                    { species: 'Sheep', label: isEnglish ? 'Sheep' : isMarathi ? 'मेंढी' : 'भेड़', emoji: '🐑' }
-                  ].map((item) => (
-                    <button
-                      key={item.species}
-                      type="button"
-                      onClick={() => setSelectedSpecies(item.species)}
-                      className={`p-4 rounded-xl border text-center transition cursor-pointer ${
-                        selectedSpecies === item.species
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-1 ring-emerald-600'
-                          : 'border-stone-200 hover:border-stone-300 bg-stone-50'
-                      }`}
-                    >
-                      <span className="text-3xl block mb-1">{item.emoji}</span>
-                      <span className="text-xs font-bold text-slate-900 block">{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    {isEnglish ? 'Animal Name / Temporary Identifier (Optional):' : 'पशु का नाम / पहचान (वैकल्पिक):'}
-                  </label>
-                  <input
-                    type="text"
-                    value={animalName}
-                    onChange={(e) => setAnimalName(e.target.value)}
-                    placeholder={isEnglish ? 'e.g. Neighbor\'s Cow / Tag' : 'उदा. गाय / पहचान टैग'}
-                    className="w-full sm:w-72 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="pt-2 flex items-center justify-between border-t border-stone-100">
-              <div className="text-xs text-slate-500">
+            {/* Active Selection Summary & Continue Button */}
+            <div className="pt-4 flex items-center justify-between border-t border-stone-100">
+              <div className="text-xs text-slate-600 font-medium">
                 {selectedAnimal ? (
-                  <span className="font-semibold text-emerald-800">
-                    ✓ {isEnglish ? 'Selected:' : isMarathi ? 'निवडले:' : 'चयनित:'} {selectedAnimal.name} ({selectedAnimal.tagId})
+                  <span className="text-emerald-800 font-bold">
+                    ✓ {isEnglish ? 'Selected' : 'चयनित'}: {selectedAnimal.name} ({speciesDisplayName})
                   </span>
                 ) : (
-                  <span>{isEnglish ? 'Custom scan' : 'सामान्य जांच'}</span>
+                  <span>
+                    ✓ {isEnglish ? 'Species' : 'प्रजाति'}: <strong className="text-slate-900">{speciesDisplayName}</strong> ({aiDisplayName})
+                  </span>
                 )}
               </div>
+
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
               >
-                {t('actions.next', 'Continue')} <ArrowRight className="w-4 h-4" />
+                <span>{isEnglish ? 'Continue to Image & Signs' : 'आगे बढ़ें'}</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 2: SYMPTOMS, PHOTO, TEMPERATURE & DURATION (MATCHING IMAGE 2) */}
+        {/* STEP 2: IMAGE UPLOAD & OPTIONAL SYMPTOMS */}
         {currentStep === 2 && (
-          <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-2xs space-y-6">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 border border-stone-200/90 shadow-xs space-y-6">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                  {isEnglish ? 'Step 2: Select Symptoms & Upload Photo' : 'चरण 2: लक्षण चुनें और फोटो लगाएं'}
+                  {isEnglish ? `Step 2: ${speciesDisplayName} Image & Signs` : `चरण 2: ${speciesDisplayName} फोटो एवं लक्षण`}
                 </h2>
-                <p className="text-sm text-slate-600 font-medium">
+                <p className="text-sm text-slate-600 mt-1 font-medium">
                   {isEnglish
-                    ? 'Enter clinical parameters and skin photograph for the AI neural network'
-                    : 'डीप लर्निंग मॉडल के लिए त्वचा की फोटो और सभी लक्षण दर्ज करें'}
+                    ? 'Upload an image of the skin lesion or affected area for AI visual analysis.'
+                    : 'AI दृश्य विश्लेषण के लिए त्वचा या प्रभावित क्षेत्र की फोटो अपलोड करें।'}
                 </p>
               </div>
-              <span className="text-xs text-emerald-800 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                {selectedSpecies}
+              <span className="text-xs font-extrabold px-3 py-1 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 shrink-0">
+                {speciesProfile.emoji} {speciesDisplayName}
               </span>
             </div>
 
-            {/* 1. Skin Photo Box (Image 2 style) */}
+            {/* 1. FRONT & CENTER: ANIMAL IMAGE UPLOAD */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-emerald-600" />
-                  {isEnglish ? 'Skin photo (optional)' : 'त्वचा की फोटो (वैकल्पिक)'}
-                </label>
-                <span className="text-xs text-slate-400">
-                  {isEnglish ? 'Input shape: 224x224 RGB' : '224x224 RGB इनपुट'}
+              <label className="text-sm font-extrabold text-slate-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-emerald-700" />
+                  {isEnglish ? 'Animal Photo' : 'पशु की फोटो'}
                 </span>
-              </div>
+                <span className="text-xs font-normal text-slate-500">
+                  {isEnglish ? 'Skin, coat, or lesion photograph' : 'त्वचा, घाव या लक्षण की स्पष्ट फोटो'}
+                </span>
+              </label>
 
               {photoPreview ? (
-                <div className="relative rounded-2xl overflow-hidden border border-emerald-300 bg-black/90 p-2 flex flex-col items-center justify-center">
+                <div className="relative rounded-2xl overflow-hidden border border-emerald-300 bg-stone-900 p-2 flex flex-col items-center justify-center">
                   <img
                     src={photoPreview}
-                    alt="Skin preview"
-                    className="max-h-56 rounded-xl object-contain"
+                    alt="Animal lesion preview"
+                    className="max-h-64 rounded-xl object-contain"
                   />
-                  <div className="w-full flex items-center justify-between mt-2 pt-2 border-t border-stone-700/50 px-2">
-                    <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" /> {isEnglish ? 'Photo loaded for CNN inference' : 'फोटो लोड हो गई'}
+                  <div className="w-full flex items-center justify-between mt-2 pt-2 border-t border-stone-700/60 px-2">
+                    <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="w-4 h-4" /> {isEnglish ? 'Image ready for AI screening' : 'फोटो तैयार है'}
                     </span>
                     <button
                       type="button"
                       onClick={() => setPhotoPreview(null)}
-                      className="bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition"
+                      className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1 rounded-lg transition"
                     >
-                      {isEnglish ? 'Remove Photo' : 'फोटो हटाएं'}
+                      {isEnglish ? 'Change Photo' : 'फोटो बदलें'}
                     </button>
                   </div>
                 </div>
               ) : (
-                <label className="cursor-pointer border-2 border-dashed border-stone-300 hover:border-emerald-600 rounded-2xl p-6 flex flex-col items-center justify-center bg-stone-50/70 hover:bg-emerald-50/30 transition group">
-                  <div className="w-12 h-12 rounded-full bg-white shadow-xs border border-stone-200 flex items-center justify-center text-emerald-700 group-hover:scale-105 transition mb-2">
-                    <Upload className="w-5 h-5" />
+                <label className="cursor-pointer border-2 border-dashed border-stone-300 hover:border-emerald-600 rounded-2xl p-7 flex flex-col items-center justify-center bg-stone-50/60 hover:bg-emerald-50/20 transition group">
+                  <div className="w-14 h-14 rounded-2xl bg-white shadow-xs border border-stone-200 flex items-center justify-center text-emerald-700 group-hover:scale-105 transition mb-3">
+                    <Camera className="w-6 h-6" />
                   </div>
-                  <span className="text-xs font-bold text-slate-800">
-                    {isEnglish ? 'Drop Image Here' : 'फोटो यहां खींचें'}
+                  <span className="text-sm font-extrabold text-slate-900">
+                    {isEnglish ? 'Take or Upload Animal Photo' : 'फोटो खींचें या अपलोड करें'}
                   </span>
-                  <span className="text-[11px] text-slate-400 my-0.5">- or -</span>
-                  <span className="text-xs font-semibold text-emerald-700">
-                    {isEnglish ? 'Click to Upload' : 'फोटो अपलोड करने के लिए क्लिक करें'}
+                  <span className="text-xs text-slate-500 mt-1 max-w-sm text-center">
+                    {isEnglish
+                      ? 'Upload a clear, well-lit photo of the animal\'s skin, nodules, or affected body part.'
+                      : 'पशु की त्वचा, फफोले, घाव या प्रभावित अंग की स्पष्ट फोटो लगाएं।'}
                   </span>
-                  <div className="flex items-center gap-4 mt-3 text-slate-400 text-xs">
-                    <span className="flex items-center gap-1">
-                      <Camera className="w-3.5 h-3.5" /> {isEnglish ? 'Camera' : 'कैमरा'}
+                  <div className="flex items-center gap-3 mt-4 text-xs font-bold text-emerald-800">
+                    <span className="px-3 py-1 bg-white border border-stone-200 rounded-lg shadow-2xs flex items-center gap-1">
+                      <Camera className="w-3.5 h-3.5 text-emerald-600" /> {isEnglish ? 'Take Photo' : 'कैमरा'}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Upload className="w-3.5 h-3.5" /> {isEnglish ? 'Upload' : 'अपलोड'}
+                    <span className="px-3 py-1 bg-white border border-stone-200 rounded-lg shadow-2xs flex items-center gap-1">
+                      <Upload className="w-3.5 h-3.5 text-emerald-600" /> {isEnglish ? 'Upload File' : 'गैलरी / फाइल'}
                     </span>
                   </div>
                   <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
@@ -726,60 +827,66 @@ export default function DiseaseDetectionPage() {
               )}
             </div>
 
-            {/* 2. Symptoms Observed (All 27 symptoms from Image 2) */}
-            <div className="space-y-2 pt-1">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                  <Activity className="w-4 h-4 text-emerald-600" />
-                  {isEnglish ? 'Symptoms observed' : 'लक्षण पहचानें (Symptoms observed)'}
-                  <span className="text-xs font-normal text-slate-500">
-                    ({selectedSymptoms.length} / 27 {isEnglish ? 'selected' : 'चुने गए'})
-                  </span>
-                </label>
+            {/* 2. OPTIONAL CLINICAL SIGNS & SYMPTOMS */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-2">
+                <div>
+                  <label className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-emerald-700" />
+                    {isEnglish ? 'Optional: Observed Clinical Signs' : 'वैकल्पिक: देखे गए लक्षण'}
+                  </label>
+                  <p className="text-xs text-slate-500">
+                    {isEnglish ? 'Select any visible signs to improve multi-modal diagnostic accuracy.' : 'लक्षण चुनने से AI निदान अधिक सटीक होता है।'}
+                  </p>
+                </div>
                 <input
                   type="text"
-                  placeholder={isEnglish ? 'Filter symptoms...' : 'लक्षण खोजें...'}
+                  placeholder={isEnglish ? 'Search symptoms...' : 'लक्षण खोजें...'}
                   value={symptomSearch}
                   onChange={(e) => setSymptomSearch(e.target.value)}
-                  className="bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-emerald-600 w-full sm:w-48"
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-emerald-600 w-full sm:w-44"
                 />
               </div>
 
-              {/* 27 Symptom Buttons Grid */}
-              <div className="flex flex-wrap gap-2 pt-1">
+              {/* Symptom Selection Pills */}
+              <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
                 {filteredSymptoms.map((sym) => {
                   const isChecked = selectedSymptoms.includes(sym.id);
+                  const symptomLabel = isEnglish
+                    ? (sym.nameEn || sym.labelEn)
+                    : isMarathi
+                    ? (sym.labelMr || sym.labelHi)
+                    : sym.labelHi;
+
                   return (
                     <button
                       key={sym.id}
                       type="button"
                       onClick={() => handleToggleSymptom(sym.id)}
-                      className={`text-sm px-3.5 py-2 rounded-xl border flex items-center gap-2 transition cursor-pointer ${
+                      className={`text-xs px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition cursor-pointer ${
                         isChecked
-                          ? 'bg-emerald-700 text-white border-emerald-700 font-bold shadow-xs'
+                          ? 'bg-emerald-700 text-white border-emerald-700 font-bold shadow-2xs'
                           : 'bg-stone-50 hover:bg-stone-100 text-slate-700 border-stone-200'
                       }`}
                     >
-                      <span
-                        className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
-                          isChecked ? 'bg-white text-emerald-800 border-white font-bold' : 'border-stone-400 bg-white'
-                        }`}
-                      >
+                      <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] ${
+                        isChecked ? 'bg-white text-emerald-800 font-black' : 'border border-stone-300 bg-white'
+                      }`}>
                         {isChecked ? '✓' : ''}
                       </span>
-                      <span>{isEnglish ? (sym.nameEn || sym.labelEn) : isMarathi ? (sym.labelMr || sym.labelHi) : sym.labelHi}</span>
+                      <span>{symptomLabel}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* 3. Temperature (°C) & 4. Duration (hours) (Image 2 style) */}
+            {/* 3. OPTIONAL VITALS: TEMPERATURE & DURATION */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                   <Thermometer className="w-3.5 h-3.5 text-amber-600" />
-                  {isEnglish ? 'Temperature (°C)' : isMarathi ? 'तापमान (°C)' : 'तापमान (°C)'}
+                  {isEnglish ? 'Body Temperature (°C) - Optional' : 'शरीर का तापमान (°C) - वैकल्पिक'}
                 </label>
                 <input
                   type="number"
@@ -788,46 +895,38 @@ export default function DiseaseDetectionPage() {
                   max="45"
                   value={temperature}
                   onChange={(e) => setTemperature(e.target.value)}
-                  placeholder="0"
+                  placeholder={isEnglish ? 'e.g. 39.2' : 'उदा. 39.2'}
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600 font-mono"
                 />
                 <span className="text-[10px] text-slate-400 block">
-                  {isEnglish
-                    ? 'Normal: 38.0–39.3°C, Fever: >39.5°C'
-                    : isMarathi
-                    ? 'सामान्य: ३८.०–३९.३°C, ताप: >३९.५°C'
-                    : 'सामान्य: 38.0–39.3°C, बुखार: >39.5°C'}
+                  {isEnglish ? 'Normal range: 38.0–39.3°C' : 'सामान्य सीमा: 38.0–39.3°C'}
                 </span>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-blue-600" />
-                  {isEnglish ? 'Duration of symptoms (hours)' : isMarathi ? 'लक्षणे सुरू असल्याचा कालावधी (तास)' : 'लक्षणों की अवधि (घंटे)'}
+                  {isEnglish ? 'Duration of Symptoms (Hours) - Optional' : 'लक्षणों की अवधि (घंटे) - वैकल्पिक'}
                 </label>
                 <input
                   type="number"
                   min="0"
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
-                  placeholder="0"
+                  placeholder={isEnglish ? 'e.g. 24 (1 day)' : 'उदा. 24'}
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-600 font-mono"
                 />
                 <span className="text-[10px] text-slate-400 block">
-                  {isEnglish
-                    ? 'e.g. 24 for 1 day, 48 for 2 days'
-                    : isMarathi
-                    ? 'उदा. २४ (१ दिवस), ४८ (२ दिवस)'
-                    : 'उदा. 24 (1 दिन), 48 (2 दिन)'}
+                  {isEnglish ? '24 = 1 day, 48 = 2 days' : '24 = 1 दिन, 48 = 2 दिन'}
                 </span>
               </div>
             </div>
 
-            {/* Voice & Text Notes */}
+            {/* 4. OPTIONAL VOICE / TEXT NOTES */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-700">
-                  {isEnglish ? 'Additional Observations (Speak or Type):' : 'अतिरिक्त विवरण (बोलें या लिखें):'}
+                  {isEnglish ? 'Farmer Observations (Speak or Type):' : 'अतिरिक्त विवरण (बोलें या लिखें):'}
                 </label>
                 <button
                   type="button"
@@ -836,34 +935,40 @@ export default function DiseaseDetectionPage() {
                     isRecording ? 'bg-amber-500 text-slate-950 animate-pulse' : 'bg-stone-100 text-slate-700 hover:bg-stone-200'
                   }`}
                 >
-                  <Mic className="w-3 h-3" /> {isRecording ? (isEnglish ? 'Listening...' : 'सुन रहा हूं...') : (isEnglish ? 'Speak' : 'बोलें')}
+                  <Mic className="w-3 h-3" /> {isRecording ? (isEnglish ? 'Listening...' : 'सुन रहा हूं...') : (isEnglish ? 'Voice Input' : 'बोलें')}
                 </button>
               </div>
               <textarea
                 rows={2}
                 value={customNotes}
                 onChange={(e) => setCustomNotes(e.target.value)}
-                placeholder={isEnglish ? 'Describe feed intake, milk changes, herd contact...' : 'पशु की स्थिति, चारा-पानी या अन्य बातें यहां लिखें...'}
+                placeholder={isEnglish ? 'Note appetite, milk drop, behavioral changes...' : 'चारा-पानी, दूध में कमी, या अन्य लक्षण यहां लिखें...'}
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-emerald-600"
               />
             </div>
 
-            {/* Navigation Actions */}
+            {/* Navigation & Submit */}
             <div className="pt-4 flex items-center justify-between border-t border-stone-100">
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="text-sm font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" /> {t('actions.back', 'Back')}
+                <ArrowLeft className="w-4 h-4" /> {isEnglish ? 'Back to Species' : 'पीछे'}
               </button>
+
               <button
                 type="button"
                 onClick={handleStartAnalysis}
-                className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-extrabold text-sm px-6 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" />
-                {t('wizard.submit_triage', 'Run AI Triage & Submit Report')} →
+                <span>
+                  {isEnglish
+                    ? `Analyze ${speciesDisplayName} Health`
+                    : `${speciesDisplayName} स्वास्थ्य जांच शुरू करें`}
+                </span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -871,459 +976,511 @@ export default function DiseaseDetectionPage() {
 
         {/* STEP 3: LOADING INFERENCE */}
         {currentStep === 3 && (
-          <div className="bg-white rounded-2xl p-10 border border-stone-200/80 shadow-2xs text-center space-y-5">
+          <div className="bg-white rounded-2xl p-10 sm:p-14 border border-stone-200/90 shadow-xs text-center space-y-6">
             <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
               <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-700 animate-spin" />
-              <LivestockSaathiEmblem size={52} className="drop-shadow-xs animate-pulse" />
+              <LivestockSaathiEmblem size={50} className="drop-shadow-xs animate-pulse" />
             </div>
-            <div className="space-y-2">
-              <h3 className="text-base font-bold text-slate-900">
-                {isEnglish ? 'Analyzing with lsd_model.keras...' : 'lsd_model.keras द्वारा विश्लेषण जारी है...'}
+
+            <div className="space-y-2 max-w-sm mx-auto">
+              <h3 className="text-lg font-black text-slate-900">
+                {isEnglish
+                  ? `Analyzing with ${aiDisplayName}...`
+                  : `${aiDisplayName} द्वारा विश्लेषण जारी है...`}
               </h3>
-              <p className="text-xs text-emerald-800 font-medium animate-pulse">{aiStage}</p>
+              <p className="text-xs text-emerald-800 font-semibold animate-pulse">
+                {aiStage || (isEnglish ? 'Evaluating visual skin features & clinical parameters...' : 'त्वचा के लक्षणों का विश्लेषण किया जा रहा है...')}
+              </p>
             </div>
-            <div className="max-w-xs mx-auto text-[11px] text-slate-400">
-              {isEnglish
-                ? 'Processing EfficientNetB0 neural weights with PyTorch backend'
-                : 'न्यूरल नेटवर्क और क्लीनिकल डायग्नोस्टिक इंजन द्वारा मिलान किया जा रहा है'}
-            </div>
+
+            <p className="text-[11px] text-slate-400">
+              PashuCare AI screening engine • Decision support
+            </p>
           </div>
         )}
 
-        {/* STEP 4: RESULT VIEW */}
+        {/* STEP 4: PROFESSIONAL RESULT SCREEN */}
         {currentStep === 4 && analysisResult && (
-          <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-2xs space-y-6">
-            {/* Mandatory Preliminary Triage Medical Disclaimer */}
-            <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl flex items-start gap-2.5 text-xs text-amber-950">
-              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="font-black block text-amber-900">
-                  {isEnglish
-                    ? 'AI-Assisted Preliminary Screening / Risk Assessment — Not a Final Veterinary Diagnosis'
-                    : isMarathi
-                    ? 'AI-सहाय्यित प्राथमिक तपासणी / जोखीम मूल्यांकन — हे अंतिम पशुवैद्यकीय निदान नाही'
-                    : 'AI-सहायता प्राप्त प्रारंभिक जांच / जोखिम मूल्यांकन — यह अंतिम पशु चिकित्सा निदान नहीं है'}
-                </span>
-                <p className="text-[11px] text-amber-800 leading-relaxed">
-                  {isEnglish
-                    ? 'This preliminary screening is generated by artificial intelligence for early warning decision support and is NOT a final clinical diagnosis. Always consult a certified veterinary doctor for definitive confirmation, prescription, and medical care.'
-                    : isMarathi
-                    ? 'हा निकाल कृत्रिम बुद्धिमत्ता (AI) तपासणी मॉडेलद्वारे पूर्वसूचना सहाय्यासाठी तयार केला असून हे अंतिम पशुवैद्यकीय निदान नाही. अंतिम निदान, औषधोपचार आणि पुष्टीसाठी नेहमी अधिकृत पशुवैद्यकीय डॉक्टरांचा सल्ला घ्या.'
-                    : 'यह प्रारंभिक परिणाम कृत्रिम बुद्धिमत्ता (AI) द्वारा पूर्व-चेतावनी सहायता हेतु तैयार किया गया है और यह अंतिम पशु चिकित्सा निदान नहीं है। अंतिम पुष्टि, नुस्खे एवं उपचार हेतु हमेशा अधिकृत पशु चिकित्सक से परामर्श लें।'}
-                </p>
-              </div>
-            </div>
+          <div className="space-y-6">
 
-            {/* High/Critical Risk Mandatory Veterinary Consultation Alert */}
-            {(analysisResult.riskLevel === 'Critical' || analysisResult.riskLevel === 'High') && (
-              <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-xl flex items-start gap-2.5 text-rose-950 shadow-2xs">
-                <AlertCircle className="w-5 h-5 text-rose-700 shrink-0 mt-0.5" />
-                <div className="text-xs space-y-0.5">
-                  <strong className="block font-black text-rose-900 text-xs sm:text-sm">
-                    {isEnglish
-                      ? 'Immediate Veterinary Consultation Recommended'
-                      : isMarathi
-                      ? 'तातडीने पशुवैद्यकीय सल्ला घेणे आवश्यक'
-                      : 'तत्काल पशु चिकित्सा परामर्श अनुशंसित'}
-                  </strong>
-                  <p className="text-[11px] text-rose-800 font-medium">
-                    {isEnglish
-                      ? 'This animal presents high-risk clinical signs. Please contact a licensed veterinarian or dispatch a clinical referral immediately.'
-                      : isMarathi
-                      ? 'या जनावरामध्ये गंभीर आजाराची लक्षणे दिसत आहेत. कृपया त्वरित पशुवैद्यकीय डॉक्टरांशी संपर्क साधा किंवा रेफरल पाठवा.'
-                      : 'इस पशु में उच्च जोखिम वाले नैदानिक लक्षण दिखाई दे रहे हैं। कृपया तुरंत किसी पशु चिकित्सक से संपर्क करें या रेफरल भेजें।'}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* AI Screening Temporarily Unavailable Banner */}
-            {(analysisResult.aiUnavailable || analysisResult.isUnavailable) && (
-              <div className="p-4 bg-blue-50 border border-blue-300 rounded-2xl flex items-start gap-3 shadow-2xs">
-                <AlertCircle className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
-                <div className="text-xs space-y-1">
-                  <h4 className="font-extrabold text-blue-950">
-                    {isEnglish
-                      ? 'AI Screening Temporarily Unavailable'
-                      : isMarathi
-                      ? 'AI तपासणी तात्पुरती अनुपलब्ध आहे'
-                      : 'AI जांच अस्थायी रूप से अनुपलब्ध है'}
-                  </h4>
-                  <p className="text-[11px] text-blue-800 leading-relaxed">
-                    {isEnglish
-                      ? 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.'
-                      : isMarathi
-                      ? 'AI तपासणी तात्पुरती अनुपलब्ध आहे. तुमचा अहवाल सुरक्षित केला आहे आणि पशुवैद्यकीय अधिकारी तो तपासू शकतात.'
-                      : 'AI जांच अस्थायी रूप से अनुपलब्ध है। आपकी रिपोर्ट सुरक्षित कर ली गई है और पशु चिकित्सक द्वारा इसकी समीक्षा की जा सकती है।'}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* AI Model Badge & Verification */}
-            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-emerald-700 shrink-0" />
-                <div>
-                  <span className="text-xs font-bold text-emerald-950 block">
-                    {analysisResult.modelVersion || 'lsd_model.keras (EfficientNetB0)'}
-                  </span>
-                  <span className="text-[11px] text-emerald-800">
-                    {isEnglish ? 'Real deep learning inference verified' : 'डीप लर्निंग मॉडल द्वारा सत्यापित परिणाम'}
-                  </span>
-                </div>
-              </div>
-              {analysisResult.hasImage && analysisResult.visualScore !== null && (
-                <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-700 text-white shadow-2xs self-start sm:self-auto">
-                  {isEnglish ? 'Visual Match:' : 'फोटो मिलान:'} {Math.round(analysisResult.visualScore * 100)}%
-                </span>
-              )}
-            </div>
-
-                        {/* Automatic Health Record Sync Banner */}
-            {autoSyncSuccess && selectedAnimal && (
-              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
-                <div className="flex items-start sm:items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
-                  <div>
-                    <h4 className="font-extrabold text-xs sm:text-sm text-emerald-950">
-                      {isEnglish
-                        ? `✓ Health Record Automatically Updated for ${selectedAnimal.name} (${selectedAnimal.tagId})`
-                        : isMarathi
-                        ? `✓ ${selectedAnimal.name} (${selectedAnimal.tagId}) ची आरोग्य नोंद स्वयंचलितपणे अद्यतनित केली`
-                        : `✓ ${selectedAnimal.name} (${selectedAnimal.tagId}) का स्वास्थ्य रिकॉर्ड स्वचालित रूप से अपडेट हो गया`}
-                    </h4>
-                    <p className="text-[11px] text-emerald-800 mt-0.5">
-                      {isEnglish
-                        ? `Health status updated to "${analysisResult.riskLevel === 'High' || analysisResult.riskLevel === 'Critical' ? 'Critical' : analysisResult.riskLevel === 'Moderate' ? 'Needs Attention' : 'Healthy'}" and scan entry added to medical timeline.`
-                        : isMarathi
-                        ? `आरोग्य स्थिती आणि AI चाचणी इतिहास जनावराच्या प्रोफाइलमध्ये सुरक्षित केला आहे.`
-                        : `स्वास्थ्य स्थिति और AI जांच विवरण पशु की समय-रेखा में सुरक्षित कर दिया गया है।`}
-                    </p>
+            {/* A. AI UNAVAILABLE / FALLBACK STATE */}
+            {(analysisResult.aiUnavailable || analysisResult.isUnavailable || (!analysisResult.possibleCondition && analysisResult.riskLevel === 'Pending')) ? (
+              <div className="bg-white rounded-2xl p-6 sm:p-7 border border-stone-200/90 shadow-xs space-y-5">
+                <div className="flex items-center gap-3 border-b border-stone-100 pb-4">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-6 h-6" />
                   </div>
-                </div>
-                <Link
-                  to={`/animals?openAnimal=${selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId}`}
-                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs shrink-0 cursor-pointer"
-                >
-                  <span>{isEnglish ? 'View Health Record' : isMarathi ? 'आरोग्य नोंद पहा' : 'स्वास्थ्य रिकॉर्ड देखें'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            )}
-
-            {/* Disease Heading */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">
-                  {isEnglish ? 'Suspected Condition:' : 'संभावित बीमारी:'}
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-0.5">
-                  {analysisResult.possibleCondition}
-                </h2>
-                <p className="text-sm text-slate-600 mt-1 font-medium">{analysisResult.explanation}</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    analysisResult.riskLevel === 'Critical'
-                      ? 'bg-red-100 text-red-800 border border-red-200'
-                      : analysisResult.riskLevel === 'High'
-                      ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}
-                >
-                  {isEnglish ? 'Risk' : 'जोखिम'}: {analysisResult.riskLevel}
-                </span>
-                <span className="text-xs font-black text-emerald-700 bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
-                  {isEnglish ? 'Confidence' : 'सटीकता'}: {analysisResult.confidenceScore}%
-                </span>
-              </div>
-            </div>
-
-            {/* Image Preview & Clinical Signs Summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {photoPreview && (
-                <div className="rounded-xl overflow-hidden border border-stone-200 h-32 bg-black flex items-center justify-center relative">
-                  <img src={photoPreview} alt="Analyzed lesion" className="h-full w-full object-cover" />
-                  <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded">
-                    CNN Analyzed
-                  </span>
-                </div>
-              )}
-              <div className={`${photoPreview ? 'sm:col-span-2' : 'sm:col-span-3'} space-y-1.5`}>
-                <span className="text-xs font-bold text-slate-700 block">
-                  {isEnglish ? 'Evaluated Parameters:' : 'जांचे गए मापदंड:'}
-                </span>
-                <div className="flex flex-wrap gap-1.5 text-xs">
-                  {analysisResult.clinicalObservations && analysisResult.clinicalObservations.map((obs, i) => (
-                    <span key={i} className="px-2.5 py-1 bg-stone-100 rounded-lg border border-stone-200 text-slate-700 text-[11px] font-medium">
-                      • {obs}
-                    </span>
-                  ))}
-                  {temperature > 0 && (
-                    <span className="px-2.5 py-1 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 text-[11px] font-medium">
-                      Temp: {temperature}°C
-                    </span>
-                  )}
-                  {duration > 0 && (
-                    <span className="px-2.5 py-1 bg-blue-50 rounded-lg border border-blue-200 text-blue-900 text-[11px] font-medium">
-                      Duration: {duration}h
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Differential Candidate Diseases */}
-            {analysisResult.suspectedDiseases && analysisResult.suspectedDiseases.length > 1 && (
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-700 block">
-                  {isEnglish ? 'Differential Diagnostic Ranking:' : 'अन्य संभावित रोग (Differential Ranking):'}
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {analysisResult.suspectedDiseases.slice(0, 4).map((d, idx) => (
-                    <div key={idx} className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-xs flex items-center justify-between">
-                      <span className="font-semibold text-slate-800">{d.name}</span>
-                      <span className="font-mono font-bold text-emerald-700">
-                        {Math.round((d.confidenceScore <= 1 ? d.confidenceScore * 100 : d.confidenceScore))}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Immediate First Aid & Biosecurity */}
-            <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 text-xs text-emerald-950 space-y-2">
-              <strong className="block font-bold text-emerald-900">
-                {isEnglish ? 'Immediate First Aid & Biosecurity Actions:' : 'प्राथमिक उपचार व बचाव के उपाय:'}
-              </strong>
-              <ul className="space-y-1.5 text-slate-700">
-                {analysisResult.immediateFirstAid && analysisResult.immediateFirstAid.map((aid, idx) => (
-                  <li key={idx} className="flex items-start gap-1.5">
-                    <span className="text-emerald-700 font-bold">{idx + 1}.</span>
-                    <span>{aid}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Case Saved Confirmation */}
-            {savedSuccess && (
-              <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl flex items-center gap-2 text-xs text-emerald-900 font-bold">
-                <Check className="w-4 h-4 text-emerald-700" />
-                <span>
-                  {isEnglish ? 'Report successfully filed to Surveillance System!' : 'रिपोर्ट पशु स्वास्थ्य निगरानी प्रणाली में दर्ज हो गई!'}
-                  {caseIdSaved && ` (Case ID: ${caseIdSaved})`}
-                </span>
-              </div>
-            )}
-
-            {/* PS-128 Disease-to-Veterinarian Referral Card */}
-            <div className="bg-gradient-to-br from-rose-50 to-red-50/70 rounded-2xl p-4 sm:p-5 border-2 border-rose-200 shadow-sm space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <Radio className="w-4 h-4 animate-pulse" />
-                  </span>
                   <div>
-                    <h3 className="text-sm font-black text-rose-950">
-                      {isEnglish ? 'PS-128 District Veterinarian Referral' : isMarathi ? 'PS-128 जिल्हा पशुवैद्यकीय रेफरल' : 'PS-128 जिला पशु चिकित्सा रेफरल'}
-                    </h3>
-                    <p className="text-[11px] text-rose-800/80">
-                      {isEnglish
-                        ? `Live broadcast to all verified veterinarians in ${detectedDistrict} district`
-                        : `${detectedDistrict} जिले के सभी सक्रिय पशु चिकित्सकों को सीधा अलर्ट`}
+                    <h2 className="text-xl font-black text-slate-900">
+                      {isEnglish ? 'AI Analysis Unavailable' : 'AI विश्लेषण अनुपलब्ध'}
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {speciesProfile.emoji} {speciesDisplayName} Health Screening
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="px-2.5 py-1 bg-white/90 border border-rose-200 text-rose-900 font-bold rounded-lg flex items-center gap-1 shadow-2xs">
-                    <MapPin className="w-3 h-3 text-red-600" />
-                    <span>{detectedDistrict}</span>
-                  </span>
-                  <span className={`px-2.5 py-1 ${districtVets.length > 0 ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300'} border font-bold rounded-lg flex items-center gap-1`}>
-                    <UserCheck className={`w-3 h-3 ${districtVets.length > 0 ? 'text-emerald-700' : 'text-amber-700'}`} />
-                    <span>{districtVets.length} {isEnglish ? (districtVets.length === 1 ? 'Vet Online' : 'Vets Online') : 'डॉक्टर सक्रिय'}</span>
-                  </span>
+                <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 text-xs text-slate-700 space-y-2">
+                  <p className="font-semibold text-slate-900">
+                    {isEnglish
+                      ? 'We could not complete the image analysis at this time.'
+                      : 'इस समय छवि विश्लेषण पूरा नहीं किया जा सका।'}
+                  </p>
+                  <p className="text-slate-600">
+                    {isEnglish
+                      ? 'Your observation and animal details have been recorded. You can still dispatch a direct clinical referral to local veterinarians in your district or try the scan again.'
+                      : 'आपके पशु के लक्षण दर्ज कर लिए गए हैं। आप जिले के पशु चिकित्सकों को सीधा रेफरल भेज सकते हैं या पुनः प्रयास कर सकते हैं।'}
+                  </p>
                 </div>
-              </div>
 
-              {/* Referral Status / Action */}
-              {referralCase ? (
-                <div className="p-3.5 bg-white rounded-xl border border-rose-200/90 shadow-2xs space-y-3">
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs text-emerald-800 font-bold">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{isEnglish ? 'Case referred successfully to District Veterinary Unit!' : 'केस सफलतापूर्वक जिला पशु चिकित्सा इकाई को रेफर कर दिया गया!'}</span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        {isEnglish ? 'Active Referral Case ID' : 'रेफरल केस आईडी'}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-black text-slate-900">{referralCase.caseId}</span>
-                        <span
-                          className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                            referralCase.status === 'ACCEPTED' || referralCase.status === 'Investigating'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : referralCase.status === 'IN_TREATMENT' || referralCase.status === 'Containment'
-                              ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                              : referralCase.status === 'RESOLVED' || referralCase.status === 'Resolved'
-                              ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                              : 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
-                          }`}
-                        >
-                          {referralCase.status === 'OPEN' || referralCase.status === 'New'
-                            ? (isEnglish ? 'Pending Claim...' : 'दावे की प्रतीक्षा...')
-                            : referralCase.status}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowReferralModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer self-start sm:self-auto"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>{isEnglish ? 'Track Live Status' : 'लाइव स्थिति देखें'}</span>
-                    </button>
-                  </div>
-
-                  {(referralCase.assignedVetId || referralCase.assignedVet) && (
-                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-full bg-emerald-700 text-white flex items-center justify-center font-black shrink-0">
-                          Dr
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                            <span>{(referralCase.assignedVetId?.name || referralCase.assignedVet?.name)}</span>
-                            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-semibold">Assigned Vet</span>
-                          </div>
-                          <p className="text-[11px] text-slate-600">
-                            {(referralCase.assignedVetId?.department || referralCase.assignedVet?.department || `${detectedDistrict} District Animal Health Office`)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {(referralCase.assignedVetId?.phone || referralCase.assignedVet?.phone) && (
-                        <a
-                          href={`tel:${referralCase.assignedVetId?.phone || referralCase.assignedVet?.phone}`}
-                          className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg transition shadow-xs shrink-0 cursor-pointer"
-                        >
-                          <PhoneCall className="w-3.5 h-3.5" />
-                          <span>{isEnglish ? 'Call Doctor' : 'कॉल करें'} ({referralCase.assignedVetId?.phone || referralCase.assignedVet?.phone})</span>
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {referralError && (
-                    <div className="p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xl font-medium space-y-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                        <span className="font-bold">{referralError}</span>
-                      </div>
-                      {referralError.includes('1962') && (
-                        <div className="pt-1">
-                          <a
-                            href="tel:1962"
-                            className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition shadow-xs"
-                          >
-                            <PhoneCall className="w-3.5 h-3.5" />
-                            <span>{isEnglish ? 'Call Toll-Free 1962 Helpline' : 'टोल-फ्री 1962 पर कॉल करें'}</span>
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                {/* Fallback actions */}
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentStep(2);
+                      setAnalysisResult(null);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{isEnglish ? 'Try Again' : 'पुनः प्रयास करें'}</span>
+                  </button>
 
                   <button
                     type="button"
                     onClick={handleDispatchReferral}
                     disabled={isCreatingReferral}
-                    className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-extrabold text-xs sm:text-sm py-3 px-4 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer disabled:opacity-60"
                   >
-                    {isCreatingReferral ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>{isEnglish ? 'Referring...' : 'केस रेफर किया जा रहा है...'}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        <span>
-                          {isEnglish
-                            ? `Dispatch Case to All District Vets (${detectedDistrict})`
-                            : `${detectedDistrict} जिले के सभी डॉक्टरों को केस रेफर करें`}
-                        </span>
-                      </>
-                    )}
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{isEnglish ? 'Contact District Veterinarian' : 'पशु चिकित्सक से संपर्क करें'}</span>
                   </button>
-                  <p className="text-[10px] text-slate-500 text-center">
+                </div>
+              </div>
+            ) : isNormalDiagnosis(analysisResult.possibleCondition) ? (
+              /* B. NORMAL / HEALTHY RESULT SCREEN */
+              <div className="bg-white rounded-2xl p-6 sm:p-7 border border-emerald-200 shadow-xs space-y-6">
+
+                {/* Header: AI HEALTH ANALYSIS + Species */}
+                <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+                  <div>
+                    <span className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-widest block">
+                      AI HEALTH ANALYSIS
+                    </span>
+                    <h2 className="text-2xl font-black text-slate-900 mt-0.5 flex items-center gap-2">
+                      <span>{speciesProfile.emoji}</span>
+                      <span>{speciesDisplayName}</span>
+                    </h2>
+                  </div>
+
+                  <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    {aiDisplayName}
+                  </span>
+                </div>
+
+                {/* Animal Image */}
+                {photoPreview && (
+                  <div className="rounded-2xl overflow-hidden border border-stone-200 max-h-72 bg-stone-900 flex items-center justify-center">
+                    <img src={photoPreview} alt="Screened animal" className="max-h-72 w-full object-contain" />
+                  </div>
+                )}
+
+                {/* Result Title & Diagnosis */}
+                <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">
+                      Result
+                    </span>
+                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-950">
+                      {isEnglish ? 'Low Risk' : 'कम जोखिम'}
+                    </span>
+                  </div>
+                  <h3 className="text-2xl font-black text-emerald-950">
+                    {analysisResult.possibleCondition || 'Normal / Healthy'}
+                  </h3>
+                  <p className="text-sm text-emerald-900 font-medium">
                     {isEnglish
-                      ? 'Atomic assignment: Only the first veterinarian to respond will be assigned.'
-                      : 'सिस्टम नियम: जो डॉक्टर पहले स्वीकार करेंगे, केस स्वतः उन्हें असाइन होगा।'}
+                      ? 'No concerning visual condition detected by the AI screening.'
+                      : isMarathi
+                      ? 'AI तपासणीमध्ये त्वचेवर कोणताही चिंताजनक आजार आढळला नाही.'
+                      : 'AI जांच द्वारा त्वचा पर कोई चिंताजनक रोग लक्षण नहीं पाया गया।'}
                   </p>
                 </div>
-              )}
-            </div>
 
-            {/* Case Saved Confirmation */}
-            {savedSuccess && (
-              <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl flex items-center gap-2 text-xs text-emerald-900 font-bold">
-                <Check className="w-4 h-4 text-emerald-700" />
-                <span>
-                  {isEnglish ? 'Report successfully filed to Surveillance System!' : 'रिपोर्ट पशु स्वास्थ्य निगरानी प्रणाली में दर्ज हो गई!'}
-                  {caseIdSaved && ` (Case ID: ${caseIdSaved})`}
-                </span>
+                {/* AI Assessment */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    AI Assessment
+                  </h4>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {analysisResult.confidenceScore !== null && (
+                      <span className="px-3 py-1 bg-stone-100 text-slate-800 font-extrabold rounded-lg border border-stone-200">
+                        {isEnglish ? 'Confidence' : 'सटीकता'}: {analysisResult.confidenceScore}%
+                      </span>
+                    )}
+                    {analysisResult.visualScore !== null && (
+                      <span className="px-3 py-1 bg-stone-100 text-slate-800 font-extrabold rounded-lg border border-stone-200">
+                        {isEnglish ? 'Visual Match' : 'फोटो मिलान'}: {Math.round(analysisResult.visualScore * 100)}%
+                      </span>
+                    )}
+                    <span className="px-3 py-1 bg-stone-100 text-slate-700 font-semibold rounded-lg border border-stone-200">
+                      {aiDisplayName}
+                    </span>
+                  </div>
+                </div>
+
+                {/* What this means */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    What this means
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                    {analysisResult.explanation || (
+                      isEnglish
+                        ? 'The image analysis did not exhibit characteristic lesions or severe dermatological inflammation for this species. Skin texture appears within normal limits.'
+                        : 'इस प्रजाति के लिए फोटो में कोई गंभीर चर्मरोग लक्षण या गांठें नहीं पाई गईं। त्वचा की बनावट सामान्य सीमा में है।'
+                    )}
+                  </p>
+                </div>
+
+                {/* Recommended next step */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Recommended next step
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                    {analysisResult.recommendedAction || (
+                      isEnglish
+                        ? 'Continue regular daily health monitoring, maintain clean shed hygiene, and verify normal feeding and water intake. If fever or unexpected behavioral signs develop, contact a local veterinarian.'
+                        : 'नियमित दैनिक निगरानी जारी रखें, बाड़े की स्वच्छता बनाए रखें, और पशु के चारा-पानी पर ध्यान दें।'
+                    )}
+                  </p>
+                </div>
+
+                {/* Mandatory Disclaimer */}
+                <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-xl flex items-start gap-2.5 text-xs text-slate-600">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed">
+                    {isEnglish
+                      ? 'AI-assisted screening assessment. Does not medically guarantee that the animal is completely free of internal infection. Consult a licensed veterinarian for clinical confirmation if systemic symptoms persist.'
+                      : 'AI-सहायता प्राप्त प्रारंभिक जांच। यह चिकित्सकीय गारंटी नहीं देता कि पशु किसी भी आंतरिक संक्रमण से पूर्णतः मुक्त है। लक्षण दिखने पर पशु चिकित्सक से संपर्क करें।'}
+                  </p>
+                </div>
+
+                {/* Auto sync notice */}
+                {autoSyncSuccess && selectedAnimal && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-900 font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>
+                      {isEnglish
+                        ? `Health status updated to "Healthy" for ${selectedAnimal.name} (${selectedAnimal.tagId || ''})`
+                        : `${selectedAnimal.name} का स्वास्थ्य रिकॉर्ड "स्वस्थ" के रूप में सुरक्षित हुआ`}
+                    </span>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="pt-2 flex flex-wrap gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentStep(1);
+                      setPhotoPreview(null);
+                      setAnalysisResult(null);
+                      setSelectedSymptoms([]);
+                      setAutoSyncSuccess(false);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl transition shadow-xs cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{isEnglish ? 'Screen Another Animal' : 'नए पशु की जांच करें'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveFormalReport}
+                    className="inline-flex items-center justify-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold py-2.5 px-4 rounded-xl border border-stone-200 transition cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savedSuccess ? (isEnglish ? 'Record Saved' : 'रिकॉर्ड सुरक्षित') : (isEnglish ? 'Save Formal Record' : 'रिकॉर्ड सुरक्षित करें')}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* C. HIGH-RISK / DISEASE RESULT SCREEN */
+              <div className="bg-white rounded-2xl p-6 sm:p-7 border border-stone-200/90 shadow-xs space-y-6">
+
+                {/* Header: AI HEALTH ANALYSIS + Species */}
+                <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+                  <div>
+                    <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest block">
+                      AI HEALTH ANALYSIS
+                    </span>
+                    <h2 className="text-2xl font-black text-slate-900 mt-0.5 flex items-center gap-2">
+                      <span>{speciesProfile.emoji}</span>
+                      <span>{speciesDisplayName}</span>
+                    </h2>
+                  </div>
+
+                  <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-50 text-emerald-900 border border-emerald-200">
+                    {aiDisplayName}
+                  </span>
+                </div>
+
+                {/* Animal Image */}
+                {photoPreview && (
+                  <div className="rounded-2xl overflow-hidden border border-stone-200 max-h-72 bg-stone-900 flex items-center justify-center relative">
+                    <img src={photoPreview} alt="Analyzed animal lesion" className="max-h-72 w-full object-contain" />
+                    <span className="absolute bottom-2 right-2 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                      {aiDisplayName}
+                    </span>
+                  </div>
+                )}
+
+                {/* RESULT: Suspected Disease Prominent */}
+                <div className={`p-4 rounded-2xl border ${
+                  analysisResult.riskLevel === 'Critical' || analysisResult.riskLevel === 'High'
+                    ? 'bg-rose-50/80 border-rose-300 text-rose-950'
+                    : 'bg-amber-50/80 border-amber-300 text-amber-950'
+                } space-y-2`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider">
+                      Result
+                    </span>
+                    <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                      analysisResult.riskLevel === 'Critical' || analysisResult.riskLevel === 'High'
+                        ? 'bg-rose-600 text-white'
+                        : 'bg-amber-600 text-white'
+                    }`}>
+                      {analysisResult.riskLevel || 'High'} Risk
+                    </span>
+                  </div>
+
+                  <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
+                    {analysisResult.possibleCondition}
+                  </h3>
+                </div>
+
+                {/* AI Assessment */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    AI Assessment
+                  </h4>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {analysisResult.confidenceScore !== null && (
+                      <span className="px-3 py-1 bg-stone-100 text-slate-800 font-extrabold rounded-lg border border-stone-200">
+                        {isEnglish ? 'Confidence' : 'सटीकता'}: {analysisResult.confidenceScore}%
+                      </span>
+                    )}
+                    {analysisResult.visualScore !== null && (
+                      <span className="px-3 py-1 bg-stone-100 text-slate-800 font-extrabold rounded-lg border border-stone-200">
+                        {isEnglish ? 'Visual Match' : 'फोटो मिलान'}: {Math.round(analysisResult.visualScore * 100)}%
+                      </span>
+                    )}
+                    <span className="px-3 py-1 bg-stone-100 text-slate-700 font-semibold rounded-lg border border-stone-200">
+                      {aiDisplayName}
+                    </span>
+                  </div>
+                </div>
+
+                {/* What this means */}
+                {analysisResult.explanation && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      What this means
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                      {analysisResult.explanation}
+                    </p>
+                  </div>
+                )}
+
+                {/* Recommended next step */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Recommended next step
+                  </h4>
+                  <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-2 text-xs sm:text-sm text-slate-800">
+                    <p className="font-bold text-slate-900">
+                      {analysisResult.recommendedAction || 'Contact a certified veterinarian for clinical examination and definitive confirmation.'}
+                    </p>
+                    {analysisResult.immediateFirstAid && analysisResult.immediateFirstAid.length > 0 && (
+                      <ul className="space-y-1 pt-1 text-xs text-slate-600 list-disc list-inside">
+                        {analysisResult.immediateFirstAid.map((aid, idx) => (
+                          <li key={idx}>{aid}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+
+                {/* Differential Candidate Diseases if available */}
+                {analysisResult.suspectedDiseases && analysisResult.suspectedDiseases.length > 1 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      {isEnglish ? 'Differential Diagnostic Ranking' : 'अन्य संभावित रोग'}
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {analysisResult.suspectedDiseases.slice(0, 4).map((d, idx) => (
+                        <div key={idx} className="p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-xs flex items-center justify-between">
+                          <span className="font-semibold text-slate-800">{d.name}</span>
+                          <span className="font-mono font-bold text-emerald-800">
+                            {Math.round((d.confidenceScore <= 1 ? d.confidenceScore * 100 : d.confidenceScore))}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* PS-128 Referral Dispatch Card */}
+                <div className="bg-gradient-to-br from-rose-50 to-red-50/70 rounded-2xl p-4 sm:p-5 border-2 border-rose-200 shadow-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-rose-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Radio className="w-4 h-4 animate-pulse" />
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-black text-rose-950">
+                          {isEnglish ? 'PS-128 District Veterinarian Referral' : isMarathi ? 'PS-128 जिल्हा पशुवैद्यकीय रेफरल' : 'PS-128 जिला पशु चिकित्सा रेफरल'}
+                        </h3>
+                        <p className="text-[11px] text-rose-800/80">
+                          {isEnglish
+                            ? `Live dispatch to certified field veterinarians in ${detectedDistrict}`
+                            : `${detectedDistrict} जिले के पशु चिकित्सकों को सीधा अलर्ट`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="px-2.5 py-1 bg-white/90 border border-rose-200 text-rose-900 font-bold rounded-lg flex items-center gap-1 shadow-2xs">
+                        <MapPin className="w-3 h-3 text-red-600" />
+                        <span>{detectedDistrict}</span>
+                      </span>
+                      <span className={`px-2.5 py-1 ${districtVets.length > 0 ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-amber-100 text-amber-900 border-amber-300'} border font-bold rounded-lg flex items-center gap-1`}>
+                        <UserCheck className={`w-3 h-3 ${districtVets.length > 0 ? 'text-emerald-700' : 'text-amber-700'}`} />
+                        <span>{districtVets.length} {isEnglish ? (districtVets.length === 1 ? 'Vet Online' : 'Vets Online') : 'डॉक्टर सक्रिय'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {referralCase ? (
+                    <div className="p-3.5 bg-white rounded-xl border border-rose-200/90 shadow-2xs space-y-3">
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2 text-xs text-emerald-800 font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{isEnglish ? 'Case referred successfully to District Veterinary Unit!' : 'केस सफलतापूर्वक जिला पशु चिकित्सा इकाई को रेफर कर दिया गया!'}</span>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                            {isEnglish ? 'Active Referral Case ID' : 'रेफरल केस आईडी'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-black text-slate-900">{referralCase.caseId}</span>
+                            <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              {referralCase.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowReferralModal(true)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition shadow-xs cursor-pointer self-start sm:self-auto"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>{isEnglish ? 'Track Live Status' : 'लाइव स्थिति देखें'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {referralError && (
+                        <div className="p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xl font-medium">
+                          {referralError}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleDispatchReferral}
+                        disabled={isCreatingReferral}
+                        className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-extrabold text-xs sm:text-sm py-3 px-4 rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60"
+                      >
+                        {isCreatingReferral ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>{isEnglish ? 'Dispatching Referral...' : 'केस रेफर किया जा रहा है...'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            <span>
+                              {isEnglish
+                                ? `Dispatch Case to All District Vets (${detectedDistrict})`
+                                : `${detectedDistrict} जिले के सभी डॉक्टरों को केस रेफर करें`}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mandatory Veterinary Disclaimer */}
+                <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-xl flex items-start gap-2.5 text-xs text-amber-950">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed">
+                    {isEnglish
+                      ? '⚠ AI-assisted preliminary assessment. This preliminary screening is generated for decision support and is NOT a final clinical diagnosis. Always consult a certified veterinary doctor for definitive confirmation, prescription, and medical care.'
+                      : '⚠ AI-सहायता प्राप्त प्रारंभिक जांच। यह परिणाम पूर्व-चेतावनी सहायता हेतु तैयार किया गया है और यह अंतिम पशु चिकित्सा निदान नहीं है। अंतिम पुष्टि, नुस्खे एवं उपचार हेतु अधिकृत पशु चिकित्सक से परामर्श लें।'}
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex flex-wrap gap-2.5">
+                  <Link
+                    to="/veterinary-help"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition shadow-xs"
+                  >
+                    <Stethoscope className="w-4 h-4" />
+                    <span>{isEnglish ? 'Find Nearby Veterinarian' : 'पशु चिकित्सक खोजें'}</span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveFormalReport}
+                    className="inline-flex items-center justify-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-semibold py-2.5 px-4 rounded-xl border border-stone-200 transition cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{savedSuccess ? (isEnglish ? 'Report Saved' : 'रिपोर्ट सुरक्षित') : (isEnglish ? 'Save Formal Report' : 'सरकारी रिपोर्ट सेव करें')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentStep(1);
+                      setPhotoPreview(null);
+                      setAnalysisResult(null);
+                      setSelectedSymptoms([]);
+                      setAutoSyncSuccess(false);
+                      setReferralCase(null);
+                    }}
+                    className="inline-flex items-center justify-center gap-1 bg-stone-50 hover:bg-stone-100 text-slate-600 text-xs font-semibold py-2.5 px-3 rounded-xl border border-stone-200 transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{isEnglish ? 'New Health Scan' : 'नई जांच'}</span>
+                  </button>
+                </div>
               </div>
             )}
-
-            {/* Action Buttons */}
-            <div className="pt-2 flex flex-wrap gap-2.5">
-              <Link
-                to="/veterinary-help"
-                className="flex-1 inline-flex items-center justify-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold py-2.5 px-4 rounded-xl border border-stone-200 transition shadow-2xs"
-              >
-                <Stethoscope className="w-4 h-4 text-emerald-700" /> {isEnglish ? 'Browse Nearby Clinics' : 'नजदीकी अस्पताल देखें'}
-              </Link>
-              <button
-                type="button"
-                onClick={handleSaveFormalReport}
-                className="inline-flex items-center justify-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-semibold py-2.5 px-4 rounded-xl border border-stone-200 transition"
-              >
-                <Save className="w-4 h-4" />
-                {savedSuccess ? (isEnglish ? 'Report Saved' : 'रिपोर्ट सेव हो गई') : (isEnglish ? 'Save Formal Report' : 'सरकारी रिपोर्ट सेव करें')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentStep(1);
-                  setPhotoPreview(null);
-                  setSavedSuccess(false);
-                  setCaseIdSaved('');
-                  setReferralCase(null);
-                }}
-                className="inline-flex items-center justify-center gap-1 bg-stone-50 hover:bg-stone-100 text-slate-600 text-xs font-semibold py-2.5 px-3 rounded-xl border border-stone-200 transition"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> {isEnglish ? 'New Test' : 'नई जांच'}
-              </button>
-            </div>
 
             {/* Live Case Tracking Modal */}
             {showReferralModal && referralCase && (
               <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 border border-stone-200 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-                  {/* Modal Header */}
                   <div className="flex items-center justify-between border-b border-stone-100 pb-3">
                     <div>
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -1331,19 +1488,7 @@ export default function DiseaseDetectionPage() {
                       </span>
                       <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
                         <span>{referralCase.caseId}</span>
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                            referralCase.status === 'Investigating' || referralCase.status === 'ACCEPTED'
-                              ? 'bg-blue-100 text-blue-800'
-                              : referralCase.status === 'Confirmed'
-                              ? 'bg-amber-100 text-amber-800'
-                              : referralCase.status === 'Containment' || referralCase.status === 'IN_TREATMENT'
-                              ? 'bg-purple-100 text-purple-800'
-                              : referralCase.status === 'Resolved' || referralCase.status === 'RESOLVED'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800 animate-pulse'
-                          }`}
-                        >
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                           {referralCase.status}
                         </span>
                       </h3>
@@ -1357,10 +1502,9 @@ export default function DiseaseDetectionPage() {
                     </button>
                   </div>
 
-                  {/* Disease & Animal Snapshot */}
                   <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 flex items-center justify-between text-xs">
                     <div>
-                      <span className="text-slate-500 text-[11px] block">{isEnglish ? 'Suspected Disease' : 'संभावित बीमारी'}</span>
+                      <span className="text-slate-500 text-[11px] block">{isEnglish ? 'Screened Condition' : 'जांची गई स्थिति'}</span>
                       <strong className="text-slate-900 font-black text-sm">{referralCase.disease}</strong>
                       <span className="text-[11px] text-slate-600 block mt-0.5">
                         {referralCase.species} • {referralCase.animalName || 'Livestock'} • {referralCase.confidence}% Confidence
@@ -1371,59 +1515,10 @@ export default function DiseaseDetectionPage() {
                     </span>
                   </div>
 
-                  {/* Progress Stepper - 5 Canonical Stages */}
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold text-slate-700 block">
-                      {isEnglish ? 'Referral Lifecycle (5 Stages):' : 'रेफरल प्रगति (5 चरण):'}
-                    </span>
-                    <div className="grid grid-cols-5 gap-1 text-center text-[9px] font-bold">
-                      <div className="p-2 rounded-lg bg-emerald-600 text-white">
-                        1. New ✓
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg transition ${
-                          ['Investigating', 'ACCEPTED', 'Confirmed', 'Containment', 'IN_TREATMENT', 'Resolved', 'RESOLVED'].includes(referralCase.status)
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-stone-100 text-slate-400'
-                        }`}
-                      >
-                        2. Investigating {referralCase.assignedVetId ? '✓' : ''}
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg transition ${
-                          ['Confirmed', 'Containment', 'IN_TREATMENT', 'Resolved', 'RESOLVED'].includes(referralCase.status)
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-stone-100 text-slate-400'
-                        }`}
-                      >
-                        3. Confirmed
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg transition ${
-                          ['Containment', 'IN_TREATMENT', 'Resolved', 'RESOLVED'].includes(referralCase.status)
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-stone-100 text-slate-400'
-                        }`}
-                      >
-                        4. Containment
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg transition ${
-                          ['Resolved', 'RESOLVED'].includes(referralCase.status)
-                            ? 'bg-emerald-700 text-white'
-                            : 'bg-stone-100 text-slate-400'
-                        }`}
-                      >
-                        5. Resolved
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Assigned Doctor Card or Waiting Status */}
                   {referralCase.assignedVetId ? (
                     <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-sm">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white font-black text-lg flex items-center justify-center shrink-0">
                           Dr
                         </div>
                         <div className="flex-1">
@@ -1446,19 +1541,6 @@ export default function DiseaseDetectionPage() {
                           <span>{isEnglish ? 'Call Doctor Directly' : 'डॉक्टर से सीधा संपर्क करें'} ({referralCase.assignedVetId.phone})</span>
                         </a>
                       )}
-
-                      {referralCase.treatmentNotes && (
-                        <div className="p-3 bg-white rounded-xl border border-emerald-200 text-xs space-y-1">
-                          <strong className="block text-slate-800 font-bold">Doctor's Clinical Notes:</strong>
-                          <p className="text-slate-700">{referralCase.treatmentNotes}</p>
-                        </div>
-                      )}
-                      {referralCase.prescription && (
-                        <div className="p-3 bg-white rounded-xl border border-emerald-200 text-xs space-y-1">
-                          <strong className="block text-slate-800 font-bold">Prescription / Medications:</strong>
-                          <p className="text-slate-700 font-mono">{referralCase.prescription}</p>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2">
@@ -1470,8 +1552,8 @@ export default function DiseaseDetectionPage() {
                       </h4>
                       <p className="text-xs text-amber-800/80 max-w-sm mx-auto">
                         {isEnglish
-                          ? `Alert sent to ${referralCase.notifiedVets?.length || districtVets.length || 2} active veterinarians in ${detectedDistrict}. First veterinarian to accept will be assigned instantly.`
-                          : `${detectedDistrict} के ${referralCase.notifiedVets?.length || districtVets.length || 2} डॉक्टरों को अलर्ट भेज दिया गया है। जैसे ही कोई डॉक्टर स्वीकार करेंगे, उनकी जानकारी यहाँ आ जाएगी।`}
+                          ? `Alert sent to active veterinarians in ${detectedDistrict}. The first veterinarian to accept will be assigned.`
+                          : `${detectedDistrict} के सक्रिय डॉक्टरों को अलर्ट भेज दिया गया है। जैसे ही डॉक्टर स्वीकार करेंगे, विवरण यहां आ जाएगा।`}
                       </p>
                       <span className="inline-block text-[10px] text-slate-400 font-medium pt-1">
                         {sseConnected ? '🟢 Live SSE Connected' : '🟡 Polling for Live Updates'}
@@ -1483,16 +1565,18 @@ export default function DiseaseDetectionPage() {
                     <button
                       type="button"
                       onClick={() => setShowReferralModal(false)}
-                      className="px-5 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold rounded-xl transition"
+                      className="px-5 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
                     >
-                      {isEnglish ? 'Close Window' : 'बंद करें'}
+                      {isEnglish ? 'Close' : 'बंद करें'}
                     </button>
                   </div>
                 </div>
               </div>
             )}
+
           </div>
         )}
+
       </div>
     </div>
   );

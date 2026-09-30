@@ -793,7 +793,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                       {isEnglish ? 'Automatic AI Disease Scan' : isMarathi ? 'स्वयंचलित AI रोग तपासणी' : 'स्वचालित AI रोग जांच'}
                     </h5>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300">
-                      lsd_model.keras
+                      Species Health AI
                     </span>
                   </div>
                   <p className="text-xs text-emerald-800">
@@ -864,10 +864,13 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                     .replace(/\s*\(\s*\)/g, '')
                     .trim();
 
-                  // Clean notes summary: remove internal model logs
+                  // Clean notes summary: remove internal legacy model logs
                   let summaryNotes = item.notes || '';
                   if (summaryNotes.includes('lsd_model.keras')) {
                     summaryNotes = summaryNotes.split('lsd_model.keras')[0].trim();
+                  }
+                  if (summaryNotes.includes('.keras')) {
+                    summaryNotes = summaryNotes.split('.keras')[0].trim();
                   }
 
                   const isExpanded = expandedTimelineIdx === idx;

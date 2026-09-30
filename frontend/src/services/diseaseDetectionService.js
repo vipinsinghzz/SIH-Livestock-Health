@@ -32,12 +32,13 @@ export const SYMPTOMS_27 = [
 
 export const diseaseDetectionService = {
   // Step 3 progress with deep learning inference stages
-  async runAnalysisProgress(onStageUpdate) {
+  async runAnalysisProgress(onStageUpdate, species = 'Cow') {
+    const speciesLabel = species === 'Goat' ? 'Goat' : species === 'Sheep' ? 'Sheep' : 'Cow';
     const stages = [
-      { key: 'preprocess', label: 'Preprocessing skin photo (224x224 RGB tensor)...', delay: 700 },
-      { key: 'cnn', label: 'Executing deep learning inference on lsd_model.keras (EfficientNetB0)...', delay: 900 },
-      { key: 'symptoms', label: 'Correlating 27 clinical symptoms, temperature & duration...', delay: 800 },
-      { key: 'epidemiology', label: 'Checking spatiotemporal cluster risk & biosecurity protocols...', delay: 600 }
+      { key: 'preprocess', label: 'Preparing animal image for visual analysis...', delay: 700 },
+      { key: 'cnn', label: `Analyzing visual features with ${speciesLabel} Health AI...`, delay: 900 },
+      { key: 'symptoms', label: 'Correlating reported clinical signs, temperature & duration...', delay: 800 },
+      { key: 'epidemiology', label: 'Compiling health assessment & veterinary recommendations...', delay: 600 }
     ];
 
     for (const stage of stages) {
@@ -46,7 +47,7 @@ export const diseaseDetectionService = {
     }
   },
 
-  // Main AI detection evaluation connecting to lsd_model.keras via backend API
+  // Main AI detection evaluation connecting to species health models via backend API
   async evaluateCase({ species = 'Cattle', symptoms = [], temperature = 0, duration = 0, image = null, notes = '', location = {} }) {
     try {
       const response = await api.post('/reports/triage', {
@@ -73,7 +74,7 @@ export const diseaseDetectionService = {
         return result;
       }
     } catch (apiError) {
-      console.warn('[DiseaseDetectionService] API call failed, using local deep learning fallback:', apiError.message);
+      console.warn('[DiseaseDetectionService] API call failed, using local fallback:', apiError.message);
     }
 
     // Graceful offline fallback: Do NOT claim a fabricated disease diagnosis when AI is unreachable
@@ -81,15 +82,15 @@ export const diseaseDetectionService = {
       success: false,
       aiUnavailable: true,
       isUnavailable: true,
-      modelVersion: 'lsd_model.keras (Temporarily Unavailable)',
-      modelName: 'lsd_model.keras',
+      modelVersion: null,
+      modelName: `${species} Health AI`,
       hasImage: !!image,
       visualScore: null,
-      possibleCondition: 'AI Screening Temporarily Unavailable',
-      confidenceScore: 0,
+      possibleCondition: null,
+      confidenceScore: null,
       riskLevel: symptoms.includes('skin_nodules') || symptoms.includes('high_fever') ? 'High' : 'Moderate',
-      description: 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.',
-      explanation: 'AI screening is temporarily unavailable. Your report has been saved and can still be reviewed by a veterinarian.',
+      description: 'AI analysis unavailable. We could not complete the image analysis. Your report can still be reviewed by a veterinarian.',
+      explanation: 'AI analysis unavailable. We could not complete the image analysis. Your report can still be reviewed by a veterinarian.',
       clinicalObservations: symptoms.map((s) => s.replace('_', ' ').toUpperCase()),
       immediateFirstAid: [
         'Isolate the animal in a clean, shaded, well-ventilated shed.',

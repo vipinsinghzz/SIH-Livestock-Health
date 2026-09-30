@@ -108,7 +108,7 @@ function KisanSaathiContent() {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [locationDetected, setLocationDetected] = useState(false);
 
-  // AI Disease Diagnosis State (Photo + 27 Symptoms + lsd_model.keras)
+  // AI Disease Diagnosis State (Photo + 27 Symptoms + Species Health AI)
   const [uploadedImage, setUploadedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedSymptoms, setSelectedSymptoms] = useState([]);
@@ -300,7 +300,7 @@ function KisanSaathiContent() {
     );
   };
 
-  // Run AI Disease Diagnosis (connecting to lsd_model.keras via /api/reports/triage & Gemini summary)
+  // Run AI Disease Diagnosis (connecting to Species Health AI via /api/reports/triage & Gemini summary)
   const handleRunDiagnosis = async () => {
     if (!imagePreview && selectedSymptoms.length === 0) {
       alert('Please upload an animal image or select at least 1 symptom to run AI screening.');
@@ -716,7 +716,7 @@ function KisanSaathiContent() {
               </h1>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-                Gemini 2.5 + lsd_model.keras
+                Gemini 2.5 + Species Health AI
               </span>
             </div>
             <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
@@ -834,15 +834,15 @@ function KisanSaathiContent() {
             )}
           </div>
 
-          {/* Card B: PS128 Feature 1 - AI Preliminary Screening (Camera/Image + 27 Symptoms + lsd_model.keras) */}
+          {/* Card B: PS128 Feature 1 - AI Preliminary Screening (Camera/Image + 27 Symptoms + Species Health AI) */}
           <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                 <Stethoscope className="w-5 h-5 text-emerald-600" />
                 <span>AI Preliminary Screening (रोग प्रारंभिक जांच)</span>
               </div>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-50 text-blue-800 border border-blue-200">
-                lsd_model.keras
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                Species Health AI
               </span>
             </div>
 
