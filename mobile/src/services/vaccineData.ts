@@ -90,7 +90,7 @@ export const VACCINE_FILTER_OPTIONS = [
 
 export type VaccineFilterType = typeof VACCINE_FILTER_OPTIONS[number];
 
-export const RADIUS_FILTER_OPTIONS = [5, 10, 20, 'all'] as const;
+export const RADIUS_FILTER_OPTIONS = [5, 10, 20, 50, 'all'] as const;
 
 export type RadiusFilterType = typeof RADIUS_FILTER_OPTIONS[number];
 
@@ -255,7 +255,7 @@ export const DEFAULT_HERD: Animal[] = [
     district: 'Nagpur',
     vaccinations: [
       { vaccine: 'FMD (Foot and Mouth Disease)', date: '2026-03-15', nextDue: '2026-09-15', status: 'Completed' },
-      { vaccine: 'LSD (Lumpy Skin Disease)', date: '2026-04-10', nextDue: '2026-10-10', status: 'Due Soon' },
+      { vaccine: 'LSD (Lumpy Skin Disease)', date: '2026-04-10', nextDue: '2026-10-10', status: 'Scheduled' },
     ],
     vaccinationHistory: [
       {
@@ -312,7 +312,7 @@ export const DEFAULT_HERD: Animal[] = [
     block: 'Hingna',
     district: 'Nagpur',
     vaccinations: [
-      { vaccine: 'PPR (Peste des Petits Ruminants)', date: '2026-04-05', nextDue: '2026-10-05', status: 'Due Soon' },
+      { vaccine: 'PPR (Peste des Petits Ruminants)', date: '2026-04-05', nextDue: '2026-10-05', status: 'Scheduled' },
     ],
     vaccinationHistory: [
       {
