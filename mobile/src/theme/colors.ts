@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Design Tokens: Colors
+ * PashuCare - Design Tokens: Colors
  * Theme inspired by agricultural vitality, veterinary health, and high-trust clinical care.
  */
 

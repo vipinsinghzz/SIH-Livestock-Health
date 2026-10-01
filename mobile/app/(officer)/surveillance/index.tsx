@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Officer Epidemic Surveillance & Analytics
+ * PashuCare - Ultra-Premium Officer Epidemic Surveillance & Analytics
  * File: mobile/app/(officer)/surveillance/index.tsx
  *
  * Production Epidemiological Surveillance Suite for District Veterinary Officers:

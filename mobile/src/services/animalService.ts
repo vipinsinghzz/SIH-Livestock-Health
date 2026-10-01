@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Animal Service
+ * PashuCare - Animal Service
  * File: mobile/src/services/animalService.ts
  * 
  * Communicates with production /api/animals endpoints for animal profile management.

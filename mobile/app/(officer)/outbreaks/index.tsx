@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Officer Outbreak Alerts & Spatial Cluster Surveillance
+ * PashuCare - Ultra-Premium Officer Outbreak Alerts & Spatial Cluster Surveillance
  * File: mobile/app/(officer)/outbreaks/index.tsx
  *
  * Production Outbreak Intelligence Suite for District Veterinary Officers:

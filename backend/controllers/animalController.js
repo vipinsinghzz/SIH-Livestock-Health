@@ -469,7 +469,7 @@ exports.createAnimal = async (req, res, next) => {
               type: 'Health Check',
               title: 'Animal Registered',
               date: new Date().toLocaleDateString('en-GB'),
-              notes: 'Profile added to Livestock Saathi'
+              notes: 'Profile added to PashuCare'
             }
           ];
 
@@ -479,7 +479,7 @@ exports.createAnimal = async (req, res, next) => {
           event_type: t.type || 'Health Check',
           title: t.title || 'Animal Registered',
           date: t.date || new Date().toLocaleDateString('en-GB'),
-          notes: t.notes || 'Profile added to Livestock Saathi',
+          notes: t.notes || 'Profile added to PashuCare',
           doctor: t.doctor || '',
           status: t.status || '',
           disease: t.disease || ''

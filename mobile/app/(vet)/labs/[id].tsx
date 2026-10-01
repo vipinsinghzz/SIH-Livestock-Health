@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Diagnostic Laboratory Referral Detail & Pipeline Status
+ * PashuCare - Diagnostic Laboratory Referral Detail & Pipeline Status
  * File: mobile/app/(vet)/labs/[id].tsx
  * 
  * Phase 9.3: Detailed chain-of-custody tracking and diagnostic result recording.

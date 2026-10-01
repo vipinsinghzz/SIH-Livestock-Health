@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Supabase Mobile Client Configuration
+ * PashuCare - Supabase Mobile Client Configuration
  * File: mobile/src/config/supabaseClient.ts
  * 
  * Configured specifically for React Native / Expo with hardware-backed

@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Edit Animal Screen
+ * PashuCare - Edit Animal Screen
  * File: mobile/app/(farmer)/animals/edit/[id].tsx
  * 
  * Pre-populates and updates animal profile data via PATCH /api/animals/:id.

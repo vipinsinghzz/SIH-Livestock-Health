@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Veterinarian Referral Detail & Clinical Workflow
+ * PashuCare - Ultra-Premium Veterinarian Referral Detail & Clinical Workflow
  * File: mobile/app/(vet)/referrals/[id].tsx
  * 
  * Complete clinical redesign:

@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Synchronization Service
+ * PashuCare - Synchronization Service
  * File: mobile/src/services/syncService.ts
  * 
  * Manages network state transitions, background synchronization of queued mutations,

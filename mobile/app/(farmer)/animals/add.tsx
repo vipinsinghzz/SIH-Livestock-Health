@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Register Animal Screen
+ * PashuCare - Register Animal Screen
  * File: mobile/app/(farmer)/animals/add.tsx
  * 
  * Production form to register a new animal into the farmer's herd,

@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Veterinarian Containment Zones & Ring Vaccination Operations
+ * PashuCare - Veterinarian Containment Zones & Ring Vaccination Operations
  * File: mobile/app/(vet)/containment/index.tsx
  * 
  * Phase 9.4: Biosecurity quarantine perimeters and emergency ring vaccination management.

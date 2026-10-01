@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Official Biosecurity Advisories Service
+ * PashuCare - Official Biosecurity Advisories Service
  * File: mobile/src/services/advisoryService.ts
  *
  * Production service managing:

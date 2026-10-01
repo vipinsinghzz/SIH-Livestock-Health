@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer Executive Surveillance & KPI Types
+ * PashuCare - Officer Executive Surveillance & KPI Types
  * File: mobile/src/types/officer.ts
  *
  * Production domain models matching the backend contracts for:

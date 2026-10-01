@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Design Tokens: Spacing & Layout
+ * PashuCare - Design Tokens: Spacing & Layout
  * Consistent 4pt-grid system for clean margins, padding, and elevation.
  */
 

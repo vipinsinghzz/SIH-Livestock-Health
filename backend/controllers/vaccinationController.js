@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Vaccination & Camp Controller (Supabase PostgreSQL Backed)
+ * PashuCare - Vaccination & Camp Controller (Supabase PostgreSQL Backed)
  * File: backend/controllers/vaccinationController.js
  *
  * Replaces legacy Mongoose direct database dependencies with the production

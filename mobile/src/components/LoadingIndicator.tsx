@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - UI Component: LoadingIndicator
+ * PashuCare - UI Component: LoadingIndicator
  * File: mobile/src/components/LoadingIndicator.tsx
  */
 

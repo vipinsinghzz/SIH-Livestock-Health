@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Central API Service
+ * PashuCare - Central API Service
  * File: mobile/src/services/api.ts
  * 
  * Production-ready Axios instance configured with timeouts, error mapping,

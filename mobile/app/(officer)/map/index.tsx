@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer: District GIS Surveillance Map
+ * PashuCare - Officer: District GIS Surveillance Map
  * File: mobile/app/(officer)/map/index.tsx
  *
  * Phase 10.2 Implementation:

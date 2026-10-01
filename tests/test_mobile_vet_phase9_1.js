@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Phase 9.1 Veterinarian Android Foundation Test Suite
+ * PashuCare - Phase 9.1 Veterinarian Android Foundation Test Suite
  * File: tests/test_mobile_vet_phase9_1.js
  * 
  * Validates:

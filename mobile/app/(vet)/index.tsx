@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Veterinarian Clinical Dashboard
+ * PashuCare - Ultra-Premium Veterinarian Clinical Dashboard
  * File: mobile/app/(vet)/index.tsx
  * 
  * Redesigned with UI/UX Pro Max Intelligence:

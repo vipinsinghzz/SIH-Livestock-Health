@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Kisan Saathi AI Types
+ * PashuCare - Kisan Saathi AI Types
  * File: mobile/src/types/kisanSaathi.ts
  * 
  * Defines strong TypeScript models for the Kisan Saathi AI conversational assistant,

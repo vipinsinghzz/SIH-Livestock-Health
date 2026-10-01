@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Veterinarian Clinical Cases & Patient Registry
+ * PashuCare - Ultra-Premium Veterinarian Clinical Cases & Patient Registry
  * File: mobile/app/(vet)/cases/index.tsx
  * 
  * Luxury Active Patient Dossiers & Clinical Registry:

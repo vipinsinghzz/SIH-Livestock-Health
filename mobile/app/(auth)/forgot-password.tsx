@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Auth: Forgot Password Screen
+ * PashuCare - Auth: Forgot Password Screen
  * File: mobile/app/(auth)/forgot-password.tsx
  */
 

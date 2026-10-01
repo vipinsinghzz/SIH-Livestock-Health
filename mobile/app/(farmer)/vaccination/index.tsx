@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Farmer Vaccination & Preventive Health Hub (Luxury Redesign)
+ * PashuCare - Farmer Vaccination & Preventive Health Hub (Luxury Redesign)
  * File: mobile/app/(farmer)/vaccination/index.tsx
  * 
  * Production-integrated, trilingual vaccination management hub for farmers:

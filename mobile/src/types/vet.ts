@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Veterinarian Domain Types
+ * PashuCare - Veterinarian Domain Types
  * File: mobile/src/types/vet.ts
  * 
  * Production types representing veterinarian profiles, clinical dashboard metrics,

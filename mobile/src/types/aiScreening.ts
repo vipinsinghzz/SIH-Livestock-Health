@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - AI Screening Types & Symptom Dictionary
+ * PashuCare - AI Screening Types & Symptom Dictionary
  * File: mobile/src/types/aiScreening.ts
  * 
  * Strict TypeScript definitions modeling the production AI screening

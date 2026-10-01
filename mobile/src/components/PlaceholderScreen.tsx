@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - UI Component: PlaceholderScreen
+ * PashuCare - UI Component: PlaceholderScreen
  * File: mobile/src/components/PlaceholderScreen.tsx
  * 
  * Development placeholder showing screen title, route info, authenticated user status,

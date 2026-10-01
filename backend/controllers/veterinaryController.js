@@ -1,5 +1,5 @@
 /**
- * Veterinary Controller for Livestock Saathi
+ * Veterinary Controller for PashuCare
  * File: backend/controllers/veterinaryController.js
  * 
  * Implements "Nearby Veterinary Help" using Supabase public.profiles (role: 'veterinarian').

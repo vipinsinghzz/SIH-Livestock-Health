@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Animal & Case Types
+ * PashuCare - Animal & Case Types
  * File: mobile/src/types/animal.ts
  * 
  * Accurately models the production backend schemas from Animal.js and DiseaseCase models.

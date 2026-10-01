@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Animal Profile & Health History
+ * PashuCare - Animal Profile & Health History
  * File: mobile/app/(farmer)/animals/[id].tsx
  * 
  * Comprehensive animal detail screen with tabs for Overview,

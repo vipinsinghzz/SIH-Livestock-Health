@@ -158,7 +158,7 @@ const geminiService = require('./services/geminiService');
 
   res.status(isDbConfigured ? 200 : 503).json({
     status: isDbConfigured ? (isAiHealthy ? 'healthy' : 'degraded') : 'unhealthy',
-    service: 'Livestock Saathi Surveillance API',
+    service: 'PashuCare Surveillance API',
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
     uptimeSeconds: Math.floor(process.uptime()),
@@ -207,7 +207,7 @@ const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`=======================================================`);
-  console.log(`🚀 Livestock Saathi API Server running on port ${PORT}`);
+  console.log(`🚀 PashuCare API Server running on port ${PORT}`);
   console.log(`🤖 AI Engine: lsd_model.keras (EfficientNetB0 + Keras 3 / TensorFlow Backend)`);
   console.log(`🌐 Health check: http://localhost:${PORT}/health`);
   console.log(`=======================================================`);

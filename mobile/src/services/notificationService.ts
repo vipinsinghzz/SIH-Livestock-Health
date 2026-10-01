@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Notification Service
+ * PashuCare - Notification Service
  * File: mobile/src/services/notificationService.ts
  * 
  * Production notification client providing authenticated farmer alerts from:

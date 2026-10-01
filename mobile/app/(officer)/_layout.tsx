@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer Stack Layout
+ * PashuCare - Officer Stack Layout
  * File: mobile/app/(officer)/_layout.tsx
  */
 

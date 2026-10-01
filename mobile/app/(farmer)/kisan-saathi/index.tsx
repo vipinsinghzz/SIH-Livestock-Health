@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Kisan Saathi AI Assistant (Luxury Redesign)
+ * PashuCare - Kisan Saathi AI Assistant (Luxury Redesign)
  * File: mobile/app/(farmer)/kisan-saathi/index.tsx
  * 
  * Features:

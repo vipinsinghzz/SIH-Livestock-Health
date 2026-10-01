@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - AI Disease Screening Result Screen
+ * PashuCare - AI Disease Screening Result Screen
  * File: mobile/app/(farmer)/ai-scan/result.tsx
  * 
  * Displays multimodal triage inference from lsd_model.keras + Clinical Engine.

@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Notification Type Definitions
+ * PashuCare - Notification Type Definitions
  * File: mobile/src/types/notification.ts
  * 
  * Defines domain models, category filters, and payload interfaces for real farmer notifications

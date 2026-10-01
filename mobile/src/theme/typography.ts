@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Design Tokens: Typography
+ * PashuCare - Design Tokens: Typography
  * Scaled and accessible typography configuration for Android screens.
  */
 

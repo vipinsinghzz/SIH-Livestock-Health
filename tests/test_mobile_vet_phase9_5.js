@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Phase 9.5 Veterinarian Clinical Alerts & Notification Inbox Test Suite
+ * PashuCare - Phase 9.5 Veterinarian Clinical Alerts & Notification Inbox Test Suite
  * File: tests/test_mobile_vet_phase9_5.js
  * 
  * Validates:

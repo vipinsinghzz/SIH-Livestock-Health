@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Map & GIS Service
+ * PashuCare - Map & GIS Service
  * File: mobile/src/services/mapService.ts
  * 
  * Production spatial data client interfacing with:

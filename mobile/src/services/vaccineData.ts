@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Indian Livestock Vaccines Data & Geodesic Tools
+ * PashuCare - Indian Livestock Vaccines Data & Geodesic Tools
  * File: mobile/src/services/vaccineData.ts
  * 
  * Source of truth matching web VaccinationPage.jsx & vaccineData.js:

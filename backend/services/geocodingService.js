@@ -37,7 +37,7 @@ class GeocodingService {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${roundedLat}&lon=${roundedLng}&zoom=10&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'LivestockSaathi-PS128/1.0 (contact@pashurakshak.gov.in)',
+          'User-Agent': 'PashuCare-PS128/1.0 (contact@pashurakshak.gov.in)',
           'Accept-Language': 'en'
         },
         signal: AbortSignal.timeout(5000)

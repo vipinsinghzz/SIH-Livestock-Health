@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Veterinarian API & Clinical Service
+ * PashuCare - Veterinarian API & Clinical Service
  * File: mobile/src/services/veterinarianService.ts
  * 
  * Communicates with verified production backend endpoints:

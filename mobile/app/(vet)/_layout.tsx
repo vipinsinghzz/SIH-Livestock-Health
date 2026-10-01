@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Veterinarian Stack Layout
+ * PashuCare - Veterinarian Stack Layout
  * File: mobile/app/(vet)/_layout.tsx
  */
 

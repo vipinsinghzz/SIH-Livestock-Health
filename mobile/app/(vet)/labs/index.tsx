@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Veterinarian Diagnostic Laboratory Pipeline
+ * PashuCare - Veterinarian Diagnostic Laboratory Pipeline
  * File: mobile/app/(vet)/labs/index.tsx
  * 
  * Phase 9.3: Diagnostic lab tests and specimen custody tracking.

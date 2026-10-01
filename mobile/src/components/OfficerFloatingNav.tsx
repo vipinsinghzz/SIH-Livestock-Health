@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Universal Officer Floating Bottom Navigation Dock
+ * PashuCare - Universal Officer Floating Bottom Navigation Dock
  * File: mobile/src/components/OfficerFloatingNav.tsx
  * 
  * Reusable, persistent floating navigation dock for all Animal Husbandry & Veterinary Officer screens.

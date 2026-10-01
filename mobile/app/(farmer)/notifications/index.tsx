@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Farmer Notifications & Advisories Inbox
+ * PashuCare - Farmer Notifications & Advisories Inbox
  * File: mobile/app/(farmer)/notifications/index.tsx
  * 
  * Production notification feed displaying real alerts, case status changes,

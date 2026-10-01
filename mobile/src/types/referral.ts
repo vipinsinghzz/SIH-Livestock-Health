@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Veterinarian Referral & Triage Queue Types
+ * PashuCare - Veterinarian Referral & Triage Queue Types
  * File: mobile/src/types/referral.ts
  */
 

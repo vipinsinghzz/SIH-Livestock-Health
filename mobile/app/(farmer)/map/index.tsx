@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Farmer: Nearby Veterinarians Directory
+ * PashuCare - Farmer: Nearby Veterinarians Directory
  * File: mobile/app/(farmer)/map/index.tsx
  * 
  * Replaces the native Google Maps requirement with a pure, database-driven directory.

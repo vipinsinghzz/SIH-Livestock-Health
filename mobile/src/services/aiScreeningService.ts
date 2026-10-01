@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - AI Disease Screening Service
+ * PashuCare - AI Disease Screening Service
  * File: mobile/src/services/aiScreeningService.ts
  * 
  * Communicates with the live production backend endpoint POST /api/reports/triage

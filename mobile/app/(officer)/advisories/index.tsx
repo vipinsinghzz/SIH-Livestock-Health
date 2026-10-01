@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer: Official Biosecurity Advisories & Bulletins
+ * PashuCare - Officer: Official Biosecurity Advisories & Bulletins
  * File: mobile/app/(officer)/advisories/index.tsx
  *
  * Phase 10.4 Implementation:

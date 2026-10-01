@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Local SQLite Persistence Service
+ * PashuCare - Local SQLite Persistence Service
  * File: mobile/src/services/localDatabase.ts
  * 
  * Production-ready local database backed by expo-sqlite for durable offline caching
@@ -34,7 +34,7 @@ export interface SyncQueueItem {
   lastError?: string;
 }
 
-const DB_NAME = 'livestock_saathi_offline.db';
+const DB_NAME = 'pashucare_offline.db';
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**

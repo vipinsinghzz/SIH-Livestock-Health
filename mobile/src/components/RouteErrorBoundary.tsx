@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Production Route Error Boundary
+ * PashuCare - Production Route Error Boundary
  * File: mobile/src/components/RouteErrorBoundary.tsx
  * 
  * Catches unhandled render and navigation exceptions in release builds,

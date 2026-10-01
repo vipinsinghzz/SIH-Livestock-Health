@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer Surveillance & Executive Dashboard Service
+ * PashuCare - Officer Surveillance & Executive Dashboard Service
  * File: mobile/src/services/officerService.ts
  *
  * Communicates with audited production backend endpoints:

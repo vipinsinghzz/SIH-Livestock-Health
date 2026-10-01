@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Phase 9.2 Veterinarian Clinical Case Workflow Test Suite
+ * PashuCare - Phase 9.2 Veterinarian Clinical Case Workflow Test Suite
  * File: tests/test_mobile_vet_phase9_2.js
  * 
  * Validates:

@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Auth Stack Layout
+ * PashuCare - Auth Stack Layout
  * File: mobile/app/(auth)/_layout.tsx
  */
 

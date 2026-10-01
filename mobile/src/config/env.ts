@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Environment Configuration
+ * PashuCare - Environment Configuration
  * File: mobile/src/config/env.ts
  * 
  * Centralizes resolution of public environment variables with safe production fallbacks.

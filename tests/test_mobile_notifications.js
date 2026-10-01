@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Farmer Mobile Notifications Verification Suite
+ * PashuCare - Farmer Mobile Notifications Verification Suite
  * File: tests/test_mobile_notifications.js
  * 
  * Deterministic unit verification for mobile notification domain types,
@@ -204,7 +204,7 @@ function runTests() {
   const navNone = resolveNotificationNavigation({
     id: 'notif-5',
     type: 'GENERAL',
-    title: 'Welcome to Livestock Saathi',
+    title: 'Welcome to PashuCare',
     message: 'Getting started guide',
   });
   assert.strictEqual(navNone.type, 'none');

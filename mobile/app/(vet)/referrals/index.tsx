@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Veterinarian Referral & Triage Queue
+ * PashuCare - Ultra-Premium Veterinarian Referral & Triage Queue
  * File: mobile/app/(vet)/referrals/index.tsx
  * 
  * Luxury Clinical Triage Command Center:

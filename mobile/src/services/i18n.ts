@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Comprehensive Central Localization Service
+ * PashuCare - Comprehensive Central Localization Service
  * File: mobile/src/services/i18n.ts
  * 
  * Centralized, reactive multilingual engine for English (en), Hindi (hi), and Marathi (mr).
@@ -50,7 +50,7 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
   // ==========================================
   en: {
     // Common / Global
-    'common.appTitle': 'Livestock Saathi',
+    'common.appTitle': 'PashuCare',
     'common.appSubtitle': 'AI-Powered Livestock Health Assistant',
     'common.appLanguage': 'App Language',
     'common.selectLanguage': 'Choose Preferred Language',
@@ -676,7 +676,7 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
   // ==========================================
   hi: {
     // Common / Global
-    'common.appTitle': 'पशु मित्र (Livestock Saathi)',
+    'common.appTitle': 'पशुकेयर (PashuCare)',
     'common.appSubtitle': 'एआई-संचालित पशु स्वास्थ्य सहायक',
     'common.appLanguage': 'ऐप की भाषा',
     'common.selectLanguage': 'पसंदीदा भाषा चुनें',
@@ -1302,7 +1302,7 @@ export const translations: Record<AppLanguage, Record<string, string>> = {
   // ==========================================
   mr: {
     // Common / Global
-    'common.appTitle': 'पशु मित्र (Livestock Saathi)',
+    'common.appTitle': 'पशुकेयर (PashuCare)',
     'common.appSubtitle': 'एआय-आधारित पशु आरोग्य सहाय्यक',
     'common.appLanguage': 'अ‍ॅपची भाषा',
     'common.selectLanguage': 'पसंतीची भाषा निवडा',

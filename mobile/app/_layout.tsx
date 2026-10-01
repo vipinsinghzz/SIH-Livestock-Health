@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Root Layout & Navigation Guard
+ * PashuCare - Root Layout & Navigation Guard
  * File: mobile/app/_layout.tsx
  */
 
@@ -121,7 +121,7 @@ function NavigationGuard() {
         <Stack.Screen
           name="index"
           options={{
-            title: 'Livestock Saathi',
+            title: 'PashuCare',
             headerShown: false,
           }}
         />

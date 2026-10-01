@@ -40,7 +40,7 @@ class NadresService {
       const url = `${NADRES_BASE}/api.php?state_name=${encodeURIComponent(cleanState)}&district_name=${encodeURIComponent(cleanDist)}&month=${currentMonth}&limit=50`;
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'LivestockSaathi-PS128/1.0 (contact@pashurakshak.gov.in)',
+          'User-Agent': 'PashuCare-PS128/1.0 (contact@pashurakshak.gov.in)',
           'Referer': `${NADRES_BASE}/`
         },
         signal: AbortSignal.timeout(6000)

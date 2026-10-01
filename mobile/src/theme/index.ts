@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Theme Foundation Export
+ * PashuCare - Theme Foundation Export
  */
 
 import { colors } from './colors';

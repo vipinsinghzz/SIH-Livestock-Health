@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Universal Veterinarian Floating Bottom Navigation Dock
+ * PashuCare - Universal Veterinarian Floating Bottom Navigation Dock
  * File: mobile/src/components/VetFloatingNav.tsx
  * 
  * Reusable, persistent floating navigation dock for all veterinarian screens.

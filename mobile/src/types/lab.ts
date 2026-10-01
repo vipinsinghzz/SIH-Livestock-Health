@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Diagnostic Laboratory Domain Types
+ * PashuCare - Diagnostic Laboratory Domain Types
  * File: mobile/src/types/lab.ts
  * 
  * Production types representing laboratory sample referrals, diagnostic tracking,

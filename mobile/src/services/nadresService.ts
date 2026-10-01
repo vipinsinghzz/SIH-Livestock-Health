@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - NADRES Forewarning, Disease Trends & Village Alerts Service
+ * PashuCare - NADRES Forewarning, Disease Trends & Village Alerts Service
  * File: mobile/src/services/nadresService.ts
  *
  * Production service communicating with authentic government epidemiological streams:

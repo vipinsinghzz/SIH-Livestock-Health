@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer: NADRES Forewarning, Epidemic Trends & Alerts
+ * PashuCare - Officer: NADRES Forewarning, Epidemic Trends & Alerts
  * File: mobile/app/(officer)/forewarning/index.tsx
  *
  * Phase 10.4 Implementation:

@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Outbreak Surveillance, Containment & Ring Vaccination Types
+ * PashuCare - Outbreak Surveillance, Containment & Ring Vaccination Types
  * File: mobile/src/types/containment.ts
  * 
  * Production domain models and payload contracts strictly matching the backend schema

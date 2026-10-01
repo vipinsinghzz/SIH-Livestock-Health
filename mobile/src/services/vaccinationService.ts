@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Vaccination & Preventive Health Service
+ * PashuCare - Vaccination & Preventive Health Service
  * File: mobile/src/services/vaccinationService.ts
  * 
  * Communicates with production endpoints for government vaccination drives,

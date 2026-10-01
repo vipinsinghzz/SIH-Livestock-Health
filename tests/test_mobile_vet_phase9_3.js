@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Phase 9.3 Diagnostic Lab Tests Test Suite
+ * PashuCare - Phase 9.3 Diagnostic Lab Tests Test Suite
  * File: tests/test_mobile_vet_phase9_3.js
  * 
  * Validates:

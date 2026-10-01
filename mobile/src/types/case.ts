@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Case & Disease Tracking Types
+ * PashuCare - Case & Disease Tracking Types
  * File: mobile/src/types/case.ts
  * 
  * Accurately models the production backend DiseaseCase schema from backend/models/DiseaseCase.js.

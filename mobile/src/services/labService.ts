@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Diagnostic Laboratory Service
+ * PashuCare - Diagnostic Laboratory Service
  * File: mobile/src/services/labService.ts
  * 
  * Production service managing laboratory referrals, diagnostic tracking,

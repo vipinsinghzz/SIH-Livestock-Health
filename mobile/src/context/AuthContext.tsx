@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Authentication Context
+ * PashuCare - Authentication Context
  * File: mobile/src/context/AuthContext.tsx
  * 
  * Provides centralized authentication state management, hardware-backed session persistence,

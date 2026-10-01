@@ -1,5 +1,5 @@
 /**
- * Supabase Storage Service for Livestock Saathi
+ * Supabase Storage Service for PashuCare
  * File: backend/services/storageService.js
  * 
  * Manages private cloud object storage for livestock disease scans & clinical photos:

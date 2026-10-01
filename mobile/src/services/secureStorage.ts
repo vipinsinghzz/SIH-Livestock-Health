@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Secure Storage Service
+ * PashuCare - Secure Storage Service
  * File: mobile/src/services/secureStorage.ts
  * 
  * Hardware-backed secure storage using expo-secure-store (Android KeyStore / iOS Keychain).
@@ -9,6 +9,15 @@
 import * as SecureStore from 'expo-secure-store';
 
 const STORAGE_KEYS = {
+  SUPABASE_SESSION: 'sb_pashucare_auth_token',
+  AUTH_TOKEN: 'pashucare_jwt_token',
+  REFRESH_TOKEN: 'pashucare_refresh_token',
+  USER_PROFILE: 'pashucare_user_profile',
+  APP_LANGUAGE: 'pashucare_app_language',
+} as const;
+
+// Legacy key aliases for seamless zero-logout session preservation
+const LEGACY_STORAGE_KEYS = {
   SUPABASE_SESSION: 'sb_livestocksaathi_auth_token',
   AUTH_TOKEN: 'livestocksaathi_jwt_token',
   REFRESH_TOKEN: 'livestocksaathi_refresh_token',
@@ -22,7 +31,12 @@ const STORAGE_KEYS = {
 export const ExpoSecureStoreAdapter = {
   getItem: async (key: string): Promise<string | null> => {
     try {
-      return await SecureStore.getItemAsync(key);
+      const val = await SecureStore.getItemAsync(key);
+      if (val) return val;
+      if (key === STORAGE_KEYS.SUPABASE_SESSION) {
+        return await SecureStore.getItemAsync(LEGACY_STORAGE_KEYS.SUPABASE_SESSION);
+      }
+      return null;
     } catch (error) {
       console.warn(`[SecureStore] Error reading key "${key}":`, error);
       return null;
@@ -60,7 +74,9 @@ export async function saveAuthTokens(token: string, refreshToken?: string): Prom
 
 export async function getSavedAuthToken(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+    const token = await SecureStore.getItemAsync(STORAGE_KEYS.AUTH_TOKEN);
+    if (token) return token;
+    return await SecureStore.getItemAsync(LEGACY_STORAGE_KEYS.AUTH_TOKEN);
   } catch (error) {
     console.warn('[SecureStore] Failed to get auth token:', error);
     return null;
@@ -69,7 +85,9 @@ export async function getSavedAuthToken(): Promise<string | null> {
 
 export async function getSavedRefreshToken(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+    const token = await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+    if (token) return token;
+    return await SecureStore.getItemAsync(LEGACY_STORAGE_KEYS.REFRESH_TOKEN);
   } catch (error) {
     console.warn('[SecureStore] Failed to get refresh token:', error);
     return null;
@@ -87,7 +105,10 @@ export async function saveUserProfile(user: unknown): Promise<void> {
 
 export async function getSavedUserProfile<T = unknown>(): Promise<T | null> {
   try {
-    const raw = await SecureStore.getItemAsync(STORAGE_KEYS.USER_PROFILE);
+    let raw = await SecureStore.getItemAsync(STORAGE_KEYS.USER_PROFILE);
+    if (!raw) {
+      raw = await SecureStore.getItemAsync(LEGACY_STORAGE_KEYS.USER_PROFILE);
+    }
     if (!raw) return null;
     return JSON.parse(raw) as T;
   } catch (error) {
@@ -103,6 +124,10 @@ export async function clearAllSecureAuthData(): Promise<void> {
       SecureStore.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN),
       SecureStore.deleteItemAsync(STORAGE_KEYS.USER_PROFILE),
       SecureStore.deleteItemAsync(STORAGE_KEYS.SUPABASE_SESSION),
+      SecureStore.deleteItemAsync(LEGACY_STORAGE_KEYS.AUTH_TOKEN),
+      SecureStore.deleteItemAsync(LEGACY_STORAGE_KEYS.REFRESH_TOKEN),
+      SecureStore.deleteItemAsync(LEGACY_STORAGE_KEYS.USER_PROFILE),
+      SecureStore.deleteItemAsync(LEGACY_STORAGE_KEYS.SUPABASE_SESSION),
     ]);
   } catch (error) {
     console.warn('[SecureStore] Failed to clear secure auth data:', error);
@@ -119,7 +144,9 @@ export async function saveAppLanguage(lang: string): Promise<void> {
 
 export async function getSavedAppLanguage(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(STORAGE_KEYS.APP_LANGUAGE);
+    const lang = await SecureStore.getItemAsync(STORAGE_KEYS.APP_LANGUAGE);
+    if (lang) return lang;
+    return await SecureStore.getItemAsync(LEGACY_STORAGE_KEYS.APP_LANGUAGE);
   } catch (error) {
     console.warn('[SecureStore] Failed to get app language:', error);
     return null;

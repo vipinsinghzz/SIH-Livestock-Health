@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Official Biosecurity Advisories & NADRES Forewarning Types
+ * PashuCare - Official Biosecurity Advisories & NADRES Forewarning Types
  * File: mobile/src/types/advisory.ts
  *
  * Production domain models matching backend contracts for:

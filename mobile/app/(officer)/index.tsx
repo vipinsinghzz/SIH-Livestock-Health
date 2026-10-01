@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Officer Executive Dashboard & KPI Command Center
+ * PashuCare - Ultra-Premium Officer Executive Dashboard & KPI Command Center
  * File: mobile/app/(officer)/index.tsx
  *
  * Production Executive Surveillance Command Center for District Veterinary & Animal Husbandry Officers:

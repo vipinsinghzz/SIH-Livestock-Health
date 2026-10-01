@@ -1,6 +1,6 @@
 /**
 -- =====================================================================================
--- LIVESTOCK SAATHI – AI-POWERED LIVESTOCK HEALTH & EARLY WARNING PLATFORM
+-- PASHUCARE – AI-POWERED LIVESTOCK HEALTH & EARLY WARNING PLATFORM
 -- SIH 2026 Problem Statement 128
 -- Phase 6: Unified Realtime Event Hub & Notification Dispatcher
 -- File: backend/services/realtimeHub.js

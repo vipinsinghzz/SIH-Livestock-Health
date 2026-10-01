@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Veterinarian Clinical Alerts & Biomonitoring Feed
+ * PashuCare - Ultra-Premium Veterinarian Clinical Alerts & Biomonitoring Feed
  * File: mobile/app/(vet)/notifications/index.tsx
  * 
  * Luxury Clinical Surveillance & Outbreak Alert Command:

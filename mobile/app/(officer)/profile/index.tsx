@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - District Officer Profile & Administrative Settings Screen
+ * PashuCare - District Officer Profile & Administrative Settings Screen
  * File: mobile/app/(officer)/profile/index.tsx
  *
  * Centralized executive profile for District Veterinary & Animal Husbandry Officers.
@@ -623,7 +623,7 @@ export default function OfficerProfileScreen() {
 
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>{t('profile.application', 'Application')}</Text>
-          <Text style={styles.detailValue}>Livestock Saathi (Officer Edition)</Text>
+          <Text style={styles.detailValue}>PashuCare (Officer Edition)</Text>
         </View>
 
         <View style={styles.divider} />

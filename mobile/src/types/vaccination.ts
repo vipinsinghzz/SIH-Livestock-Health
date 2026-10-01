@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Vaccination & Preventive Health Types
+ * PashuCare - Vaccination & Preventive Health Types
  * File: mobile/src/types/vaccination.ts
  * 
  * Accurately models the production backend VaccinationDrive, Advisory, and Animal vaccination schemas.

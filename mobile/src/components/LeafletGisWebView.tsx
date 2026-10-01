@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Leaflet + OpenStreetMap GIS WebView Component
+ * PashuCare - Leaflet + OpenStreetMap GIS WebView Component
  * File: mobile/src/components/LeafletGisWebView.tsx
  * 
  * Production-ready mobile GIS map powered by Leaflet.js and OpenStreetMap tiles

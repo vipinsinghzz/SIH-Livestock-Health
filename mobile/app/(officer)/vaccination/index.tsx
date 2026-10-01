@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer: Mass Vaccination Campaign Governance
+ * PashuCare - Officer: Mass Vaccination Campaign Governance
  * File: mobile/app/(officer)/vaccination/index.tsx
  *
  * Phase 10.3 Implementation:

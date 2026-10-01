@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Case Service
+ * PashuCare - Case Service
  * File: mobile/src/services/caseService.ts
  * 
  * Communicates with production /api/cases endpoints for farmer referral cases and health alerts.

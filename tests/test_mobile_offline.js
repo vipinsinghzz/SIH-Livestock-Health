@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Phase 8.3 Offline-First Architecture Test Suite
+ * PashuCare - Phase 8.3 Offline-First Architecture Test Suite
  * File: tests/test_mobile_offline.js
  * 
  * Validates:

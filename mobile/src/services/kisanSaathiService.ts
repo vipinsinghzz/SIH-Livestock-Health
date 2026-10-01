@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Kisan Saathi AI Service
+ * PashuCare - Kisan Saathi AI Service
  * File: mobile/src/services/kisanSaathiService.ts
  * 
  * Communicates with the production backend endpoint POST /api/kisan-saathi/consult.

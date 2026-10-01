@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Farmer Mobile Map Verification Suite
+ * PashuCare - Farmer Mobile Map Verification Suite
  * File: tests/test_mobile_map.js
  * 
  * Deterministic unit verification for mobile map GIS data normalization,

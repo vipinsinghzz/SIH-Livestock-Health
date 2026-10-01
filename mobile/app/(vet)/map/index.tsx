@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Ultra-Premium Veterinarian Outbreak GIS Surveillance Map
+ * PashuCare - Ultra-Premium Veterinarian Outbreak GIS Surveillance Map
  * File: mobile/app/(vet)/map/index.tsx
  * 
  * Luxury Biosecurity Command Center & Spatial Radar:

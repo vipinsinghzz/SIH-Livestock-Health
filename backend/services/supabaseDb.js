@@ -2,7 +2,7 @@
  * Supabase PostgreSQL Database Repository & Data Access Layer
  * File: backend/services/supabaseDb.js
  * 
- * Centralizes all PostgreSQL operations for Livestock Saathi, mapping directly
+ * Centralizes all PostgreSQL operations for PashuCare, mapping directly
  * to the 18-table schema defined in supabase/schema.sql.
  * 
  * Features:

@@ -1,6 +1,6 @@
 """
 ==============================================================================
-Livestock Saathi AI Microservice - Multi-Species Deep Learning Service
+PashuCare AI Microservice - Multi-Species Deep Learning Service
 ==============================================================================
 Supports dual-mode operation:
 - LEGACY: Single-species EfficientNetB0 lsd_model.keras (Cow LSD)
@@ -268,7 +268,7 @@ def load_pil_image(image_input):
         if isinstance(image_input, str):
             if image_input.startswith(('http://', 'https://')):
                 import urllib.request
-                req = urllib.request.Request(image_input, headers={'User-Agent': 'LivestockSaathi-AI/1.0'})
+                req = urllib.request.Request(image_input, headers={'User-Agent': 'PashuCare-AI/1.0'})
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     image_bytes = resp.read()
             else:
@@ -410,7 +410,7 @@ def health():
                 "goat": {"loaded": goat_ok, "error": candidate_models['goat']['error']},
                 "sheep": {"loaded": sheep_ok, "error": candidate_models['sheep']['error']}
             },
-            "service": "Livestock Saathi Deep Learning AI Service",
+            "service": "PashuCare Deep Learning AI Service",
             "timestamp": time.time()
         }), status_code
 
@@ -422,7 +422,7 @@ def health():
             "activeMode": "legacy",
             "modelLoaded": legacy_ok,
             "modelVersion": "lsd_model.keras (EfficientNetB0 Legacy)",
-            "service": "Livestock Saathi Deep Learning AI Service",
+            "service": "PashuCare Deep Learning AI Service",
             "error": legacy_load_error if not legacy_ok else None,
             "inputShape": list(legacy_model.input_shape) if legacy_ok else None,
             "outputShape": list(legacy_model.output_shape) if legacy_ok else None,
@@ -798,5 +798,5 @@ def predict():
 if __name__ == '__main__':
     port = int(os.environ.get('AI_SERVICE_PORT', 5050))
     host = os.environ.get('AI_SERVICE_HOST', '0.0.0.0')
-    logger.info(f"Starting Livestock Saathi Multi-Species AI Microservice on {host}:{port} (Default Mode: {DEFAULT_MODEL_VERSION})...")
+    logger.info(f"Starting PashuCare Multi-Species AI Microservice on {host}:{port} (Default Mode: {DEFAULT_MODEL_VERSION})...")
     app.run(host=host, port=port, debug=False)

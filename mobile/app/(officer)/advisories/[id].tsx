@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Officer: Advisory Detail Screen
+ * PashuCare - Officer: Advisory Detail Screen
  * File: mobile/app/(officer)/advisories/[id].tsx
  *
  * Full detailed view of an official biosecurity advisory / quarantine bulletin.

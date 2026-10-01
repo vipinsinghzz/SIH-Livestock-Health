@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Farmer Stack Layout
+ * PashuCare - Farmer Stack Layout
  * File: mobile/app/(farmer)/_layout.tsx
  */
 

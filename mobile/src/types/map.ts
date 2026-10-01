@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - Map & GIS Type Definitions
+ * PashuCare - Map & GIS Type Definitions
  * File: mobile/src/types/map.ts
  * 
  * Defines domain models, layer toggles, and coordinate interfaces for the Farmer Health Map.

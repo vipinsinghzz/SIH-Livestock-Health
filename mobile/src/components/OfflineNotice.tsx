@@ -1,5 +1,5 @@
 /**
- * Livestock Saathi - UI Component: OfflineNotice
+ * PashuCare - UI Component: OfflineNotice
  * File: mobile/src/components/OfflineNotice.tsx
  * 
  * Persistent network connectivity & mutation synchronization indicator.
