@@ -38,51 +38,51 @@ import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
-// Safe default fallback summary in case backend data is loading or offline
+// Safe default fallback summary in case backend data is loading or offline (Nagpur District)
 const DEFAULT_SUMMARY = {
-  totalReports: 9,
-  activeCases: 6,
-  containedCases: 3,
-  totalMortality: 19,
-  totalAffected: 69,
+  totalReports: 15,
+  activeCases: 8,
+  containedCases: 4,
+  totalMortality: 2,
+  totalAffected: 42,
   triageMetrics: {
-    criticalCount: 3,
-    highCount: 5,
-    moderateCount: 1,
-    lowCount: 0,
-    outbreakCount: 5
+    criticalCount: 4,
+    highCount: 6,
+    moderateCount: 4,
+    lowCount: 1,
+    outbreakCount: 2
   },
   diseaseBreakdown: [
-    { name: 'Foot and Mouth Disease (FMD)', cases: 3, avgConfidencePct: 89 },
-    { name: 'Anthrax', cases: 2, avgConfidencePct: 69 },
-    { name: 'Peste des Petits Ruminants (PPR)', cases: 1, avgConfidencePct: 88 },
-    { name: 'Lumpy Skin Disease (LSD)', cases: 1, avgConfidencePct: 91 },
-    { name: 'Haemorrhagic Septicaemia (HS)', cases: 1, avgConfidencePct: 94 }
+    { name: 'Lumpy Skin Disease (LSD)', cases: 6, avgConfidencePct: 93 },
+    { name: 'Contagious Ecthyma (Orf)', cases: 3, avgConfidencePct: 91 },
+    { name: 'Peste des Petits Ruminants (PPR)', cases: 2, avgConfidencePct: 88 },
+    { name: 'Foot and Mouth Disease (FMD)', cases: 2, avgConfidencePct: 90 },
+    { name: 'Haemorrhagic Septicaemia (HS)', cases: 2, avgConfidencePct: 94 }
   ],
   statusFunnel: {
-    Reported: 0,
-    Triaged: 2,
-    'Field Verified': 1,
+    Reported: 2,
+    Triaged: 3,
+    'Field Verified': 3,
     Escalated: 3,
-    Contained: 2,
+    Contained: 3,
     Closed: 1
   },
   blockDistribution: [
-    { _id: 'Baramati', count: 4, deaths: 0 },
-    { _id: 'Shirur', count: 2, deaths: 1 },
-    { _id: 'Haveli', count: 1, deaths: 1 },
-    { _id: 'Indapur', count: 1, deaths: 15 },
-    { _id: 'Khed', count: 1, deaths: 2 }
+    { _id: 'Saoner', count: 6, deaths: 1 },
+    { _id: 'Kamptee', count: 3, deaths: 0 },
+    { _id: 'Hingna', count: 2, deaths: 0 },
+    { _id: 'Ramtek', count: 2, deaths: 1 },
+    { _id: 'Kalmeshwar', count: 2, deaths: 0 }
   ],
   vaccination: {
-    totalTarget: 15000,
-    totalCovered: 10550,
-    coveragePct: 70
+    totalTarget: 25000,
+    totalCovered: 18450,
+    coveragePct: 74
   },
   labPipeline: {
-    'Result Confirmed': 1,
+    'Result Confirmed': 2,
     Received: 1,
-    'In Transit': 1
+    'In Transit': 2
   }
 };
 
@@ -152,8 +152,8 @@ export default function AdminDashboard() {
     count: summary.statusFunnel[key] || 0
   }));
 
-  const officerName = user?.name || (isEnglish ? 'Dr. Suresh Kulkarni' : 'डॉ. सुरेश कुलकर्णी');
-  const districtName = user?.district || 'Pune';
+  const officerName = user?.name || (isEnglish ? 'Dr. Vivek Joshi' : 'डॉ. विवेक जोशी');
+  const districtName = user?.district || 'Nagpur';
 
   return (
     <div className="app-page dashboard-page admin-dashboard space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
@@ -192,12 +192,13 @@ export default function AdminDashboard() {
               onChange={(e) => setSelectedBlock(e.target.value)}
               className="text-xs font-bold text-slate-800 focus:outline-none bg-transparent cursor-pointer"
             >
-              <option value="All">{isEnglish ? 'All Blocks (Entire District)' : 'सभी ब्लॉक (संपूर्ण जिला)'}</option>
-              <option value="Baramati">Baramati (बारामती • Outbreak Active)</option>
-              <option value="Shirur">Shirur (शिरूर)</option>
-              <option value="Haveli">Haveli (हवेली)</option>
-              <option value="Khed">Khed (खेड)</option>
-              <option value="Indapur">Indapur (इंदापूर)</option>
+              <option value="All">{isEnglish ? 'All Blocks (Nagpur District)' : 'सभी ब्लॉक (नागपुर जिला)'}</option>
+              <option value="Saoner">Saoner (सावनेर • LSD Containment Active)</option>
+              <option value="Kamptee">Kamptee (कामठी)</option>
+              <option value="Hingna">Hingna (हिंगणा)</option>
+              <option value="Ramtek">Ramtek (रामटेक)</option>
+              <option value="Kalmeshwar">Kalmeshwar (कलमेश्वर)</option>
+              <option value="Umred">Umred (उमरेड)</option>
             </select>
           </div>
 

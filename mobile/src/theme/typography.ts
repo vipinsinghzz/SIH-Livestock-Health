@@ -3,16 +3,25 @@
  * Scaled and accessible typography configuration for Android screens.
  */
 
+import { Platform } from 'react-native';
+
 export const typography = {
+  fonts: {
+    regular: Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' }),
+    medium: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+    semibold: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+    bold: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+    extrabold: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+  },
   sizes: {
     xs: 12,
-    sm: 14,
-    base: 16,
-    lg: 18,
+    sm: 13.5,
+    base: 15,
+    lg: 17.5,
     xl: 20,
     xxl: 24,
-    display: 30,
-    hero: 36,
+    display: 28,
+    hero: 34,
   },
   weights: {
     regular: '400' as const,
@@ -21,9 +30,9 @@ export const typography = {
     bold: '700' as const,
   },
   lineHeights: {
-    tight: 1.2,
-    normal: 1.4,
-    relaxed: 1.6,
+    tight: 1.25,
+    normal: 1.48,
+    relaxed: 1.65,
   },
 };
 

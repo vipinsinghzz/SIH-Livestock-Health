@@ -180,7 +180,7 @@ exports.createCase = async (req, res) => {
     }
 
     if (!detectedDistrict) {
-      detectedDistrict = req.user?.district || 'Pune';
+      detectedDistrict = req.user?.district || 'Nagpur';
     }
 
     // 4. Duplicate Case Protection: Reuse active case if already open for this condition
@@ -343,7 +343,7 @@ exports.getCases = async (req, res) => {
         }
       }
     } else if (['field_worker', 'veterinarian', 'officer'].includes(req.user.role)) {
-      const targetDistrict = district || req.user.district || 'Pune';
+      const targetDistrict = district || req.user.district || 'Nagpur';
       const vetIdStr = String(req.user.id || req.user._id);
 
       if (filter === 'my_cases' || filter === 'assigned') {
@@ -677,7 +677,7 @@ exports.updateCaseStatus = async (req, res) => {
  */
 exports.getSpatialOutbreakClusters = async (req, res) => {
   try {
-    const targetDistrict = req.query.district || req.user.district || 'Pune';
+    const targetDistrict = req.query.district || req.user.district || 'Nagpur';
     const distanceKm = parseFloat(req.query.distanceKm || req.query.radiusKm) || 5.0;
     const minCases = parseInt(req.query.minCases, 10) || 2;
 
@@ -776,9 +776,9 @@ exports.getNearbyCases = async (req, res) => {
  */
 exports.getOutbreakRiskAnalysis = async (req, res) => {
   try {
-    const { caseId, lat, lng, disease, affectedCount = 1, district = 'Pune' } = req.query;
-    const refLat = parseFloat(lat) || 18.5204;
-    const refLng = parseFloat(lng) || 73.8567;
+    const { caseId, lat, lng, disease, affectedCount = 1, district = 'Nagpur' } = req.query;
+    const refLat = parseFloat(lat) || 21.1458;
+    const refLng = parseFloat(lng) || 79.0882;
 
     const nearbyCases = await gisService.getCasesInRadius(refLat, refLng, 15.0, 30, district);
     const containmentInfo = await gisService.getContainmentStatus(refLat, refLng);
@@ -829,7 +829,7 @@ exports.createContainmentZone = async (req, res) => {
     } = req.body;
 
     let targetDisease = disease;
-    let targetDistrict = explicitDistrict || req.user.district || 'Pune';
+    let targetDistrict = explicitDistrict || req.user.district || 'Nagpur';
     let targetBlock = block || '';
     let targetVillage = village || '';
     let targetCenter = center;
@@ -952,7 +952,7 @@ exports.createContainmentZone = async (req, res) => {
 exports.getContainmentZones = async (req, res) => {
   try {
     const { district, status } = req.query;
-    const targetDistrict = district || req.user.district || 'Pune';
+    const targetDistrict = district || req.user.district || 'Nagpur';
 
     const rawZones = await supabaseDb.containmentZones.find({
       district: targetDistrict,
@@ -1168,7 +1168,7 @@ exports.scheduleRingVaccination = async (req, res) => {
  */
 exports.getAdvisories = async (req, res) => {
   try {
-    const targetDistrict = req.query.district || req.user.district || 'Pune';
+    const targetDistrict = req.query.district || req.user.district || 'Nagpur';
 
     const activeCases = await supabaseDb.diseaseCases.find({
       districtId: targetDistrict,
@@ -1289,7 +1289,7 @@ exports.retryNotifications = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Case not found.' });
     }
 
-    const matchingVets = await supabaseDb.veterinarians.findByDistrict(caseDoc.districtId || 'Pune');
+    const matchingVets = await supabaseDb.veterinarians.findByDistrict(caseDoc.districtId || 'Nagpur');
     const notifiedRecords = await notificationService.notifyDistrictVets(caseDoc, matchingVets);
 
     res.json({
@@ -1309,7 +1309,7 @@ exports.retryNotifications = async (req, res) => {
  */
 exports.getDistrictVets = async (req, res) => {
   try {
-    const district = req.query.district || req.user.district || 'Pune';
+    const district = req.query.district || req.user.district || 'Nagpur';
     const vets = await supabaseDb.veterinarians.findByDistrict(district);
 
     res.json({

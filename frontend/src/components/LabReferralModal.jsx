@@ -14,9 +14,9 @@ const SAMPLE_TYPES = [
 ];
 
 const LAB_OPTIONS = [
-  'District Disease Diagnostic Laboratory (DDDL), Pune',
-  'Western Regional Disease Diagnostic Laboratory (WRDDL), Pune',
-  'State Veterinary Diagnostic Institute, Aundh, Pune',
+  'Regional Disease Diagnostic Laboratory (RDDL), Nagpur',
+  'College of Veterinary & Animal Sciences Diagnostic Lab, Nagpur',
+  'District Disease Investigation Laboratory (DDIL), Nagpur',
   'ICAR-National Institute of High Security Animal Diseases (NIHSAD)'
 ];
 
@@ -25,7 +25,7 @@ const STATUS_STEPS = ['Collected', 'In Transit', 'Received', 'Result Pending', '
 export default function LabReferralModal({ reportId, existingReferral, onClose, onUpdated }) {
   const [sampleType, setSampleType] = useState(existingReferral?.sampleType || 'Blood / Serum');
   const [referredLab, setReferredLab] = useState(
-    existingReferral?.referredLab || 'District Disease Diagnostic Laboratory (DDDL), Pune'
+    existingReferral?.referredLab || 'Regional Disease Diagnostic Laboratory (RDDL), Nagpur'
   );
   const [status, setStatus] = useState(existingReferral?.status || 'Collected');
   const [confirmedDisease, setConfirmedDisease] = useState(

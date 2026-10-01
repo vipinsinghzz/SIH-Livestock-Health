@@ -57,7 +57,7 @@ export default function VeterinaryHelpPage() {
         }
       }
     } catch (e) {}
-    return 'Pune';
+    return 'Nagpur';
   });
 
   // Filters & Search
@@ -146,7 +146,7 @@ export default function VeterinaryHelpPage() {
     setSelectedCategory('All');
     setEmergencyOnly(false);
     setSearchQuery('');
-    setSelectedDistrict('Pune');
+    setSelectedDistrict('Nagpur');
   };
 
   return (

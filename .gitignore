@@ -236,3 +236,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Mobile binaries & scratch directories
+*.apk
+*.apk.idsig
+scratch/
+*.xml

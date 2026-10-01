@@ -39,11 +39,11 @@ exports.createLabReferral = async (req, res, next) => {
               symptoms: linkedCase.symptoms || [],
               mortalityCount: 0,
               affectedCount: linkedCase.affectedCount || 1,
-              latitude: linkedCase.latitude || 18.5204,
-              longitude: linkedCase.longitude || 73.8567,
+              latitude: linkedCase.latitude || 21.1458,
+              longitude: linkedCase.longitude || 79.0882,
               village: linkedCase.farmerLocation?.village || 'Unknown Village',
               block: linkedCase.farmerLocation?.block || 'Unknown Block',
-              district: linkedCase.districtId || 'Pune',
+              district: linkedCase.districtId || 'Nagpur',
               status: 'Escalated',
               notes: `Auto-generated surveillance report for referral case ${linkedCase.caseId}. ${notes || ''}`
             });
@@ -61,7 +61,7 @@ exports.createLabReferral = async (req, res, next) => {
       });
     }
 
-    const labName = referredLab || 'District Disease Diagnostic Laboratory (DDDL), Pune';
+    const labName = referredLab || 'Regional Disease Diagnostic Laboratory (RDDL), Nagpur';
     const collectorIdStr = String(req.user.id || req.user._id);
 
     // Create in Supabase PostgreSQL

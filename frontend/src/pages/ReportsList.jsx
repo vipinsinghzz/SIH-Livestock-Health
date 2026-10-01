@@ -85,7 +85,7 @@ export default function ReportsList({ isEmbedded = false }) {
   const isEnglish = i18n.language?.startsWith('en');
   const isMarathi = i18n.language?.startsWith('mr');
   const isVet = user?.role === 'field_worker' || user?.role === 'veterinarian';
-  const detectedDistrict = user?.district || 'Pune';
+  const detectedDistrict = user?.district || 'Nagpur';
 
   // Reports & animals state
   const [reports, setReports] = useState([]);
@@ -95,14 +95,14 @@ export default function ReportsList({ isEmbedded = false }) {
   const [districtZones, setDistrictZones] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Farmer / Vet GPS / fallback coordinates (Default cluster center)
-  const defaultUserLat = user?.location?.lat && user.location.lat !== 0 ? user.location.lat : 18.5204;
-  const defaultUserLng = user?.location?.lng && user.location.lng !== 0 ? user.location.lng : 73.8567;
+  // Farmer / Vet GPS / fallback coordinates (Nagpur District centroid)
+  const defaultUserLat = user?.location?.lat && user.location.lat !== 0 ? user.location.lat : 21.1458;
+  const defaultUserLng = user?.location?.lng && user.location.lng !== 0 ? user.location.lng : 79.0882;
   const [userCoords, setUserCoords] = useState([defaultUserLat, defaultUserLng]);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [radiusFilter, setRadiusFilter] = useState(20); // default 20 km radius
+  const [radiusFilter, setRadiusFilter] = useState(25); // default 25 km radius
   const [riskFilter, setRiskFilter] = useState('All');
 
   // Modals
@@ -128,67 +128,67 @@ export default function ReportsList({ isEmbedded = false }) {
     }
   }, [showVetModal, userCoords, detectedDistrict]);
 
-  // Sample upcoming vaccination camps data
+  // Upcoming vaccination camps data centered around Nagpur District
   const vaccinationCamps = [
     {
-      id: 'camp-1',
-      titleEn: 'NADCP Foot and Mouth Disease (FMD) Free Ring Vaccination Drive',
-      titleHi: 'राष्ट्रीय एफएमडी खुरपका-मुंहपका निःशुल्क रिंग टीकाकरण शिविर',
-      titleMr: 'राष्ट्रीय एफएमडी लाळ-खुरकूत मोफत रिंग लसीकरण मोहीम',
-      dateEn: '12 Sept 2026 • 10:00 AM - 04:00 PM',
-      dateHi: '12 सितम्बर 2026 • सुबह 10:00 से शाम 04:00',
-      dateMr: '१२ सप्टेंबर २०२६ • सकाळी १०:०० ते दुपारी ०४:००',
-      location: 'Primary Veterinary Dispensary, Malegaon Bk',
-      village: 'Malegaon Bk',
-      block: 'Baramati',
-      lat: 18.1517,
-      lng: 74.5772,
+      id: 'camp-nag-1',
+      titleEn: 'Emergency Lumpy Skin Disease (LSD) Ring Vaccination Camp',
+      titleHi: 'लम्पी त्वचा रोग आपातकालीन 5 किमी रिंग टीकाकरण शिविर',
+      titleMr: 'लंपी त्वचा रोग आपत्कालीन ५ किमी रिंग लसीकरण शिबीर',
+      dateEn: '03 Oct 2026 • 08:30 AM - 04:30 PM',
+      dateHi: '03 अक्टूबर 2026 • सुबह 08:30 से शाम 04:30',
+      dateMr: '०३ ऑक्टोबर २०२६ • सकाळी ०८:३० ते दुपारी ०४:३०',
+      location: 'Taluka Veterinary Polyclinic, Saoner',
+      village: 'Saoner Town',
+      block: 'Saoner',
+      lat: 21.3833,
+      lng: 78.9167,
       targetEn: 'Cattle & Buffaloes',
-      targetHi: 'गाय एवं भैंस',
-      targetMr: 'गाय आणि म्हैस',
+      targetHi: 'गोवंश एवं भैंस',
+      targetMr: 'गोवंश आणि म्हैस',
+      organizerEn: 'District Outbreak Response Unit, Nagpur',
+      organizerHi: 'जिला प्रकोप निवारण इकाई, नागपुर',
+      organizerMr: 'जिल्हा प्रादुर्भाव नियंत्रण कक्ष, नागपूर'
+    },
+    {
+      id: 'camp-nag-2',
+      titleEn: 'NADCP Foot and Mouth Disease (FMD) Free Mass Vaccination Drive',
+      titleHi: 'राष्ट्रीय एफएमडी खुरपका-मुंहपका निःशुल्क व्यापक टीकाकरण अभियान',
+      titleMr: 'राष्ट्रीय एफएमडी लाळ-खुरकूत मोफत सार्वत्रिक लसीकरण मोहीम',
+      dateEn: '05 Oct 2026 • 09:00 AM - 04:00 PM',
+      dateHi: '05 अक्टूबर 2026 • सुबह 09:00 से शाम 04:00',
+      dateMr: '०५ ऑक्टोबर २०२६ • सकाळी ०९:०० ते दुपारी ०४:००',
+      location: 'Gram Panchayat Veterinary Centre, Yerkheda',
+      village: 'Yerkheda',
+      block: 'Kamptee',
+      lat: 21.2400,
+      lng: 79.2150,
+      targetEn: 'Cattle, Buffalo, Sheep & Goat',
+      targetHi: 'गाय, भैंस, भेड़ एवं बकरी',
+      targetMr: 'गाय, म्हैस, मेंढी आणि शेळी',
       organizerEn: 'Dept of Animal Husbandry, Govt of Maharashtra',
       organizerHi: 'पशुपालन विभाग, महाराष्ट्र शासन',
       organizerMr: 'पशुसंवर्धन विभाग, महाराष्ट्र शासन'
     },
     {
-      id: 'camp-2',
-      titleEn: 'Pre-Monsoon Hemorrhagic Septicemia (HS) & BQ Vaccination Camp',
-      titleHi: 'मानसून पूर्व गलघोंटू एवं लंगड़ा बुखार सुरक्षा टीकाकरण शिविर',
+      id: 'camp-nag-3',
+      titleEn: 'Pre-Monsoon Hemorrhagic Septicemia (HS) & Blackleg Drive',
+      titleHi: 'मानसून पूर्व गलघोंटू एवं लंगड़ा बुखार सुरक्षा शिविर',
       titleMr: 'पावसाळापूर्व घटसर्प आणि फऱ्या प्रतिबंधक लसीकरण शिबीर',
-      dateEn: '16 Sept 2026 • 09:00 AM - 03:00 PM',
-      dateHi: '16 सितम्बर 2026 • सुबह 09:00 से दोपहर 03:00',
-      dateMr: '१६ सप्टेंबर २०२६ • सकाळी ०९:०० ते दुपारी ०३:००',
-      location: 'Gram Panchayat Veterinary Centre, Kathephal',
-      village: 'Kathephal',
-      block: 'Baramati',
-      lat: 18.1632,
-      lng: 74.5885,
-      targetEn: 'Cattle, Buffalo, Sheep & Goat',
-      targetHi: 'गाय, भैंस, भेड़ एवं बकरी',
-      targetMr: 'गाय, म्हैस, मेंढी आणि शेळी',
-      organizerEn: 'District Veterinary Polyclinic',
-      organizerHi: 'जिला पशु चिकित्सालय',
-      organizerMr: 'जिल्हा पशुवैद्यकीय रुग्णालय'
-    },
-    {
-      id: 'camp-3',
-      titleEn: 'Lumpy Skin Disease (LSD) Emergency Ring Vaccination Drive',
-      titleHi: 'लम्पी त्वचा रोग आपातकालीन रिंग टीकाकरण अभियान',
-      titleMr: 'लंपी त्वचा रोग आपत्कालीन रिंग लसीकरण मोहीम',
-      dateEn: '20 Sept 2026 • 09:30 AM - 02:00 PM',
-      dateHi: '20 सितम्बर 2026 • सुबह 09:30 से दोपहर 02:00',
-      dateMr: '२० सप्टेंबर २०२६ • सकाळी ०९:३० ते दुपारी ०२:००',
-      location: 'Veterinary Sub-Centre, Jalochi',
-      village: 'Jalochi',
-      block: 'Baramati',
-      lat: 18.1401,
-      lng: 74.561,
-      targetEn: 'Cattle & Calves',
-      targetHi: 'गोवंश एवं बछड़े',
-      targetMr: 'गोवंश आणि वासरे',
-      organizerEn: 'National Livestock Mission (NLM)',
-      organizerHi: 'राष्ट्रीय पशुधन मिशन',
-      organizerMr: 'राष्ट्रीय पशुधन मिशन'
+      dateEn: '08 Oct 2026 • 09:30 AM - 03:30 PM',
+      dateHi: '08 अक्टूबर 2026 • सुबह 09:30 से दोपहर 03:30',
+      dateMr: '०८ ऑक्टोबर २०२६ • सकाळी ०९:३० ते दुपारी ०३:३०',
+      location: 'Primary Veterinary Dispensary, Takalghat',
+      village: 'Takalghat',
+      block: 'Hingna',
+      lat: 21.0250,
+      lng: 78.9450,
+      targetEn: 'Cattle & Young Calves',
+      targetHi: 'गोवंश एवं युवा बछड़े',
+      targetMr: 'गोवंश आणि तरुण वासरे',
+      organizerEn: 'Zilla Parishad Nagpur Veterinary Polyclinic',
+      organizerHi: 'जिला परिषद नागपुर पशु चिकित्सालय',
+      organizerMr: 'जिल्हा परिषद नागपूर पशुवैद्यकीय रुग्णालय'
     }
   ];
 
@@ -206,7 +206,7 @@ export default function ReportsList({ isEmbedded = false }) {
           }
         },
         (err) => {
-          // Gracefully fallback to default Baramati coords
+          // Gracefully fallback to default Nagpur centroid
         },
         { timeout: 5000 }
       );
@@ -217,7 +217,8 @@ export default function ReportsList({ isEmbedded = false }) {
     setLoading(true);
     try {
       const res = await api.get('/reports?nearbyAlerts=true&limit=100');
-      setReports(res.data.reports || []);
+      const repList = res.data?.reports || [];
+      setReports(repList);
 
       caseService.getCases({ district: detectedDistrict })
         .then((r) => setDistrictCases(r.cases || []))
@@ -240,7 +241,7 @@ export default function ReportsList({ isEmbedded = false }) {
   const fetchUserAnimals = async () => {
     try {
       const res = await animalService.getAnimals();
-      setAnimals(res.data?.animals || []);
+      setAnimals(Array.isArray(res) ? res : (res?.data?.animals || []));
     } catch (e) {}
   };
 

@@ -91,7 +91,7 @@ exports.register = async (req, res, next) => {
       ? String(email).toLowerCase().trim()
       : getDeterministicInternalEmail(cleanPhone);
 
-    const safeDistrict = district ? district.trim() : 'Pune';
+    const safeDistrict = district ? district.trim() : 'Nagpur';
     const safeState = state ? state.trim() : 'Maharashtra';
     const safeVillage = village ? village.trim() : '';
     const safeBlock = block ? block.trim() : '';
@@ -433,7 +433,7 @@ exports.login = async (req, res, next) => {
             email: profile?.email || authData.user.email,
             role: profile?.role || authData.user.user_metadata?.role || 'farmer',
             phone: profile?.phone || normPhone || '',
-            district: profile?.district || authData.user.user_metadata?.district || 'Pune',
+            district: profile?.district || authData.user.user_metadata?.district || 'Nagpur',
             state: profile?.state || authData.user.user_metadata?.state || 'Maharashtra',
             village: profile?.village || '',
             block: profile?.block || '',
@@ -546,7 +546,7 @@ exports.login = async (req, res, next) => {
         email: cleanEmail,
         role: demoAccount.role,
         phone: '+919822011223',
-        district: 'Pune',
+        district: 'Nagpur',
         state: 'Maharashtra'
       };
 
@@ -636,6 +636,64 @@ exports.getMe = async (req, res, next) => {
     res.status(200).json({
       success: true,
       user: req.user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update current logged in user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { name, phone, email, village, block, district, state, preferredLanguage } = req.body;
+    const userId = req.user?.id || req.user?._id || req.user?.auth_user_id;
+
+    const updates = {};
+    if (name !== undefined) updates.name = String(name).trim();
+    if (phone !== undefined) updates.phone = String(phone).trim();
+    if (email !== undefined) updates.email = String(email).trim().toLowerCase();
+    if (village !== undefined) updates.village = String(village).trim();
+    if (block !== undefined) updates.block = String(block).trim();
+    if (district !== undefined) updates.district = String(district).trim();
+    if (state !== undefined) updates.state = String(state).trim();
+    if (preferredLanguage !== undefined) updates.preferred_language = String(preferredLanguage).trim();
+
+    if (isLiveSupabase && userId) {
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('profiles')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString()
+          })
+          .or(`id.eq.${userId},auth_user_id.eq.${userId}`)
+          .select()
+          .maybeSingle();
+
+        if (!error && data) {
+          const merged = { ...req.user, ...data };
+          saveOfflineProfile(merged);
+          return res.status(200).json({
+            success: true,
+            user: merged
+          });
+        }
+      } catch (dbErr) {
+        console.warn('[AuthController] Notice updating Supabase profile:', dbErr.message);
+      }
+    }
+
+    const updated = {
+      ...req.user,
+      ...updates
+    };
+    saveOfflineProfile(updated);
+
+    return res.status(200).json({
+      success: true,
+      user: updated
     });
   } catch (error) {
     next(error);

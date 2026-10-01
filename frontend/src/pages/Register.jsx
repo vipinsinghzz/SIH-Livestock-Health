@@ -24,7 +24,8 @@ import {
 import LivestockSaathiLogo from '../components/LivestockSaathiLogo';
 // Fallback regional presets if GPS is completely disabled in user browser
 const POPULAR_HUBS = [
-  { village: 'Baramati', district: 'Pune', state: 'Maharashtra', lat: 18.1517, lng: 74.5772 },
+  { village: 'Saoner Rural', district: 'Nagpur', state: 'Maharashtra', lat: 21.3833, lng: 78.9167 },
+  { village: 'Kamptee', district: 'Nagpur', state: 'Maharashtra', lat: 21.2227, lng: 79.1977 },
   { village: 'Bishan Khedi', district: 'Sehore', state: 'Madhya Pradesh', lat: 23.2032, lng: 77.0844 },
   { village: 'Barabanki Rural', district: 'Barabanki', state: 'Uttar Pradesh', lat: 26.9274, lng: 81.1843 },
   { village: 'Chaksu', district: 'Jaipur', state: 'Rajasthan', lat: 26.6014, lng: 75.9526 },
@@ -116,7 +117,7 @@ export default function Register() {
         addr.state_district ||
         addr.district ||
         addr.county ||
-        'Pune';
+        'Nagpur';
 
       const state = addr.state || 'Maharashtra';
       const block = addr.county || addr.subdistrict || district;
@@ -125,10 +126,10 @@ export default function Register() {
     } catch (err) {
       console.warn('Reverse geocode note (using coordinate lock):', err.message);
       return {
-        village: 'Baramati Gram',
-        district: 'Pune',
+        village: 'Saoner Rural',
+        district: 'Nagpur',
         state: 'Maharashtra',
-        block: 'Baramati'
+        block: 'Saoner'
       };
     }
   };
@@ -591,7 +592,7 @@ export default function Register() {
                       <span className="text-[10px] text-slate-400 block font-semibold">
                         {isEnglish ? 'District' : isMarathi ? 'जिल्हा' : 'जिला (District)'}
                       </span>
-                      <strong className="block truncate">{gpsDetails.district || 'Pune'}</strong>
+                      <strong className="block truncate">{gpsDetails.district || 'Nagpur'}</strong>
                     </div>
 
                     <div className="p-2 bg-stone-50 rounded-lg border border-stone-200/70">

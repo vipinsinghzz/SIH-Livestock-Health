@@ -75,9 +75,9 @@ async function generateAdvisoryForReport(report, triageResult) {
     }
 
     const topDisease = triageResult.suspectedDiseases?.[0]?.name || triageResult.predictedDisease || 'General Livestock Alert';
-    const block = report?.location?.block || report?.block || 'Baramati';
+    const block = report?.location?.block || report?.block || 'Saoner';
     const village = report?.location?.village || report?.village || 'All';
-    const district = report?.location?.district || report?.district || 'Pune';
+    const district = report?.location?.district || report?.district || 'Nagpur';
 
     const template = ADVISORY_TEMPLATES[topDisease] || {
       en: {
@@ -104,8 +104,8 @@ async function generateAdvisoryForReport(report, triageResult) {
       disease: topDisease,
       targetVillage: report.location.village || 'All',
       targetBlock: report.location.block || 'All',
-      targetDistrict: report.location.district || 'Pune',
-      issuedBy: 'PashuRakshak AI Surveillance System'
+      targetDistrict: report.location.district || 'Nagpur',
+      issuedBy: 'PashuCare AI Surveillance System'
     });
 
     console.log(`[Advisory] Created advisory (${advisory._id}) for ${topDisease} in ${report.location.block}`);

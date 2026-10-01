@@ -295,3 +295,77 @@ export function getRiskTheme(risk?: string): {
       };
   }
 }
+
+/**
+ * Returns numeric priority for disease case criticality:
+ * 0: Critical (highest urgency)
+ * 1: High Risk / High-mortality diseases (FMD, Anthrax, Blackleg, HS, etc.)
+ * 2: Moderate Risk (Lumpy, Pox, Mastitis, Mange, Brucellosis, etc.)
+ * 3: Intermediate / Unspecified
+ * 4: Low Risk / Normal / Healthy observations (lowest urgency)
+ */
+export function getCaseCriticalityPriority(c: DiseaseCase): number {
+  const r = (c.risk || '').toUpperCase().trim();
+  const d = (c.disease || '').toLowerCase();
+
+  // Explicit Critical
+  if (r === 'CRITICAL' || d.includes('critical')) return 0;
+
+  // High Risk or dangerous epidemic conditions
+  if (
+    r === 'HIGH' ||
+    d.includes('anthrax') ||
+    d.includes('fmd') ||
+    d.includes('foot and mouth') ||
+    d.includes('hemorrhagic') ||
+    d.includes('blackleg') ||
+    d.includes('enterotoxemia')
+  ) {
+    return 1;
+  }
+
+  // Moderate Risk
+  if (
+    r === 'MODERATE' ||
+    r === 'MEDIUM' ||
+    d.includes('lumpy') ||
+    d.includes('pox') ||
+    d.includes('mastitis') ||
+    d.includes('mange') ||
+    d.includes('orf') ||
+    d.includes('brucellosis')
+  ) {
+    return 2;
+  }
+
+  // Low Risk or Healthy / Normal observations
+  if (r === 'LOW' || d.includes('healthy') || d.includes('normal')) {
+    return 4;
+  }
+
+  return 3;
+}
+
+/**
+ * Sorts disease cases by criticality in descending urgency (Critical first, Healthy last)
+ */
+export function sortCasesByCriticality(caseList: DiseaseCase[]): DiseaseCase[] {
+  return [...caseList].sort((a, b) => {
+    const pA = getCaseCriticalityPriority(a);
+    const pB = getCaseCriticalityPriority(b);
+
+    if (pA !== pB) {
+      return pA - pB;
+    }
+
+    // Secondary tie-breaker: newest first
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (dateB !== dateA && !isNaN(dateB) && !isNaN(dateA)) {
+      return dateB - dateA;
+    }
+
+    return (a.caseId || '').localeCompare(b.caseId || '');
+  });
+}
+

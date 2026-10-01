@@ -35,9 +35,40 @@ export interface AnimalMutationResponse {
   animal: Animal;
 }
 
+export const sortAnimalsByHealthPriority = (list: Animal[]): Animal[] => {
+  const getPriority = (status?: string): number => {
+    const s = (status || '').toLowerCase().trim();
+    if (s === 'critical') return 0; // Highest priority (at the top)
+    if (
+      s === 'needs attention' ||
+      s.includes('attention') ||
+      s.includes('urgent') ||
+      s.includes('risk') ||
+      s.includes('sick') ||
+      s.includes('danger')
+    ) {
+      return 1; // Needs medical attention (in between)
+    }
+    if (s === 'healthy' || s === 'normal') {
+      return 3; // Lowest priority (at the bottom)
+    }
+    return 2; // Any intermediate / unknown status in between
+  };
+
+  return [...list].sort((a, b) => {
+    const diff = getPriority(a.healthStatus) - getPriority(b.healthStatus);
+    if (diff !== 0) return diff;
+    const dateA = a.createdAt || a.updatedAt ? new Date(a.createdAt || a.updatedAt || '').getTime() : 0;
+    const dateB = b.createdAt || b.updatedAt ? new Date(b.createdAt || b.updatedAt || '').getTime() : 0;
+    if (dateB !== dateA && !isNaN(dateB) && !isNaN(dateA)) return dateB - dateA;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+};
+
 export const animalService = {
   /**
    * Fetch all animals owned by the current farmer (or filtered by query params)
+   * Sorted by default: Critical at top, Needs Attention in between, Healthy at lowest priority.
    * Falls back to offline SQLite cache when disconnected.
    */
   async getAnimals(params?: {
@@ -57,7 +88,7 @@ export const animalService = {
         if (farmerId && animals.length > 0) {
           await saveAnimalsCache(farmerId, animals);
         }
-        return animals;
+        return sortAnimalsByHealthPriority(animals);
       } catch (err) {
         console.warn('[AnimalService] Network fetch failed, falling back to cache:', err);
       }
@@ -67,9 +98,9 @@ export const animalService = {
     if (farmerId) {
       const { animals } = await getCachedAnimals(farmerId);
       if (params?.species && params.species !== 'All') {
-        return animals.filter((a) => a.species === params.species);
+        return sortAnimalsByHealthPriority(animals.filter((a) => a.species === params.species));
       }
-      return animals;
+      return sortAnimalsByHealthPriority(animals);
     }
 
     return [];

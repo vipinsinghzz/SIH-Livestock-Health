@@ -59,7 +59,7 @@ exports.createAdvisory = async (req, res, next) => {
       disease: disease || 'General Livestock Alert',
       targetVillage: targetVillage || 'All',
       targetBlock: targetBlock || 'All',
-      targetDistrict: targetDistrict || req.user.district || 'Pune',
+      targetDistrict: targetDistrict || req.user.district || 'Nagpur',
       issuedBy: req.user.name + ' (' + req.user.role + ')'
     });
 

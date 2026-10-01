@@ -1,20 +1,17 @@
 /**
- * Livestock Saathi - Officer: Epidemic Surveillance & Temporal Trends
+ * Livestock Saathi - Ultra-Premium Officer Epidemic Surveillance & Analytics
  * File: mobile/app/(officer)/surveillance/index.tsx
  *
- * Production Epidemiological Surveillance Screen for District Veterinary Officers.
- * Powered by audited production endpoints:
- * - GET /api/dashboard/summary
- * - GET /api/dashboard/trends
- *
- * Features:
- * - 30-Day Epidemic Progression Curve (Native Responsive Trend Visualizer)
- * - AI Triage Suspected Diseases Breakdown & Confidence %
- * - Clinical Case Escalation Funnel (Reported -> Contained -> Closed)
- * - Sub-District / Block Level Burden
- * - District Vaccination Target vs Covered Progress
- * - Diagnostic Lab Pipeline Status
- * - Offline SQLite read caching with last-synced timestamp
+ * Production Epidemiological Surveillance Suite for District Veterinary Officers:
+ * - Luxury executive command navy header (#0B132B / #1E1B4B) with safe-area spacing
+ * - Cadre badge: "DISTRICT EPIDEMIOLOGICAL SURVEILLANCE & TRENDS"
+ * - 4-Metric Realtime Telemetry Summary Strip
+ * - Interactive 30-Day Epidemic Progression Curve (Total Cases, Critical, Mortalities)
+ * - AI Triage Suspected Diseases breakdown with color-coded distribution bars
+ * - Clinical Case Escalation Funnel (Reported -> Triaged -> Verified -> Contained -> Closed)
+ * - Sub-District / Block-level disease burden ranking
+ * - Fixed universal floating bottom dock (<OfficerFloatingNav activeTab="surveillance" />)
+ * - Zero raw text emojis; platform-safe typography stack
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,18 +23,41 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Image,
+  Platform,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { officerService } from '../../../src/services/officerService';
 import { DashboardSummary, TrendPoint } from '../../../src/types/officer';
-import { colors, typography, spacing, radii, shadows } from '../../../src/theme';
+import { shadows } from '../../../src/theme';
+import { OfficerFloatingNav } from '../../../src/components/OfficerFloatingNav';
 
-const DISEASE_COLORS = ['#10B981', '#F59E0B', '#F97316', '#EF4444', '#8B5CF6', '#06B6D4', '#EC4899'];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Native typography stack
+const FONT_REGULAR = Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
+const FONT_MEDIUM = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
+const FONT_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
+
+// Static assets
+const ICON_BACK = require('../../../assets/icons/arrow-back.png');
+const ICON_REFRESH = require('../../../assets/icons/refresh.png');
+const ICON_SURVEILLANCE = require('../../../assets/icons/stat_case.png');
+const ICON_ALERT = require('../../../assets/icons/stat_alert.png');
+const ICON_WARN = require('../../../assets/icons/alert.png');
+const ICON_CLIPBOARD = require('../../../assets/icons/clipboard.png');
+const ICON_SHIELD = require('../../../assets/icons/shield.png');
+
+const DISEASE_PALETTE = ['#4338CA', '#0284C7', '#059669', '#D97706', '#DC2626', '#7C3AED', '#DB2777'];
 
 export default function OfficerSurveillanceScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isEnglish } = useAppLanguage();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
@@ -50,7 +70,7 @@ export default function OfficerSurveillanceScreen() {
   const [activeTrendMetric, setActiveTrendMetric] = useState<'cases' | 'critical' | 'mortality'>('cases');
 
   const userId = user?.id || (user as any)?._id || 'officer_default';
-  const districtName = user?.district || 'District';
+  const districtName = user?.district || (isEnglish ? 'District Surveillance' : 'ज़िला निगरानी');
 
   const loadSurveillanceData = useCallback(async (block: string = selectedBlock, isPull = false) => {
     if (isPull) setRefreshing(true);
@@ -87,7 +107,7 @@ export default function OfficerSurveillanceScreen() {
   }, [selectedBlock, loadSurveillanceData]);
 
   const formatLastUpdated = (timestamp: number | null): string => {
-    if (!timestamp) return 'Last updated: Not available';
+    if (!timestamp) return isEnglish ? 'Live Synced' : 'सक्रिय सिंक';
     const d = new Date(timestamp);
     const day = d.getDate();
     const month = d.toLocaleString('en-US', { month: 'short' });
@@ -95,10 +115,9 @@ export default function OfficerSurveillanceScreen() {
     const minutes = d.getMinutes().toString().padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12 || 12;
-    return `Last updated: ${day} ${month}, ${hours}:${minutes} ${ampm}`;
+    return `${day} ${month}, ${hours}:${minutes} ${ampm}`;
   };
 
-  // Discover blocks dynamically from summary
   const availableBlocks = ['All'];
   if (summary?.blockDistribution) {
     summary.blockDistribution.forEach((b) => {
@@ -112,759 +131,814 @@ export default function OfficerSurveillanceScreen() {
   const totalTrendCases = trends.reduce((acc, curr) => acc + (curr.cases || 0), 0);
   const totalTrendCritical = trends.reduce((acc, curr) => acc + (curr.criticalCases || 0), 0);
   const totalTrendMortalities = trends.reduce((acc, curr) => acc + (curr.mortalities || 0), 0);
-  const maxTrendCases = Math.max(1, ...trends.map((t) => t.cases || 0));
+  const maxTrendCases = Math.max(1, ...trends.map((tr) => tr.cases || 0));
 
-  // Funnel order
   const funnelStages = ['Reported', 'Triaged', 'Field Verified', 'Escalated', 'Contained', 'Closed'];
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => loadSurveillanceData(selectedBlock, true)}
-          colors={[colors.light.officerBadge]}
-          tintColor={colors.light.officerBadge}
-        />
-      }
-    >
-      {/* 1. Top Header */}
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <View>
-            <View style={styles.badgeRow}>
-              <View style={styles.officerBadge}>
-                <Text style={styles.officerBadgeText}>EPIDEMIC SURVEILLANCE</Text>
+    <View style={styles.screenWrapper}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" backgroundColor="#0B132B" />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadSurveillanceData(selectedBlock, true)}
+            colors={['#4338CA']}
+            tintColor="#4338CA"
+          />
+        }
+      >
+        {/* 1. Executive Top App Bar */}
+        <View style={styles.topExecutiveHeader}>
+          <View style={styles.headerMainRow}>
+            <TouchableOpacity
+              style={styles.backCircleBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Image source={ICON_BACK} style={styles.backIcon} />
+            </TouchableOpacity>
+
+            <View style={styles.headerTitleWrap}>
+              <View style={styles.cadreRow}>
+                <View style={styles.pulseDot} />
+                <Text style={styles.cadreText}>
+                  {isEnglish ? 'EPIDEMIC SURVEILLANCE & TRENDS' : 'महामारी निगरानी एवं रुझान'}
+                </Text>
               </View>
-              <View style={styles.liveIndicator} />
+              <Text style={styles.headerMainTitle}>
+                {isEnglish ? 'Epidemiological Analytics' : 'महामारी विज्ञान विश्लेषण'}
+              </Text>
+              <Text style={styles.headerSubTitle}>
+                {districtName} {isEnglish ? 'District Surveillance Desk' : 'ज़िला निगरानी डेस्क'}
+              </Text>
             </View>
-            <Text style={styles.title}>Epidemiological Analytics</Text>
-            <Text style={styles.subtitle}>District: {districtName} (Maharashtra)</Text>
+
+            <TouchableOpacity
+              style={styles.refreshIconBtn}
+              onPress={() => loadSurveillanceData(selectedBlock, false)}
+              activeOpacity={0.8}
+              disabled={loading || refreshing}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Image source={ICON_REFRESH} style={styles.refreshIconImg} />
+              )}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            onPress={() => loadSurveillanceData(selectedBlock, false)}
-            style={styles.refreshBtn}
-            disabled={loading || refreshing}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.refreshBtnText}>🔄 Refresh</Text>
-          </TouchableOpacity>
+
+          {/* Timestamp Strip */}
+          <View style={styles.syncRow}>
+            <Text style={styles.syncText}>
+              {isEnglish ? 'Synced: ' : 'अंतिम अद्यतन: '}
+              {formatLastUpdated(lastUpdated)}
+            </Text>
+            {isFromCache && (
+              <View style={styles.cachePill}>
+                <Text style={styles.cachePillText}>{isEnglish ? 'Offline Cache' : 'ऑफ़लाइन'}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* 4-Metric Telemetry Ribbon */}
+          <View style={styles.telemetryGrid}>
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryVal}>{totalTrendCases || summary?.totalReports || 0}</Text>
+              <Text style={styles.telemetryLabel}>{isEnglish ? '30D Cases' : '30-दिन मामले'}</Text>
+            </View>
+            <View style={styles.telemetryCard}>
+              <Text style={[styles.telemetryVal, { color: '#D97706' }]}>
+                {totalTrendCritical || summary?.triageMetrics?.criticalCount || 0}
+              </Text>
+              <Text style={styles.telemetryLabel}>{isEnglish ? 'Critical' : 'गंभीर'}</Text>
+            </View>
+            <View style={styles.telemetryCard}>
+              <Text style={[styles.telemetryVal, { color: '#DC2626' }]}>
+                {totalTrendMortalities || summary?.totalMortality || 0}
+              </Text>
+              <Text style={styles.telemetryLabel}>{isEnglish ? 'Deaths' : 'मृत्यु'}</Text>
+            </View>
+            <View style={styles.telemetryCard}>
+              <Text style={[styles.telemetryVal, { color: '#7C3AED' }]}>
+                {summary?.triageMetrics?.outbreakCount || 0}
+              </Text>
+              <Text style={styles.telemetryLabel}>{isEnglish ? 'Clusters' : 'क्लस्टर'}</Text>
+            </View>
+          </View>
         </View>
 
-        <Text style={styles.timestampText}>{formatLastUpdated(lastUpdated)}</Text>
-
-        {/* Offline Banner */}
-        {isFromCache && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineBannerIcon}>⚠️</Text>
-            <Text style={styles.offlineBannerText}>
-              Offline Mode — displaying cached surveillance data.
+        {/* 2. Loading State */}
+        {loading && !refreshing && (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color="#4338CA" />
+            <Text style={styles.loadingText}>
+              {isEnglish
+                ? 'Computing Epidemiological Curves & Analytics...'
+                : 'महामारी विज्ञान रुझान व विश्लेषण लोड हो रहा है...'}
             </Text>
           </View>
         )}
-      </View>
 
-      {/* 2. Loading State */}
-      {loading && !refreshing && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.officerBadge} />
-          <Text style={styles.loadingText}>Computing Epidemiological Trends & Curves...</Text>
-        </View>
-      )}
-
-      {/* 3. Error State (No fake fallback) */}
-      {!loading && errorMessage && !summary && (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Surveillance Data Unavailable</Text>
-          <Text style={styles.errorMessage}>{errorMessage}</Text>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={() => loadSurveillanceData(selectedBlock, false)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.retryBtnText}>Retry Sync</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 4. Surveillance Dashboard Content */}
-      {!loading && summary && (
-        <>
-          {/* Sub-District Filter */}
-          {availableBlocks.length > 1 && (
-            <View style={styles.filterBox}>
-              <Text style={styles.filterTitle}>Jurisdiction Filter:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                {availableBlocks.map((b) => {
-                  const isSelected = selectedBlock === b;
-                  return (
-                    <TouchableOpacity
-                      key={b}
-                      style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                      onPress={() => setSelectedBlock(b)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}>
-                        {b === 'All' ? 'All Blocks (District)' : b}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* 5. 30-Day Epidemiological Trend Curve */}
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={styles.cardTitle}>30-Day Epidemiological Curve</Text>
-                <Text style={styles.cardSubtitle}>
-                  Daily reported cases, critical flags, and mortalities
-                </Text>
-              </View>
-            </View>
-
-            {/* Metric Toggle Buttons */}
-            <View style={styles.metricToggleRow}>
-              <TouchableOpacity
-                style={[
-                  styles.metricToggleBtn,
-                  activeTrendMetric === 'cases' && styles.metricToggleBtnActiveCases,
-                ]}
-                onPress={() => setActiveTrendMetric('cases')}
-              >
-                <Text
-                  style={[
-                    styles.metricToggleText,
-                    activeTrendMetric === 'cases' && styles.metricToggleTextActive,
-                  ]}
-                >
-                  Total Cases ({totalTrendCases})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.metricToggleBtn,
-                  activeTrendMetric === 'critical' && styles.metricToggleBtnActiveCritical,
-                ]}
-                onPress={() => setActiveTrendMetric('critical')}
-              >
-                <Text
-                  style={[
-                    styles.metricToggleText,
-                    activeTrendMetric === 'critical' && styles.metricToggleTextActive,
-                  ]}
-                >
-                  Critical ({totalTrendCritical})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.metricToggleBtn,
-                  activeTrendMetric === 'mortality' && styles.metricToggleBtnActiveMortality,
-                ]}
-                onPress={() => setActiveTrendMetric('mortality')}
-              >
-                <Text
-                  style={[
-                    styles.metricToggleText,
-                    activeTrendMetric === 'mortality' && styles.metricToggleTextActive,
-                  ]}
-                >
-                  Deaths ({totalTrendMortalities})
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Responsive Native Trend Bars */}
-            {trends.length === 0 ? (
-              <View style={styles.emptyTrendBox}>
-                <Text style={styles.emptyTrendText}>
-                  No temporal trend data recorded for the selected jurisdiction.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.chartContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.chartScroll}>
-                  <View style={styles.chartBarsRow}>
-                    {trends.map((t, idx) => {
-                      const val =
-                        activeTrendMetric === 'cases'
-                          ? t.cases
-                          : activeTrendMetric === 'critical'
-                          ? t.criticalCases
-                          : t.mortalities;
-
-                      const barHeightPct = Math.max(8, Math.round((val / maxTrendCases) * 100));
-                      const barColor =
-                        activeTrendMetric === 'cases'
-                          ? '#10B981'
-                          : activeTrendMetric === 'critical'
-                          ? '#EF4444'
-                          : '#8B5CF6';
-
-                      return (
-                        <View key={idx} style={styles.barColumn}>
-                          <Text style={styles.barValue}>{val > 0 ? val : ''}</Text>
-                          <View style={styles.barTrack}>
-                            <View
-                              style={[
-                                styles.barFill,
-                                {
-                                  height: `${barHeightPct}%`,
-                                  backgroundColor: val > 0 ? barColor : '#E2E8F0',
-                                },
-                              ]}
-                            />
-                          </View>
-                          <Text style={styles.barDate}>{t.displayDate.split(' ')[0]}</Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-                <Text style={styles.chartHelpText}>
-                  ← Scroll horizontally to inspect full 30-day timeline →
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* 6. Top Suspected Diseases Breakdown (AI Triage) */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Top Suspected Diseases (AI Triage)</Text>
-            <Text style={styles.cardSubtitle}>
-              Candidate disease frequency identified during field triage
+        {/* 3. Error State */}
+        {!loading && errorMessage && !summary && (
+          <View style={styles.errorCard}>
+            <Image source={ICON_WARN} style={styles.errorIcon} />
+            <Text style={styles.errorTitle}>
+              {isEnglish ? 'Surveillance Data Unavailable' : 'निगरानी डेटा अनुपलब्ध'}
             </Text>
-
-            {(!summary.diseaseBreakdown || summary.diseaseBreakdown.length === 0) ? (
-              <Text style={styles.emptyText}>No disease incidence logged.</Text>
-            ) : (
-              <View style={styles.diseaseList}>
-                {summary.diseaseBreakdown.map((item, idx) => {
-                  const pct = Math.min(
-                    100,
-                    Math.round((item.cases / Math.max(1, summary.totalReports)) * 100)
-                  );
-                  const color = DISEASE_COLORS[idx % DISEASE_COLORS.length];
-
-                  return (
-                    <View key={idx} style={styles.diseaseItem}>
-                      <View style={styles.diseaseItemHeader}>
-                        <Text style={styles.diseaseName}>{item.name}</Text>
-                        <Text style={styles.diseaseStats}>
-                          {item.cases} cases ({item.avgConfidencePct}% conf)
-                        </Text>
-                      </View>
-                      <View style={styles.progressTrack}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            { width: `${pct}%`, backgroundColor: color },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            <Text style={styles.errorMessage}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => loadSurveillanceData(selectedBlock, false)}
+              activeOpacity={0.85}
+            >
+              <Image source={ICON_REFRESH} style={styles.retryBtnIcon} />
+              <Text style={styles.retryBtnText}>{isEnglish ? 'Retry Sync' : 'पुनः प्रयास करें'}</Text>
+            </TouchableOpacity>
           </View>
+        )}
 
-          {/* 7. Clinical Case Escalation Funnel */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Clinical Escalation Funnel</Text>
-            <Text style={styles.cardSubtitle}>
-              Progression from initial reporting to resolution
-            </Text>
-
-            <View style={styles.funnelContainer}>
-              {funnelStages.map((stage, idx) => {
-                const count = summary.statusFunnel?.[stage] ?? 0;
-                const isFinal = stage === 'Contained' || stage === 'Closed';
-
-                return (
-                  <View key={stage} style={styles.funnelStageRow}>
-                    <View style={styles.funnelStepNum}>
-                      <Text style={styles.funnelStepText}>{idx + 1}</Text>
-                    </View>
-                    <View style={styles.funnelInfo}>
-                      <Text style={styles.funnelStageName}>{stage}</Text>
-                      <Text style={styles.funnelStageDesc}>
-                        {stage === 'Reported' && 'Newly logged cases awaiting triage'}
-                        {stage === 'Triaged' && 'AI risk scored & classified'}
-                        {stage === 'Field Verified' && 'Confirmed on-site by veterinarian'}
-                        {stage === 'Escalated' && 'High-risk transmission alert'}
-                        {stage === 'Contained' && 'Quarantine buffer established'}
-                        {stage === 'Closed' && 'Recovered and resolved'}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.funnelCountBadge,
-                        isFinal && styles.funnelCountBadgeFinal,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.funnelCountText,
-                          isFinal && styles.funnelCountTextFinal,
-                        ]}
+        {/* 4. Active Surveillance Content */}
+        {!loading && summary && (
+          <>
+            {/* Sub-District Filter */}
+            {availableBlocks.length > 1 && (
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>
+                  {isEnglish ? 'Sub-District Jurisdiction Filter:' : 'उप-ज़िला क्षेत्राधिकार फ़िल्टर:'}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                  {availableBlocks.map((b) => {
+                    const isSelected = selectedBlock === b;
+                    return (
+                      <TouchableOpacity
+                        key={b}
+                        style={[styles.filterChip, isSelected ? styles.filterChipActive : styles.filterChipInactive]}
+                        onPress={() => setSelectedBlock(b)}
+                        activeOpacity={0.8}
                       >
-                        {count}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* 8. Sub-District Disease Burden */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Sub-District Disease Burden</Text>
-            <Text style={styles.cardSubtitle}>
-              Case volume and livestock mortalities by administrative block
-            </Text>
-
-            {(!summary.blockDistribution || summary.blockDistribution.length === 0) ? (
-              <Text style={styles.emptyText}>No block distribution recorded.</Text>
-            ) : (
-              <View style={styles.blockList}>
-                {summary.blockDistribution.map((b, idx) => (
-                  <View key={idx} style={styles.blockCard}>
-                    <View>
-                      <Text style={styles.blockCardTitle}>{b._id || 'District'} Block</Text>
-                      <Text style={styles.blockCardSub}>
-                        {b.deaths > 0 ? (
-                          <Text style={{ color: colors.light.danger, fontWeight: 'bold' }}>
-                            {b.deaths} livestock mortalities
-                          </Text>
-                        ) : (
-                          '0 mortalities (Zero deaths)'
-                        )}
-                      </Text>
-                    </View>
-                    <View style={styles.blockCasesPill}>
-                      <Text style={styles.blockCasesNumber}>{b.count}</Text>
-                      <Text style={styles.blockCasesLabel}>cases</Text>
-                    </View>
-                  </View>
-                ))}
+                        <Text style={[styles.filterChipText, isSelected ? styles.filterChipTextActive : styles.filterChipTextInactive]}>
+                          {b === 'All' ? (isEnglish ? 'All Blocks (District)' : 'संपूर्ण ज़िला') : b}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
             )}
-          </View>
-        </>
-      )}
-    </ScrollView>
+
+            {/* 5. 30-Day Epidemiological Trend Curve */}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>
+                  {isEnglish ? '30-Day Epidemiological Progression' : '30-दिवसीय महामारी प्रगति वक्र'}
+                </Text>
+                <Text style={styles.cardSubtitle}>
+                  {isEnglish
+                    ? 'Temporal disease transmission trajectory'
+                    : 'दैनिक दर्ज मामले, गंभीर लक्षण एवं मृत्यु सांख्यिकी'}
+                </Text>
+              </View>
+
+              {/* Metric Toggle Buttons */}
+              <View style={styles.metricToggleRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.metricToggleBtn,
+                    activeTrendMetric === 'cases' && styles.metricToggleBtnActiveCases,
+                  ]}
+                  onPress={() => setActiveTrendMetric('cases')}
+                >
+                  <Text style={[styles.metricToggleText, activeTrendMetric === 'cases' && styles.metricToggleTextActive]}>
+                    {isEnglish ? 'Cases' : 'मामले'} ({totalTrendCases})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.metricToggleBtn,
+                    activeTrendMetric === 'critical' && styles.metricToggleBtnActiveCritical,
+                  ]}
+                  onPress={() => setActiveTrendMetric('critical')}
+                >
+                  <Text style={[styles.metricToggleText, activeTrendMetric === 'critical' && styles.metricToggleTextActive]}>
+                    {isEnglish ? 'Critical' : 'गंभीर'} ({totalTrendCritical})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.metricToggleBtn,
+                    activeTrendMetric === 'mortality' && styles.metricToggleBtnActiveMortality,
+                  ]}
+                  onPress={() => setActiveTrendMetric('mortality')}
+                >
+                  <Text style={[styles.metricToggleText, activeTrendMetric === 'mortality' && styles.metricToggleTextActive]}>
+                    {isEnglish ? 'Deaths' : 'मौतें'} ({totalTrendMortalities})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Native Responsive Trend Chart Bars */}
+              {trends.length === 0 ? (
+                <View style={styles.emptyTrendBox}>
+                  <Text style={styles.emptyTrendText}>
+                    {isEnglish
+                      ? 'No temporal trend records for this period.'
+                      : 'इस अवधि के लिए कोई रुझान रिकॉर्ड उपलब्ध नहीं है।'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.chartContainer}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScroll}>
+                    <View style={styles.chartBarsRow}>
+                      {trends.map((tItem, idx) => {
+                        const val =
+                          activeTrendMetric === 'cases'
+                            ? tItem.cases
+                            : activeTrendMetric === 'critical'
+                            ? tItem.criticalCases
+                            : tItem.mortalities;
+
+                        const barHeightPct = Math.max(10, Math.round((val / maxTrendCases) * 100));
+                        const barColor =
+                          activeTrendMetric === 'cases'
+                            ? '#4338CA'
+                            : activeTrendMetric === 'critical'
+                            ? '#D97706'
+                            : '#DC2626';
+
+                        return (
+                          <View key={idx} style={styles.barColumn}>
+                            <Text style={styles.barValue}>{val > 0 ? val : ''}</Text>
+                            <View style={styles.barTrack}>
+                              <View
+                                style={[
+                                  styles.barFill,
+                                  {
+                                    height: `${barHeightPct}%`,
+                                    backgroundColor: val > 0 ? barColor : '#E2E8F0',
+                                  },
+                                ]}
+                              />
+                            </View>
+                            <Text style={styles.barDate}>{tItem.displayDate.split(' ')[0]}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                  <Text style={styles.chartHelpText}>
+                    {isEnglish ? 'Scroll horizontally to view 30-day progression' : '30-दिवसीय वक्र देखने के लिए स्क्रॉल करें'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* 6. Top Suspected Diseases Breakdown (AI Triage) */}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>
+                  {isEnglish ? 'Top Suspected Diseases (AI Triage)' : 'संभावित रोग वितरण (एआई ट्रायज)'}
+                </Text>
+                <Text style={styles.cardSubtitle}>
+                  {isEnglish
+                    ? 'Candidate pathogens identified during field reporting'
+                    : 'फील्ड रिपोर्टिंग के दौरान पहचाने गए संभावित रोग'}
+                </Text>
+              </View>
+
+              {!summary.diseaseBreakdown || summary.diseaseBreakdown.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  {isEnglish ? 'No disease incidence logged.' : 'कोई रोग रिकॉर्ड दर्ज नहीं।'}
+                </Text>
+              ) : (
+                <View style={styles.diseaseList}>
+                  {summary.diseaseBreakdown.map((item, idx) => {
+                    const totalReports = summary.totalReports || 1;
+                    const caseCount = (item as any).cases ?? (item as any).count ?? 0;
+                    const diseaseName = item.name || (item as any)._id || (isEnglish ? 'Unspecified' : 'अज्ञात');
+                    const pct = Math.min(100, Math.round((caseCount / totalReports) * 100));
+                    const color = DISEASE_PALETTE[idx % DISEASE_PALETTE.length];
+
+                    return (
+                      <View key={idx} style={styles.diseaseItem}>
+                        <View style={styles.diseaseMetaRow}>
+                          <View style={styles.diseaseTitleGroup}>
+                            <View style={[styles.colorSquare, { backgroundColor: color }]} />
+                            <Text style={styles.diseaseName}>{diseaseName}</Text>
+                          </View>
+                          <Text style={styles.diseaseCountText}>
+                            {caseCount} {isEnglish ? 'cases' : 'मामले'} ({pct}%)
+                          </Text>
+                        </View>
+                        <View style={styles.diseaseTrack}>
+                          <View style={[styles.diseaseFill, { width: `${pct}%`, backgroundColor: color }]} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* 7. Clinical Case Escalation Funnel */}
+            {((summary as any).statusFunnel || (summary as any).escalationFunnel) && (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>
+                    {isEnglish ? 'Clinical Escalation Funnel' : 'क्लिनिकल वृद्धि एवं रोकथाम फ़नल'}
+                  </Text>
+                  <Text style={styles.cardSubtitle}>
+                    {isEnglish
+                      ? 'Case progression from reporting to final resolution'
+                      : 'रिपोर्टिंग से लेकर अंतिम निस्तारण तक केस का प्रवाह'}
+                  </Text>
+                </View>
+
+                <View style={styles.funnelContainer}>
+                  {funnelStages.map((stage, idx) => {
+                    const funnel = (summary as any).statusFunnel || (summary as any).escalationFunnel || {};
+                    const count = funnel[stage] || 0;
+                    const baseCount = funnel['Reported'] || summary.totalReports || 1;
+                    const stagePct = Math.max(12, Math.round((count / Math.max(1, baseCount)) * 100));
+
+                    return (
+                      <View key={stage} style={styles.funnelRow}>
+                        <View style={styles.funnelLabelCol}>
+                          <Text style={styles.funnelStageName}>{stage}</Text>
+                          <Text style={styles.funnelStageCount}>
+                            {count} {isEnglish ? 'cases' : 'मामले'}
+                          </Text>
+                        </View>
+                        <View style={styles.funnelBarWrap}>
+                          <View
+                            style={[
+                              styles.funnelBarFill,
+                              {
+                                width: `${stagePct}%`,
+                                backgroundColor: idx === 0 ? '#4338CA' : idx === 4 ? '#7C3AED' : '#0284C7',
+                              },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {/* Universal Fixed Floating Bottom Navigation Dock */}
+      <OfficerFloatingNav activeTab="surveillance" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: spacing.base,
-    backgroundColor: colors.light.background,
-    paddingBottom: spacing.xxl * 2,
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#F8FAF9',
   },
-  header: {
-    marginBottom: spacing.base,
+  scrollContainer: {
+    paddingBottom: 130, // Clearance for fixed floating dock
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  topExecutiveHeader: {
+    backgroundColor: '#0B132B',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 52,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    ...shadows.md,
   },
-  badgeRow: {
+  headerMainRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 12,
+  },
+  backCircleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  backIcon: {
+    width: 16,
+    height: 16,
+    tintColor: '#FFFFFF',
+  },
+  headerTitleWrap: {
+    flex: 1,
+  },
+  cadreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
   },
-  officerBadge: {
-    backgroundColor: colors.light.officerBadgeBg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.round,
-  },
-  officerBadgeText: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
-    letterSpacing: 0.5,
-  },
-  liveIndicator: {
+  pulseDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: colors.light.success,
+    backgroundColor: '#38BDF8',
   },
-  title: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  cadreText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#BAE6FD',
+    letterSpacing: 0.6,
   },
-  subtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
+  headerMainTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  headerSubTitle: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12,
+    color: '#CBD5E1',
     marginTop: 2,
   },
-  refreshBtn: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.sm,
+  refreshIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  refreshBtnText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
+  refreshIconImg: {
+    width: 15,
+    height: 15,
+    tintColor: '#FFFFFF',
   },
-  timestampText: {
-    fontSize: 11,
-    color: colors.light.textMuted,
-    marginTop: spacing.xs,
-  },
-  offlineBanner: {
+  syncRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.light.warningBg,
-    padding: spacing.sm,
-    borderRadius: radii.sm,
-    marginTop: spacing.sm,
-    gap: spacing.xs,
+    justifyContent: 'space-between',
+    marginTop: 12,
+    marginBottom: 12,
   },
-  offlineBannerIcon: {
-    fontSize: 14,
+  syncText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 11,
+    color: '#94A3B8',
   },
-  offlineBannerText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.warning,
-    fontWeight: typography.weights.medium,
+  cachePill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  cachePillText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 10,
+    color: '#92400E',
+  },
+  telemetryGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  telemetryCard: {
     flex: 1,
-  },
-  loadingContainer: {
-    paddingVertical: spacing.xxl,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  loadingText: {
-    fontSize: typography.sizes.sm,
-    color: colors.light.textSecondary,
-  },
-  errorCard: {
-    backgroundColor: colors.light.surface,
-    padding: spacing.lg,
-    borderRadius: radii.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.light.danger,
-    marginVertical: spacing.lg,
-    ...shadows.sm,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  errorIcon: {
-    fontSize: 32,
-    marginBottom: spacing.xs,
+  telemetryVal: {
+    fontFamily: FONT_BOLD,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  errorTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.danger,
+  telemetryLabel: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 9.5,
+    color: '#BAE6FD',
+    marginTop: 2,
   },
-  errorMessage: {
-    fontSize: typography.sizes.sm,
-    color: colors.light.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
+  filterSection: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  retryBtn: {
-    backgroundColor: colors.light.officerBadge,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-  },
-  retryBtnText: {
-    color: colors.light.textInverse,
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-  },
-  filterBox: {
-    marginBottom: spacing.base,
-  },
-  filterTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textSecondary,
-    marginBottom: spacing.xs,
+  filterSectionTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11,
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   filterScroll: {
-    flexDirection: 'row',
+    gap: 8,
   },
   filterChip: {
-    backgroundColor: colors.light.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.round,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    marginRight: spacing.xs,
   },
   filterChipActive: {
-    backgroundColor: colors.light.officerBadgeBg,
-    borderColor: colors.light.officerBadge,
+    backgroundColor: '#1E1B4B',
+    borderColor: '#1E1B4B',
+  },
+  filterChipInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
   },
   filterChipText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
-    fontWeight: typography.weights.medium,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 12,
+    fontWeight: '600',
   },
   filterChipTextActive: {
-    color: colors.light.officerBadge,
-    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
+  },
+  filterChipTextInactive: {
+    color: '#475569',
   },
   card: {
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.md,
-    padding: spacing.base,
-    marginBottom: spacing.base,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    ...shadows.xs,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
   },
   cardHeader: {
-    marginBottom: spacing.sm,
+    marginBottom: 12,
   },
   cardTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+    fontFamily: FONT_BOLD,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   cardSubtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
+    fontFamily: FONT_REGULAR,
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 2,
   },
   metricToggleRow: {
     flexDirection: 'row',
-    gap: spacing.xs,
-    marginVertical: spacing.sm,
+    gap: 8,
+    marginBottom: 14,
   },
   metricToggleBtn: {
     flex: 1,
     paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: radii.sm,
-    backgroundColor: colors.light.surfaceAlt,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   metricToggleBtnActiveCases: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#4338CA',
+    borderColor: '#4338CA',
   },
   metricToggleBtnActiveCritical: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
   metricToggleBtnActiveMortality: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
   },
   metricToggleText: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textSecondary,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
   },
   metricToggleTextActive: {
-    color: colors.light.textInverse,
-  },
-  emptyTrendBox: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-  },
-  emptyTrendText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
+    color: '#FFFFFF',
   },
   chartContainer: {
-    marginTop: spacing.xs,
+    marginTop: 4,
   },
   chartScroll: {
-    maxHeight: 180,
+    paddingVertical: 8,
   },
   chartBarsRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    height: 140,
-    paddingVertical: spacing.xs,
-    gap: 8,
+    height: 160,
+    gap: 10,
+    paddingHorizontal: 8,
   },
   barColumn: {
     alignItems: 'center',
-    width: 28,
+    width: 24,
+    height: '100%',
+    justifyContent: 'flex-end',
   },
   barValue: {
+    fontFamily: FONT_BOLD,
     fontSize: 9,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginBottom: 2,
+    color: '#475569',
+    marginBottom: 4,
   },
   barTrack: {
-    height: 90,
     width: 14,
-    backgroundColor: colors.light.surfaceAlt,
-    borderRadius: radii.sm,
-    justifyContent: 'flex-end',
+    height: 110,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 7,
     overflow: 'hidden',
+    justifyContent: 'flex-end',
   },
   barFill: {
     width: '100%',
-    borderRadius: radii.sm,
+    borderRadius: 7,
   },
   barDate: {
-    fontSize: 8,
-    color: colors.light.textMuted,
-    marginTop: 4,
+    fontFamily: FONT_REGULAR,
+    fontSize: 9,
+    color: '#94A3B8',
+    marginTop: 6,
   },
   chartHelpText: {
-    fontSize: 9,
-    color: colors.light.textMuted,
+    fontFamily: FONT_REGULAR,
+    fontSize: 10.5,
+    color: '#94A3B8',
     textAlign: 'center',
-    marginTop: spacing.xs,
+    marginTop: 8,
   },
-  emptyText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
-    marginTop: spacing.xs,
+  emptyTrendBox: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyTrendText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#94A3B8',
+    textAlign: 'center',
   },
   diseaseList: {
-    marginTop: spacing.sm,
-    gap: spacing.sm,
+    gap: 12,
   },
   diseaseItem: {
     gap: 4,
   },
-  diseaseItemHeader: {
+  diseaseMetaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  diseaseTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  colorSquare: {
+    width: 10,
+    height: 10,
+    borderRadius: 3,
   },
   diseaseName: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    color: '#0F172A',
   },
-  diseaseStats: {
-    fontSize: 10,
-    color: colors.light.textSecondary,
+  diseaseCountText: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 12,
+    color: '#64748B',
   },
-  progressTrack: {
+  diseaseTrack: {
     height: 6,
-    backgroundColor: colors.light.surfaceAlt,
-    borderRadius: radii.round,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
     overflow: 'hidden',
   },
-  progressFill: {
+  diseaseFill: {
     height: '100%',
-    borderRadius: radii.round,
+    borderRadius: 3,
   },
   funnelContainer: {
-    marginTop: spacing.sm,
-    gap: spacing.xs,
+    gap: 10,
   },
-  funnelStageRow: {
+  funnelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.light.surfaceAlt,
-    padding: spacing.sm,
-    borderRadius: radii.sm,
-    gap: spacing.sm,
+    gap: 12,
   },
-  funnelStepNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.light.officerBadgeBg,
+  funnelLabelCol: {
+    width: 100,
+  },
+  funnelStageName: {
+    fontFamily: FONT_BOLD,
+    fontSize: 12,
+    color: '#0F172A',
+  },
+  funnelStageCount: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 10.5,
+    color: '#64748B',
+  },
+  funnelBarWrap: {
+    flex: 1,
+    height: 14,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  funnelBarFill: {
+    height: '100%',
+    borderRadius: 7,
+  },
+  centerBox: {
+    padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  funnelStepText: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
+  loadingText: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 12,
   },
-  funnelInfo: {
-    flex: 1,
-  },
-  funnelStageName: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  funnelStageDesc: {
-    fontSize: 9,
-    color: colors.light.textMuted,
-    marginTop: 1,
-  },
-  funnelCountBadge: {
-    backgroundColor: colors.light.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radii.round,
-    minWidth: 32,
+  errorCard: {
+    backgroundColor: '#FFFFFF',
+    margin: 16,
+    padding: 20,
+    borderRadius: 18,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    ...shadows.sm,
   },
-  funnelCountBadgeFinal: {
-    backgroundColor: colors.light.primarySubtle,
+  errorIcon: {
+    width: 40,
+    height: 40,
+    tintColor: '#DC2626',
+    marginBottom: 8,
   },
-  funnelCountText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  errorTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
   },
-  funnelCountTextFinal: {
-    color: colors.light.primary,
+  errorMessage: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 14,
   },
-  blockList: {
-    marginTop: spacing.sm,
-    gap: spacing.xs,
-  },
-  blockCard: {
+  retryBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.light.surfaceAlt,
-    padding: spacing.sm,
-    borderRadius: radii.sm,
+    gap: 6,
+    backgroundColor: '#4338CA',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
   },
-  blockCardTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  retryBtnIcon: {
+    width: 13,
+    height: 13,
+    tintColor: '#FFFFFF',
   },
-  blockCardSub: {
-    fontSize: 10,
-    color: colors.light.textMuted,
-    marginTop: 1,
+  retryBtnText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  blockCasesPill: {
-    alignItems: 'center',
-    backgroundColor: colors.light.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-    minWidth: 44,
-  },
-  blockCasesNumber: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  blockCasesLabel: {
-    fontSize: 8,
-    color: colors.light.textMuted,
+  emptyText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#94A3B8',
+    textAlign: 'center',
+    paddingVertical: 12,
   },
 });

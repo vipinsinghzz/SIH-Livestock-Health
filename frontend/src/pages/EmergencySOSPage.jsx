@@ -27,7 +27,7 @@ export default function EmergencySOSPage() {
   // Form Fields
   const [animalName, setAnimalName] = useState('');
   const [species, setSpecies] = useState('Cattle');
-  const [location, setLocation] = useState('Malegaon, Baramati, Pune (GPS Detected)');
+  const [location, setLocation] = useState('Saoner, Nagpur, Maharashtra (GPS Detected)');
   const [urgency, setUrgency] = useState('Critical');
   const [symptoms, setSymptoms] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);

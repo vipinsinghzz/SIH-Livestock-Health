@@ -1,16 +1,18 @@
 /**
- * Livestock Saathi - Officer: Containment Perimeters & Quarantine Governance
+ * Livestock Saathi - Ultra-Premium Officer Containment Perimeters & Quarantine Governance
  * File: mobile/app/(officer)/containment/index.tsx
  *
- * Phase 10.3 Implementation:
- * Production Containment Perimeter Governance & Ring Vaccination Coordination.
- * Integrates:
- * - GET /api/cases/containment-zones (District quarantine perimeters)
- * - POST /api/cases/containment-zones (Declare quarantine buffer around confirmed outbreak)
- * - PATCH /api/cases/containment-zones/:zoneId/status (Advance ACTIVE -> CONTAINED -> LIFTED)
- * - POST /api/cases/:id/schedule-ring-vaccination (Emergency Ring Vaccination scheduling)
- * - Offline SQLite caching with last-updated timestamp
- * - Strictly ONLINE ONLY mutations with confirmation modals
+ * Production Containment Perimeter Governance & Ring Vaccination Coordination:
+ * - Luxury executive command navy header (#0B132B / #1E1B4B) with safe-area spacing
+ * - Cadre badge: "BIOSECURITY & CONTAINMENT GOVERNANCE"
+ * - "+ Declare Zone" luxury action button
+ * - 3-Metric Telemetry Summary (Active, Contained, Lifted)
+ * - Status filter tabs with color-coded dot indicators
+ * - Containment zone cards with radius, coordinates, village/block, and action suite
+ *   (Update Status, Schedule Ring Vaccination, View on GIS Radar)
+ * - Complete production modals (Declare Zone, Advance Status, Schedule Ring Drive)
+ * - Fixed universal floating bottom dock (<OfficerFloatingNav activeTab="containment" />)
+ * - Zero raw text emojis; platform-safe typography stack
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -26,11 +28,14 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
+  Platform,
+  Dimensions,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '../../../src/context/AuthContext';
-import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { containmentService } from '../../../src/services/containmentService';
 import {
   ContainmentZone,
@@ -38,6 +43,25 @@ import {
   getContainmentStatusTheme,
 } from '../../../src/types/containment';
 import { OfflineNotice } from '../../../src/components/OfflineNotice';
+import { shadows } from '../../../src/theme';
+import { OfficerFloatingNav } from '../../../src/components/OfficerFloatingNav';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Native typography stack
+const FONT_REGULAR = Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
+const FONT_MEDIUM = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
+const FONT_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
+
+// Static assets
+const ICON_BACK = require('../../../assets/icons/arrow-back.png');
+const ICON_SHIELD = require('../../../assets/icons/shield.png');
+const ICON_PLUS = require('../../../assets/icons/plus.png');
+const ICON_REFRESH = require('../../../assets/icons/refresh.png');
+const ICON_LOCATION = require('../../../assets/icons/location.png');
+const ICON_PIN = require('../../../assets/icons/icon_pin.png');
+const ICON_WARN = require('../../../assets/icons/alert.png');
+const ICON_VACCINE = require('../../../assets/icons/stat_vaccine.png');
 
 type FilterTab = 'ALL' | 'ACTIVE' | 'CONTAINED' | 'LIFTED';
 
@@ -53,6 +77,7 @@ export default function OfficerContainmentScreen() {
     mode?: string;
   }>();
   const { user } = useAuth();
+  const { isEnglish } = useAppLanguage();
   const district = user?.district;
 
   // State
@@ -110,7 +135,7 @@ export default function OfficerContainmentScreen() {
 
   const loadZones = useCallback(async () => {
     if (!district) {
-      setError('Officer district jurisdiction is not configured on this account. Contact system administrator.');
+      setError(isEnglish ? 'District jurisdiction is not configured on this account.' : 'ज़िला कार्यक्षेत्र कॉन्फ़िगर नहीं है।');
       setLoading(false);
       setRefreshing(false);
       return;
@@ -128,7 +153,7 @@ export default function OfficerContainmentScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [district]);
+  }, [district, isEnglish]);
 
   useEffect(() => {
     loadZones();
@@ -139,13 +164,11 @@ export default function OfficerContainmentScreen() {
     loadZones();
   }, [loadZones]);
 
-  // Filtered zones
   const filteredZones = useMemo(() => {
     if (activeFilter === 'ALL') return zones;
     return zones.filter((z) => String(z.status || '').toUpperCase() === activeFilter);
   }, [zones, activeFilter]);
 
-  // Active counts
   const activeCount = useMemo(
     () => zones.filter((z) => String(z.status || '').toUpperCase() === 'ACTIVE').length,
     [zones]
@@ -159,18 +182,17 @@ export default function OfficerContainmentScreen() {
     [zones]
   );
 
-  // Handle status update submission
   const handleStatusSubmit = async () => {
     if (!selectedZone) return;
 
     if (!district) {
-      Alert.alert('District Unavailable', 'Cannot update containment status without an assigned officer district.');
+      Alert.alert(isEnglish ? 'District Unavailable' : 'ज़िला अनुपलब्ध', isEnglish ? 'Cannot update containment status without an assigned officer district.' : 'ज़िला आवंटन के बिना स्थिति अपडेट नहीं हो सकती।');
       return;
     }
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected || netState.isInternetReachable === false) {
-      Alert.alert('Offline', 'Internet connection required for this action.');
+      Alert.alert(isEnglish ? 'Offline' : 'ऑफ़लाइन', isEnglish ? 'Internet connection required for this action.' : 'इस क्रिया के लिए इंटरनेट आवश्यक है।');
       return;
     }
 
@@ -184,42 +206,41 @@ export default function OfficerContainmentScreen() {
       setStatusModalVisible(false);
       setStatusNotes('');
       setSelectedZone(null);
-      Alert.alert('Status Updated', `Containment zone status updated to ${targetStatus}.`);
+      Alert.alert(isEnglish ? 'Status Updated' : 'स्थिति अपडेट हुई', `Containment zone status updated to ${targetStatus}.`);
       loadZones();
     } catch (err: any) {
-      Alert.alert('Update Failed', err.message || 'Failed to update containment zone status.');
+      Alert.alert(isEnglish ? 'Update Failed' : 'अपडेट विफल', err.message || 'Failed to update containment zone status.');
     } finally {
       setSubmittingStatus(false);
     }
   };
 
-  // Handle declare zone submission
   const handleDeclareSubmit = async () => {
     if (!district) {
-      Alert.alert('District Unavailable', 'Cannot establish containment zone without an assigned officer district.');
+      Alert.alert(isEnglish ? 'District Unavailable' : 'ज़िला अनुपलब्ध', isEnglish ? 'Cannot establish containment zone without an assigned officer district.' : 'ज़िला आवंटन आवश्यक है।');
       return;
     }
 
     if (!newDisease.trim()) {
-      Alert.alert('Required Field', 'Please enter a disease name.');
+      Alert.alert(isEnglish ? 'Required Field' : 'आवश्यक फ़ील्ड', isEnglish ? 'Please enter a disease name.' : 'कृपया रोग का नाम दर्ज करें।');
       return;
     }
     const lat = parseFloat(newLat);
     const lng = parseFloat(newLng);
     if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-      Alert.alert('Invalid Coordinates', 'Please enter valid GPS coordinates (latitude & longitude).');
+      Alert.alert(isEnglish ? 'Invalid Coordinates' : 'अमान्य निर्देशांक', isEnglish ? 'Please enter valid GPS coordinates (latitude & longitude).' : 'मान्य जीपीएस निर्देशांक दर्ज करें।');
       return;
     }
 
     const radius = parseFloat(newRadius);
     if (isNaN(radius) || radius <= 0) {
-      Alert.alert('Invalid Radius', 'Please enter a valid positive containment radius in kilometers.');
+      Alert.alert(isEnglish ? 'Invalid Radius' : 'अमान्य त्रिज्या', isEnglish ? 'Please enter a valid positive containment radius in kilometers.' : 'मान्य त्रिज्या दर्ज करें।');
       return;
     }
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected || netState.isInternetReachable === false) {
-      Alert.alert('Offline', 'Internet connection required for this action.');
+      Alert.alert(isEnglish ? 'Offline' : 'ऑफ़लाइन', isEnglish ? 'Internet connection required for this action.' : 'इस क्रिया के लिए इंटरनेट आवश्यक है।');
       return;
     }
 
@@ -242,30 +263,29 @@ export default function OfficerContainmentScreen() {
       setNewLat('');
       setNewLng('');
       setNewNotes('');
-      Alert.alert('Zone Declared', res.message || 'Containment zone established successfully.');
+      Alert.alert(isEnglish ? 'Zone Declared' : 'ज़ोन घोषित किया गया', res.message || 'Containment zone established successfully.');
       loadZones();
     } catch (err: any) {
-      Alert.alert('Declaration Failed', err.message || 'Failed to create containment zone.');
+      Alert.alert(isEnglish ? 'Declaration Failed' : 'घोषणा विफल', err.message || 'Failed to create containment zone.');
     } finally {
       setSubmittingDeclare(false);
     }
   };
 
-  // Handle schedule ring vaccination submission
   const handleRingSubmit = async () => {
     if (!district) {
-      Alert.alert('District Unavailable', 'Cannot schedule ring vaccination without an assigned officer district.');
+      Alert.alert(isEnglish ? 'District Unavailable' : 'ज़िला अनुपलब्ध', isEnglish ? 'Cannot schedule ring vaccination without an assigned officer district.' : 'ज़िला आवंटन आवश्यक है।');
       return;
     }
 
     if (!ringCaseId.trim()) {
-      Alert.alert('Case ID Required', 'Please provide a valid case or outbreak ID to schedule ring vaccination.');
+      Alert.alert(isEnglish ? 'Case ID Required' : 'केस आईडी आवश्यक', isEnglish ? 'Please provide a valid case or outbreak ID to schedule ring vaccination.' : 'वैध केस आईडी दर्ज करें।');
       return;
     }
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected || netState.isInternetReachable === false) {
-      Alert.alert('Offline', 'Internet connection required for this action.');
+      Alert.alert(isEnglish ? 'Offline' : 'ऑफ़लाइन', isEnglish ? 'Internet connection required for this action.' : 'इस क्रिया के लिए इंटरनेट आवश्यक है।');
       return;
     }
 
@@ -284,103 +304,150 @@ export default function OfficerContainmentScreen() {
       setRingDate('');
       setRingCapacity('500');
       setRingNotes('');
-      Alert.alert('Drive Scheduled', res.message || 'Emergency ring vaccination drive scheduled.');
+      Alert.alert(isEnglish ? 'Drive Scheduled' : 'अभियान निर्धारित', res.message || 'Emergency ring vaccination drive scheduled.');
     } catch (err: any) {
-      Alert.alert('Scheduling Failed', err.message || 'Failed to schedule ring vaccination.');
+      Alert.alert(isEnglish ? 'Scheduling Failed' : 'शेड्यूलिंग विफल', err.message || 'Failed to schedule ring vaccination.');
     } finally {
       setSubmittingRing(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.light.officerBadge} />
+    <View style={styles.screenWrapper}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" backgroundColor="#0B132B" />
       <OfflineNotice />
 
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-          <View>
-            <Text style={styles.headerTitle}>Containment Perimeters</Text>
-            <Text style={styles.headerSubtitle}>
-              {district
-                ? `${district} District • ${activeCount} Active Perimeter${activeCount !== 1 ? 's' : ''}`
-                : 'District Jurisdiction Unavailable'}
+      {/* Top Executive Command Header */}
+      <View style={styles.topExecutiveHeader}>
+        <View style={styles.headerMainRow}>
+          <TouchableOpacity
+            style={styles.backCircleBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <Image source={ICON_BACK} style={styles.backIcon} />
+          </TouchableOpacity>
+
+          <View style={styles.headerTitleWrap}>
+            <View style={styles.cadreRow}>
+              <View style={styles.pulseDot} />
+              <Text style={styles.cadreText}>
+                {isEnglish ? 'BIOSECURITY & CONTAINMENT GOVERNANCE' : 'बायोसिक्योरिटी एवं क्वारंटाइन प्रशासन'}
+              </Text>
+            </View>
+            <Text style={styles.headerMainTitle}>
+              {isEnglish ? 'Containment Perimeters' : 'कंटेनमेंट परिधियां'}
+            </Text>
+            <Text style={styles.headerSubTitle}>
+              {district ? `${district} ${isEnglish ? 'District' : 'ज़िला'} • ${activeCount} ${isEnglish ? 'Active Quarantine Perimeters' : 'सक्रिय क्वारंटाइन परिधियां'}` : (isEnglish ? 'District Jurisdiction' : 'ज़िला कार्यक्षेत्र')}
             </Text>
           </View>
+
           <TouchableOpacity
             style={styles.declareBtn}
             onPress={() => setDeclareModalVisible(true)}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            <Text style={styles.declareBtnText}>+ Declare Zone</Text>
+            <Image source={ICON_PLUS} style={styles.declareBtnIcon} />
+            <Text style={styles.declareBtnText}>{isEnglish ? 'Declare' : 'घोषित'}</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* 3-Metric Summary Strip */}
+        <View style={styles.telemetryGrid}>
+          <View style={[styles.telemetryCard, styles.telemetryCardActive]}>
+            <Text style={[styles.telemetryVal, { color: '#DC2626' }]}>{activeCount}</Text>
+            <Text style={styles.telemetryLabel}>{isEnglish ? 'Active' : 'सक्रिय'}</Text>
+          </View>
+          <View style={styles.telemetryCard}>
+            <Text style={[styles.telemetryVal, { color: '#D97706' }]}>{containedCount}</Text>
+            <Text style={styles.telemetryLabel}>{isEnglish ? 'Contained' : 'नियंत्रित'}</Text>
+          </View>
+          <View style={styles.telemetryCard}>
+            <Text style={[styles.telemetryVal, { color: '#10B981' }]}>{liftedCount}</Text>
+            <Text style={styles.telemetryLabel}>{isEnglish ? 'Lifted' : 'समाप्त'}</Text>
+          </View>
         </View>
 
         {isFromCache && (
           <View style={styles.cacheBanner}>
+            <Image source={ICON_WARN} style={styles.cacheBannerIcon} />
             <Text style={styles.cacheBannerText}>
-              ⚡ Offline Mode: Displaying saved containment zones from device cache.
+              {isEnglish
+                ? 'Offline Mode: Displaying saved containment zones from device cache.'
+                : 'ऑफ़लाइन मोड: डिवाइस पर सहेजे गए कंटेनमेंट ज़ोन दिखाए जा रहे हैं।'}
             </Text>
           </View>
         )}
       </View>
 
-      {/* Filter Tabs */}
+      {/* Filter Tabs Bar */}
       <View style={styles.filterBar}>
-        <TouchableOpacity
-          style={[styles.tabChip, activeFilter === 'ALL' && styles.tabChipActive]}
-          onPress={() => setActiveFilter('ALL')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabChipText, activeFilter === 'ALL' && styles.tabChipTextActive]}>
-            All ({zones.length})
-          </Text>
-        </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBarScroll}>
+          <TouchableOpacity
+            style={[styles.tabChip, activeFilter === 'ALL' && styles.tabChipActive]}
+            onPress={() => setActiveFilter('ALL')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabChipText, activeFilter === 'ALL' && styles.tabChipTextActive]}>
+              {isEnglish ? 'All Zones' : 'सभी ज़ोन'} ({zones.length})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabChip, activeFilter === 'ACTIVE' && styles.tabChipActiveActive]}
-          onPress={() => setActiveFilter('ACTIVE')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabChipText, activeFilter === 'ACTIVE' && styles.tabChipTextActive]}>
-            🔴 Active ({activeCount})
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabChip, activeFilter === 'ACTIVE' && styles.tabChipActiveRed]}
+            onPress={() => setActiveFilter('ACTIVE')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.dotIndicator, { backgroundColor: '#DC2626' }]} />
+            <Text style={[styles.tabChipText, activeFilter === 'ACTIVE' && styles.tabChipTextActive]}>
+              {isEnglish ? 'Active' : 'सक्रिय'} ({activeCount})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabChip, activeFilter === 'CONTAINED' && styles.tabChipActiveContained]}
-          onPress={() => setActiveFilter('CONTAINED')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabChipText, activeFilter === 'CONTAINED' && styles.tabChipTextActive]}>
-            🟠 Contained ({containedCount})
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabChip, activeFilter === 'CONTAINED' && styles.tabChipActiveAmber]}
+            onPress={() => setActiveFilter('CONTAINED')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.dotIndicator, { backgroundColor: '#D97706' }]} />
+            <Text style={[styles.tabChipText, activeFilter === 'CONTAINED' && styles.tabChipTextActive]}>
+              {isEnglish ? 'Contained' : 'नियंत्रित'} ({containedCount})
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabChip, activeFilter === 'LIFTED' && styles.tabChipActiveLifted]}
-          onPress={() => setActiveFilter('LIFTED')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabChipText, activeFilter === 'LIFTED' && styles.tabChipTextActive]}>
-            🟢 Lifted ({liftedCount})
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabChip, activeFilter === 'LIFTED' && styles.tabChipActiveGreen]}
+            onPress={() => setActiveFilter('LIFTED')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.dotIndicator, { backgroundColor: '#10B981' }]} />
+            <Text style={[styles.tabChipText, activeFilter === 'LIFTED' && styles.tabChipTextActive]}>
+              {isEnglish ? 'Lifted' : 'समाप्त'} ({liftedCount})
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
+      {/* Main List Area */}
       {loading ? (
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.light.officerBadge} />
-          <Text style={styles.loadingText}>Loading district containment perimeters...</Text>
+          <ActivityIndicator size="large" color="#4338CA" />
+          <Text style={styles.loadingText}>
+            {isEnglish ? 'Loading district containment zones...' : 'कंटेनमेंट ज़ोन लोड हो रहे हैं...'}
+          </Text>
         </View>
       ) : error && zones.length === 0 ? (
         <View style={styles.centerBox}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Containment Data Unavailable</Text>
+          <Image source={ICON_WARN} style={styles.errorIcon} />
+          <Text style={styles.errorTitle}>
+            {isEnglish ? 'Surveillance Records Unavailable' : 'डेटा लोड विफल'}
+          </Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={loadZones} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={loadZones} activeOpacity={0.85}>
+            <Image source={ICON_REFRESH} style={styles.retryBtnIcon} />
+            <Text style={styles.retryBtnText}>{isEnglish ? 'Retry Loading' : 'पुनः प्रयास करें'}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -391,141 +458,120 @@ export default function OfficerContainmentScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[colors.light.officerBadge]}
-              tintColor={colors.light.officerBadge}
+              colors={['#4338CA']}
+              tintColor="#4338CA"
             />
           }
         >
           {filteredZones.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyIcon}>🛡️</Text>
-              <Text style={styles.emptyTitle}>No Containment Zones Found</Text>
-              <Text style={styles.emptySub}>
-                {zones.length === 0
-                  ? `No quarantine perimeters currently active in ${district} district.`
-                  : 'No containment zones match the selected filter.'}
+              <Image source={ICON_SHIELD} style={styles.emptyCardIcon} />
+              <Text style={styles.emptyTitle}>
+                {isEnglish ? 'No Containment Zones' : 'कोई कंटेनमेंट ज़ोन नहीं'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {isEnglish
+                  ? `No containment zones currently match the "${activeFilter}" filter in ${district}.`
+                  : `इस फ़िल्टर के अंतर्गत कोई ज़ोन नहीं मिला।`}
               </Text>
             </View>
           ) : (
-            filteredZones.map((zone) => {
+            filteredZones.map((zone: ContainmentZone, idx: number) => {
               const theme = getContainmentStatusTheme(zone.status);
-              const isActive = zone.status === 'ACTIVE';
-              const isContained = zone.status === 'CONTAINED';
-              const centerLat = zone.center?.lat ?? zone.centerLat;
-              const centerLng = zone.center?.lng ?? zone.centerLng;
+              const lat = zone.center?.lat ?? zone.centerLat;
+              const lng = zone.center?.lng ?? zone.centerLng;
 
               return (
-                <View key={zone.id || zone.zoneId} style={styles.zoneCard}>
+                <View key={zone.id || zone.zoneId || `zone_${idx}`} style={styles.zoneCard}>
                   {/* Card Header */}
-                  <View style={styles.cardHeader}>
-                    <View style={styles.cardTitleGroup}>
-                      <Text style={styles.zoneDisease}>{zone.disease}</Text>
-                      <Text style={styles.zoneIdText}>{zone.zoneId}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: theme.bgColor, borderColor: theme.borderColor }]}>
-                      <Text style={[styles.statusBadgeText, { color: theme.color }]}>
-                        {zone.status}
+                  <View style={styles.zoneCardHeader}>
+                    <View style={styles.zoneTitleCol}>
+                      <View style={[styles.statusBadge, { backgroundColor: theme.bgColor, borderColor: theme.borderColor }]}>
+                        <Text style={[styles.statusBadgeText, { color: theme.color }]}>
+                          {theme.label.toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={styles.zoneDiseaseTitle}>{zone.disease} Quarantine</Text>
+                      <Text style={styles.zoneIdSubtitle}>
+                        Zone ID: <Text style={styles.boldText}>{zone.zoneId || zone.id}</Text>
                       </Text>
+                    </View>
+
+                    <View style={styles.radiusPill}>
+                      <Text style={styles.radiusVal}>{zone.radiusKm} km</Text>
+                      <Text style={styles.radiusLabel}>{isEnglish ? 'Radius' : 'त्रिज्या'}</Text>
                     </View>
                   </View>
 
-                  {/* Metadata Grid */}
-                  <View style={styles.metaGrid}>
-                    <View style={styles.metaItem}>
-                      <Text style={styles.metaLabel}>Quarantine Radius</Text>
-                      <Text style={styles.metaValue}>{zone.radiusKm} km</Text>
-                    </View>
-                    <View style={styles.metaDivider} />
-                    <View style={styles.metaItem}>
-                      <Text style={styles.metaLabel}>Location</Text>
-                      <Text style={styles.metaValue}>
-                        {zone.block || 'District'}{zone.village ? `, ${zone.village}` : ''}
+                  {/* Location Meta */}
+                  <View style={styles.zoneMetaBox}>
+                    <View style={styles.metaRowItem}>
+                      <Image source={ICON_PIN} style={styles.metaPinIcon} />
+                      <Text style={styles.metaLocationText}>
+                        {zone.village ? `${zone.village}, ` : ''}{zone.block ? `${zone.block}, ` : ''}{zone.district}
                       </Text>
                     </View>
-                    <View style={styles.metaDivider} />
-                    <View style={styles.metaItem}>
-                      <Text style={styles.metaLabel}>GPS Center</Text>
-                      <Text style={styles.metaValue}>
-                        {centerLat && centerLng ? `${centerLat.toFixed(2)}, ${centerLng.toFixed(2)}` : 'Recorded'}
+                    {typeof lat === 'number' && typeof lng === 'number' && (
+                      <Text style={styles.metaCoordText}>
+                        GPS: {lat.toFixed(4)}, {lng.toFixed(4)}
                       </Text>
-                    </View>
+                    )}
                   </View>
 
-                  {/* Enforced Rules Preview */}
-                  {Array.isArray(zone.enforcedRules) && zone.enforcedRules.length > 0 && (
-                    <View style={styles.rulesBox}>
-                      <Text style={styles.rulesTitle}>Biosecurity Quarantine Rules:</Text>
-                      {zone.enforcedRules.slice(0, 2).map((rule, idx) => (
-                        <Text key={idx} style={styles.ruleItem}>• {rule}</Text>
-                      ))}
-                      {zone.enforcedRules.length > 2 && (
-                        <Text style={styles.ruleMore}>+{zone.enforcedRules.length - 2} more active rules</Text>
-                      )}
-                    </View>
-                  )}
+                  {/* Notes */}
+                  {zone.notes ? (
+                    <Text style={styles.zoneNotes} numberOfLines={2}>
+                      Note: {zone.notes}
+                    </Text>
+                  ) : null}
 
-                  {/* Card Actions */}
-                  <View style={styles.cardActionsRow}>
-                    {/* Status Mutation Button */}
-                    {isActive && (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnOrange]}
-                        onPress={() => {
-                          setSelectedZone(zone);
-                          setTargetStatus('CONTAINED');
-                          setStatusModalVisible(true);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.actionBtnText}>Mark Contained</Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {isContained && (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnGreen]}
-                        onPress={() => {
-                          setSelectedZone(zone);
-                          setTargetStatus('LIFTED');
-                          setStatusModalVisible(true);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.actionBtnText}>Lift Quarantine</Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {/* Ring Vaccination Button */}
+                  {/* Action Suite */}
+                  <View style={styles.zoneActionsRow}>
                     <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnBlue]}
+                      style={styles.actionBtnUpdate}
                       onPress={() => {
-                        setRingCaseId(zone.caseId || zone.zoneId);
-                        setRingVenue(`Veterinary Camp, ${zone.village || zone.block || district}`);
-                        setRingModalVisible(true);
+                        setSelectedZone(zone);
+                        setTargetStatus(zone.status === 'ACTIVE' ? 'CONTAINED' : 'LIFTED');
+                        setStatusModalVisible(true);
                       }}
-                      activeOpacity={0.8}
+                      activeOpacity={0.85}
                     >
-                      <Text style={styles.actionBtnText}>💉 Ring Vaccine</Text>
+                      <Text style={styles.actionBtnUpdateText}>
+                        {isEnglish ? 'Update Status' : 'स्थिति बदलें'}
+                      </Text>
                     </TouchableOpacity>
 
-                    {/* View on Map Button */}
-                    {centerLat && centerLng && (
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.actionBtnOutline]}
-                        onPress={() => {
+                    <TouchableOpacity
+                      style={styles.actionBtnRing}
+                      onPress={() => {
+                        setRingCaseId(zone.zoneId || zone.id || '');
+                        setRingVenue(zone.village ? `Veterinary Center, ${zone.village}` : '');
+                        setRingModalVisible(true);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Image source={ICON_VACCINE} style={styles.actionBtnRingIcon} />
+                      <Text style={styles.actionBtnRingText}>
+                        {isEnglish ? 'Ring Drive' : 'रिंग टीका'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionBtnMap}
+                      onPress={() => {
+                        if (typeof lat === 'number' && typeof lng === 'number') {
                           router.push({
                             pathname: '/(officer)/map',
-                            params: {
-                              focusLat: String(centerLat),
-                              focusLng: String(centerLng),
-                            },
+                            params: { focusLat: String(lat), focusLng: String(lng), zoneId: zone.zoneId || zone.id },
                           } as any);
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.actionBtnOutlineText}>🗺️ Map</Text>
-                      </TouchableOpacity>
-                    )}
+                        } else {
+                          router.push('/(officer)/map' as any);
+                        }
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Image source={ICON_LOCATION} style={styles.actionBtnMapIcon} />
+                    </TouchableOpacity>
                   </View>
                 </View>
               );
@@ -534,58 +580,57 @@ export default function OfficerContainmentScreen() {
         </ScrollView>
       )}
 
-      {/* 1. Status Mutation Confirmation Modal */}
-      <Modal visible={statusModalVisible} transparent animationType="fade">
+      {/* 1. Status Update Modal */}
+      <Modal visible={statusModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Confirm Containment Status Update</Text>
-            <Text style={styles.modalDesc}>
-              Advance quarantine status for {selectedZone?.zoneId}:
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>
+              {isEnglish ? 'Update Containment Status' : 'कंटेनमेंट स्थिति अद्यतन करें'}
             </Text>
-            <View style={styles.transitionBox}>
-              <Text style={styles.transitionFrom}>{selectedZone?.status}</Text>
-              <Text style={styles.transitionArrow}>➔</Text>
-              <Text
-                style={[
-                  styles.transitionTo,
-                  targetStatus === 'CONTAINED' ? { color: colors.light.warning } : { color: colors.light.success },
-                ]}
-              >
-                {targetStatus}
-              </Text>
+            <Text style={styles.modalSub}>
+              Zone: {selectedZone?.zoneId} • {selectedZone?.disease}
+            </Text>
+
+            <View style={styles.statusOptionsRow}>
+              {(['ACTIVE', 'CONTAINED', 'LIFTED'] as ContainmentZoneStatus[]).map((st) => (
+                <TouchableOpacity
+                  key={st}
+                  style={[styles.statusOptBtn, targetStatus === st && styles.statusOptBtnActive]}
+                  onPress={() => setTargetStatus(st)}
+                >
+                  <Text style={[styles.statusOptText, targetStatus === st && styles.statusOptTextActive]}>
+                    {st}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
-            <Text style={styles.inputLabel}>Official Notes / Biosecurity Clearance (Optional):</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="e.g. Ring vaccination 100% complete, zero new cases reported in 14 days."
+              placeholder={isEnglish ? 'Clinical rationale or observation notes...' : 'क्लिनिकल टिप्पणी दर्ज करें...'}
               value={statusNotes}
               onChangeText={setStatusNotes}
               multiline
               numberOfLines={3}
             />
 
-            <View style={styles.modalBtnRow}>
+            <View style={styles.modalActionsRow}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
-                onPress={() => {
-                  setStatusModalVisible(false);
-                  setSelectedZone(null);
-                }}
+                onPress={() => setStatusModalVisible(false)}
                 disabled={submittingStatus}
               >
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{isEnglish ? 'Cancel' : 'रद्द करें'}</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
-                style={styles.modalConfirmBtn}
+                style={styles.modalSubmitBtn}
                 onPress={handleStatusSubmit}
                 disabled={submittingStatus}
               >
                 {submittingStatus ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalConfirmBtnText}>Confirm Status</Text>
+                  <Text style={styles.modalSubmitText}>{isEnglish ? 'Save Status' : 'सहेजें'}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -594,104 +639,91 @@ export default function OfficerContainmentScreen() {
       </Modal>
 
       {/* 2. Declare Containment Zone Modal */}
-      <Modal visible={declareModalVisible} transparent animationType="slide">
+      <Modal visible={declareModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScrollContainer}>
-            <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Declare Containment Zone</Text>
-              <Text style={styles.modalDesc}>
-                Establish an official biosecurity quarantine perimeter in {district}.
+          <ScrollView contentContainerStyle={styles.modalScrollWrap}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>
+                {isEnglish ? 'Declare Containment Perimeter' : 'कंटेनमेंट ज़ोन घोषित करें'}
+              </Text>
+              <Text style={styles.modalSub}>
+                {isEnglish
+                  ? `Establish quarantine buffer under ${district} jurisdiction`
+                  : `${district} ज़िले के अंतर्गत क्वारंटाइन परिधि स्थापित करें`}
               </Text>
 
-              <Text style={styles.inputLabel}>Disease Name *</Text>
               <TextInput
-                style={styles.singleLineInput}
-                placeholder="e.g. Lumpy Skin Disease"
+                style={styles.modalField}
+                placeholder={isEnglish ? 'Disease Name (e.g. Lumpy Skin Disease)' : 'रोग का नाम'}
                 value={newDisease}
                 onChangeText={setNewDisease}
               />
 
-              <View style={styles.rowInputs}>
-                <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Block / Sub-District</Text>
-                  <TextInput
-                    style={styles.singleLineInput}
-                    placeholder="e.g. Baramati"
-                    value={newBlock}
-                    onChangeText={setNewBlock}
-                  />
-                </View>
-                <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Village</Text>
-                  <TextInput
-                    style={styles.singleLineInput}
-                    placeholder="e.g. Morgaon"
-                    value={newVillage}
-                    onChangeText={setNewVillage}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.rowInputs}>
-                <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Center Latitude *</Text>
-                  <TextInput
-                    style={styles.singleLineInput}
-                    placeholder="e.g. 18.2812"
-                    keyboardType="numeric"
-                    value={newLat}
-                    onChangeText={setNewLat}
-                  />
-                </View>
-                <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Center Longitude *</Text>
-                  <TextInput
-                    style={styles.singleLineInput}
-                    placeholder="e.g. 74.3125"
-                    keyboardType="numeric"
-                    value={newLng}
-                    onChangeText={setNewLng}
-                  />
-                </View>
-              </View>
-
-              <Text style={styles.inputLabel}>Quarantine Buffer Radius (km)</Text>
               <TextInput
-                style={styles.singleLineInput}
-                placeholder="5.0"
-                keyboardType="numeric"
-                value={newRadius}
-                onChangeText={setNewRadius}
+                style={styles.modalField}
+                placeholder={isEnglish ? 'Block / Sub-District' : 'ब्लॉक / तहसील'}
+                value={newBlock}
+                onChangeText={setNewBlock}
               />
 
-              <Text style={styles.inputLabel}>Notes & Enforced Guidelines</Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="Quarantine instructions, movement restrictions, ring drive details..."
+                style={styles.modalField}
+                placeholder={isEnglish ? 'Village Name' : 'गांव का नाम'}
+                value={newVillage}
+                onChangeText={setNewVillage}
+              />
+
+              <View style={styles.coordInputsRow}>
+                <TextInput
+                  style={[styles.modalField, styles.coordHalfField]}
+                  placeholder="Latitude (e.g. 18.52)"
+                  value={newLat}
+                  onChangeText={setNewLat}
+                  keyboardType="numeric"
+                />
+                <TextInput
+                  style={[styles.modalField, styles.coordHalfField]}
+                  placeholder="Longitude (e.g. 73.85)"
+                  value={newLng}
+                  onChangeText={setNewLng}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <TextInput
+                style={styles.modalField}
+                placeholder={isEnglish ? 'Buffer Radius in km (e.g. 5.0)' : 'त्रिज्या (किमी में)'}
+                value={newRadius}
+                onChangeText={setNewRadius}
+                keyboardType="numeric"
+              />
+
+              <TextInput
+                style={[styles.modalField, styles.modalFieldMulti]}
+                placeholder={isEnglish ? 'Official biosecurity notes or restrictions...' : 'आधिकारिक प्रतिबंध व निर्देश...'}
                 value={newNotes}
                 onChangeText={setNewNotes}
                 multiline
-                numberOfLines={2}
+                numberOfLines={3}
               />
 
-              <View style={styles.modalBtnRow}>
+              <View style={styles.modalActionsRow}>
                 <TouchableOpacity
                   style={styles.modalCancelBtn}
                   onPress={() => setDeclareModalVisible(false)}
                   disabled={submittingDeclare}
                 >
-                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                  <Text style={styles.modalCancelText}>{isEnglish ? 'Cancel' : 'रद्द करें'}</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                  style={styles.modalConfirmBtn}
+                  style={styles.modalSubmitBtn}
                   onPress={handleDeclareSubmit}
                   disabled={submittingDeclare}
                 >
                   {submittingDeclare ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.modalConfirmBtnText}>Establish Zone</Text>
+                    <Text style={styles.modalSubmitText}>{isEnglish ? 'Declare Zone' : 'घोषित करें'}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -700,495 +732,641 @@ export default function OfficerContainmentScreen() {
         </View>
       </Modal>
 
-      {/* 3. Schedule Ring Vaccination Modal */}
-      <Modal visible={ringModalVisible} transparent animationType="slide">
+      {/* 3. Ring Vaccination Modal */}
+      <Modal visible={ringModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Schedule Emergency Ring Vaccination</Text>
-            <Text style={styles.modalDesc}>
-              Deploy emergency vaccination teams around outbreak buffer perimeter.
-            </Text>
+          <ScrollView contentContainerStyle={styles.modalScrollWrap}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>
+                {isEnglish ? 'Schedule Ring Vaccination Drive' : 'रिंग टीकाकरण अभियान निर्धारित करें'}
+              </Text>
+              <Text style={styles.modalSub}>
+                {isEnglish ? 'Emergency perimeter immunization around outbreak' : 'प्रकोप केंद्र के चारों ओर आपातकालीन टीकाकरण'}
+              </Text>
 
-            <Text style={styles.inputLabel}>Case or Outbreak ID *</Text>
-            <TextInput
-              style={styles.singleLineInput}
-              placeholder="e.g. CASE-2026-PUN-0012 or ZONE ID"
-              value={ringCaseId}
-              onChangeText={setRingCaseId}
-            />
+              <TextInput
+                style={styles.modalField}
+                placeholder="Target Outbreak / Case ID"
+                value={ringCaseId}
+                onChangeText={setRingCaseId}
+              />
 
-            <Text style={styles.inputLabel}>Camp Venue / Location</Text>
-            <TextInput
-              style={styles.singleLineInput}
-              placeholder="e.g. Primary Veterinary Dispensary, Baramati"
-              value={ringVenue}
-              onChangeText={setRingVenue}
-            />
+              <TextInput
+                style={styles.modalField}
+                placeholder={isEnglish ? 'Venue / Village Focal Center' : 'शिविर स्थल'}
+                value={ringVenue}
+                onChangeText={setRingVenue}
+              />
 
-            <View style={styles.rowInputs}>
-              <View style={styles.flex1}>
-                <Text style={styles.inputLabel}>Target Dose Capacity</Text>
-                <TextInput
-                  style={styles.singleLineInput}
-                  placeholder="500"
-                  keyboardType="numeric"
-                  value={ringCapacity}
-                  onChangeText={setRingCapacity}
-                />
-              </View>
-              <View style={styles.flex1}>
-                <Text style={styles.inputLabel}>Camp Date</Text>
-                <TextInput
-                  style={styles.singleLineInput}
-                  placeholder="YYYY-MM-DD"
-                  value={ringDate}
-                  onChangeText={setRingDate}
-                />
+              <TextInput
+                style={styles.modalField}
+                placeholder="Target Camp Date (YYYY-MM-DD)"
+                value={ringDate}
+                onChangeText={setRingDate}
+              />
+
+              <TextInput
+                style={styles.modalField}
+                placeholder="Livestock Target Capacity (e.g. 500)"
+                value={ringCapacity}
+                onChangeText={setRingCapacity}
+                keyboardType="numeric"
+              />
+
+              <TextInput
+                style={[styles.modalField, styles.modalFieldMulti]}
+                placeholder={isEnglish ? 'Logistics notes / Cold-chain requirements...' : 'कोल्ड-चेन व रसद निर्देश...'}
+                value={ringNotes}
+                onChangeText={setRingNotes}
+                multiline
+                numberOfLines={3}
+              />
+
+              <View style={styles.modalActionsRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setRingModalVisible(false)}
+                  disabled={submittingRing}
+                >
+                  <Text style={styles.modalCancelText}>{isEnglish ? 'Cancel' : 'रद्द करें'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitBtn, { backgroundColor: '#059669' }]}
+                  onPress={handleRingSubmit}
+                  disabled={submittingRing}
+                >
+                  {submittingRing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSubmitText}>{isEnglish ? 'Schedule Drive' : 'अभियान सहेजें'}</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
-
-            <Text style={styles.inputLabel}>Operational Notes</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Cold-chain requirements, assigned veterinary officers..."
-              value={ringNotes}
-              onChangeText={setRingNotes}
-              multiline
-              numberOfLines={2}
-            />
-
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setRingModalVisible(false)}
-                disabled={submittingRing}
-              >
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalConfirmBtn}
-                onPress={handleRingSubmit}
-                disabled={submittingRing}
-              >
-                {submittingRing ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.modalConfirmBtnText}>Schedule Drive</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
+
+      {/* Universal Fixed Floating Bottom Navigation Dock */}
+      <OfficerFloatingNav activeTab="containment" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screenWrapper: {
     flex: 1,
-    backgroundColor: colors.light.background,
+    backgroundColor: '#F8FAF9',
   },
-  header: {
-    backgroundColor: colors.light.officerBadge,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+  topExecutiveHeader: {
+    backgroundColor: '#0B132B',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 52,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    ...shadows.md,
   },
-  headerTopRow: {
+  headerMainRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
-  headerTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textInverse,
+  backCircleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.85)',
+  backIcon: {
+    width: 16,
+    height: 16,
+    tintColor: '#FFFFFF',
+  },
+  headerTitleWrap: {
+    flex: 1,
+  },
+  cadreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  pulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#7C3AED',
+  },
+  cadreText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#DDD6FE',
+    letterSpacing: 0.6,
+  },
+  headerMainTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  headerSubTitle: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12,
+    color: '#CBD5E1',
     marginTop: 2,
   },
   declareBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: radii.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#4338CA',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#6366F1',
+  },
+  declareBtnIcon: {
+    width: 12,
+    height: 12,
+    tintColor: '#FFFFFF',
   },
   declareBtnText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-    color: colors.light.textInverse,
+    fontFamily: FONT_BOLD,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  telemetryGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  telemetryCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  telemetryCardActive: {
+    borderColor: '#DC2626',
+    backgroundColor: 'rgba(220, 38, 38, 0.15)',
+  },
+  telemetryVal: {
+    fontFamily: FONT_BOLD,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  telemetryLabel: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 10,
+    color: '#CBD5E1',
+    marginTop: 1,
   },
   cacheBanner: {
-    marginTop: spacing.xs,
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  cacheBannerIcon: {
+    width: 13,
+    height: 13,
+    tintColor: '#92400E',
   },
   cacheBannerText: {
-    fontSize: 10,
-    color: '#FEF08A',
+    flex: 1,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 11,
+    color: '#92400E',
   },
   filterBar: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.light.surface,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.light.border,
-    gap: spacing.xs,
+    borderBottomColor: '#E2E8F0',
+  },
+  filterBarScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
   },
   tabChip: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: radii.round,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.light.background,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
   },
   tabChipActive: {
-    backgroundColor: colors.light.primary,
-    borderColor: colors.light.primary,
+    backgroundColor: '#1E1B4B',
+    borderColor: '#1E1B4B',
   },
-  tabChipActiveActive: {
-    backgroundColor: colors.light.danger,
-    borderColor: colors.light.danger,
+  tabChipActiveRed: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
   },
-  tabChipActiveContained: {
-    backgroundColor: colors.light.warning,
-    borderColor: colors.light.warning,
+  tabChipActiveAmber: {
+    backgroundColor: '#D97706',
+    borderColor: '#D97706',
   },
-  tabChipActiveLifted: {
-    backgroundColor: colors.light.success,
-    borderColor: colors.light.success,
+  tabChipActiveGreen: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  dotIndicator: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   tabChipText: {
-    fontSize: 10,
-    fontWeight: typography.weights.medium,
-    color: colors.light.textMuted,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
   },
   tabChipTextActive: {
-    color: colors.light.textInverse,
-    fontWeight: typography.weights.bold,
-  },
-  centerBox: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: typography.sizes.sm,
-    color: colors.light.textMuted,
-  },
-  errorIcon: {
-    fontSize: 40,
-    marginBottom: spacing.sm,
-  },
-  errorTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  errorSubtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: spacing.md,
-  },
-  retryBtn: {
-    backgroundColor: colors.light.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-  },
-  retryBtnText: {
-    color: colors.light.textInverse,
-    fontWeight: typography.weights.semibold,
-    fontSize: typography.sizes.sm,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   scrollArea: {
     flex: 1,
   },
   scrollContent: {
-    padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    padding: 16,
+    paddingBottom: 130, // Clearance for fixed floating dock
+    gap: 12,
+  },
+  centerBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 12,
+  },
+  errorIcon: {
+    width: 44,
+    height: 44,
+    tintColor: '#DC2626',
+    marginBottom: 8,
+  },
+  errorTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  errorSubtitle: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#4338CA',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+  },
+  retryBtnIcon: {
+    width: 13,
+    height: 13,
+    tintColor: '#FFFFFF',
+  },
+  retryBtnText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   emptyCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 32,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.light.border,
-    marginTop: spacing.md,
+    borderColor: '#E2E8F0',
   },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: spacing.sm,
+  emptyCardIcon: {
+    width: 48,
+    height: 48,
+    tintColor: '#10B981',
+    marginBottom: 10,
   },
   emptyTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+    fontFamily: FONT_BOLD,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
   },
-  emptySub: {
-    fontSize: 11,
-    color: colors.light.textMuted,
+  emptySubtitle: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#64748B',
     textAlign: 'center',
-    marginTop: 4,
   },
   zoneCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    ...shadows.xs,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
   },
-  cardHeader: {
+  zoneCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.sm,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  cardTitleGroup: {
+  zoneTitleCol: {
     flex: 1,
-    marginRight: spacing.sm,
-  },
-  zoneDisease: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  zoneIdText: {
-    fontSize: 10,
-    color: colors.light.textMuted,
-    marginTop: 1,
   },
   statusBadge: {
-    paddingHorizontal: spacing.sm,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: radii.round,
+    borderRadius: 6,
     borderWidth: 1,
+    marginBottom: 4,
   },
   statusBadgeText: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
+    fontFamily: FONT_BOLD,
+    fontSize: 9.5,
+    fontWeight: '800',
   },
-  metaGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: '#F9FAFB',
-    borderRadius: radii.md,
-    paddingVertical: spacing.xs,
-    marginBottom: spacing.sm,
+  zoneDiseaseTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  metaItem: {
-    alignItems: 'center',
-  },
-  metaLabel: {
-    fontSize: 9,
-    color: colors.light.textMuted,
-  },
-  metaValue: {
+  zoneIdSubtitle: {
+    fontFamily: FONT_REGULAR,
     fontSize: 11,
-    fontWeight: typography.weights.semibold,
-    color: colors.light.textPrimary,
-    marginTop: 1,
-  },
-  metaDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#E5E7EB',
-  },
-  rulesBox: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-    borderWidth: 1,
-    borderRadius: radii.md,
-    padding: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  rulesTitle: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
-    color: colors.light.danger,
-    marginBottom: 2,
-  },
-  ruleItem: {
-    fontSize: 10,
-    color: colors.light.textPrimary,
-  },
-  ruleMore: {
-    fontSize: 9,
-    fontStyle: 'italic',
-    color: colors.light.textMuted,
+    color: '#64748B',
     marginTop: 2,
   },
-  cardActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+  boldText: {
+    fontFamily: FONT_BOLD,
+    color: '#0F172A',
   },
-  actionBtn: {
-    paddingHorizontal: spacing.sm,
+  radiusPill: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: radii.sm,
-  },
-  actionBtnOrange: {
-    backgroundColor: colors.light.warning,
-  },
-  actionBtnGreen: {
-    backgroundColor: colors.light.success,
-  },
-  actionBtnBlue: {
-    backgroundColor: colors.light.info,
-  },
-  actionBtnOutline: {
-    backgroundColor: 'transparent',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: '#C7D2FE',
   },
-  actionBtnText: {
-    fontSize: 11,
-    fontWeight: typography.weights.semibold,
-    color: colors.light.textInverse,
+  radiusVal: {
+    fontFamily: FONT_BOLD,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#4338CA',
   },
-  actionBtnOutlineText: {
+  radiusLabel: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 9.5,
+    color: '#64748B',
+  },
+  zoneMetaBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 8,
+    gap: 3,
+  },
+  metaRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  metaPinIcon: {
+    width: 12,
+    height: 12,
+    tintColor: '#64748B',
+  },
+  metaLocationText: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 12,
+    color: '#334155',
+  },
+  metaCoordText: {
+    fontFamily: FONT_REGULAR,
     fontSize: 11,
-    fontWeight: typography.weights.medium,
-    color: colors.light.textPrimary,
+    color: '#94A3B8',
+    marginLeft: 17,
+  },
+  zoneNotes: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 11.5,
+    color: '#64748B',
+    fontStyle: 'italic',
+    marginBottom: 10,
+  },
+  zoneActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtnUpdate: {
+    flex: 1.2,
+    backgroundColor: '#1E1B4B',
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnUpdateText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  actionBtnRing: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#CCFBF1',
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  actionBtnRingIcon: {
+    width: 12,
+    height: 12,
+    tintColor: '#0F766E',
+  },
+  actionBtnRingText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F766E',
+  },
+  actionBtnMap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionBtnMapIcon: {
+    width: 16,
+    height: 16,
+    tintColor: '#4338CA',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.md,
+    padding: 16,
   },
-  modalScrollContainer: {
+  modalScrollWrap: {
     flexGrow: 1,
     justifyContent: 'center',
-    width: '100%',
   },
-  modalCard: {
-    backgroundColor: colors.light.surface,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    width: '100%',
-    maxWidth: 420,
-    ...shadows.md,
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    ...shadows.lg,
   },
   modalTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginBottom: 4,
+    fontFamily: FONT_BOLD,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  modalDesc: {
-    fontSize: 11,
-    color: colors.light.textMuted,
-    marginBottom: spacing.sm,
-  },
-  transitionBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.sm,
-    gap: spacing.md,
-  },
-  transitionFrom: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textMuted,
-  },
-  transitionArrow: {
-    fontSize: 16,
-    color: colors.light.textPrimary,
-  },
-  transitionTo: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: typography.weights.semibold,
-    color: colors.light.textPrimary,
-    marginTop: spacing.xs,
-    marginBottom: 2,
-  },
-  singleLineInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+  modalSub: {
+    fontFamily: FONT_REGULAR,
     fontSize: 12,
-    color: colors.light.textPrimary,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  statusOptionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  statusOptBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statusOptBtnActive: {
+    backgroundColor: '#4338CA',
+    borderColor: '#4338CA',
+  },
+  statusOptText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11,
+    color: '#475569',
+  },
+  statusOptTextActive: {
+    color: '#FFFFFF',
   },
   modalInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    borderRadius: radii.md,
-    padding: spacing.sm,
-    fontSize: 12,
-    color: colors.light.textPrimary,
+    borderColor: '#CBD5E1',
+    padding: 12,
+    fontFamily: FONT_REGULAR,
+    fontSize: 13,
+    color: '#0F172A',
+    marginBottom: 14,
     textAlignVertical: 'top',
   },
-  rowInputs: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  modalField: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 10,
+    fontFamily: FONT_REGULAR,
+    fontSize: 13,
+    color: '#0F172A',
+    marginBottom: 10,
   },
-  flex1: {
+  modalFieldMulti: {
+    height: 70,
+    textAlignVertical: 'top',
+  },
+  coordInputsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  coordHalfField: {
     flex: 1,
   },
-  modalBtnRow: {
+  modalActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    marginTop: spacing.md,
+    gap: 10,
   },
   modalCancelBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-  },
-  modalCancelBtnText: {
-    fontSize: 12,
-    fontWeight: typography.weights.medium,
-    color: colors.light.textMuted,
-  },
-  modalConfirmBtn: {
-    backgroundColor: colors.light.officerBadge,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radii.md,
-    minWidth: 100,
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 10,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  modalConfirmBtnText: {
-    fontSize: 12,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textInverse,
+  modalCancelText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    color: '#64748B',
+  },
+  modalSubmitBtn: {
+    flex: 1.5,
+    backgroundColor: '#4338CA',
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalSubmitText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

@@ -530,7 +530,7 @@ export default function OfficerVaccinationScreen() {
                   <Text style={styles.inputLabel}>Block *</Text>
                   <TextInput
                     style={styles.singleLineInput}
-                    placeholder="e.g. Baramati"
+                    placeholder="e.g. Saoner"
                     value={newBlock}
                     onChangeText={setNewBlock}
                   />
@@ -539,7 +539,7 @@ export default function OfficerVaccinationScreen() {
                   <Text style={styles.inputLabel}>Village *</Text>
                   <TextInput
                     style={styles.singleLineInput}
-                    placeholder="e.g. Morgaon"
+                    placeholder="e.g. Kelwad"
                     value={newVillage}
                     onChangeText={setNewVillage}
                   />
@@ -549,7 +549,7 @@ export default function OfficerVaccinationScreen() {
               <Text style={styles.inputLabel}>Venue / Veterinary Facility</Text>
               <TextInput
                 style={styles.singleLineInput}
-                placeholder="e.g. Primary Veterinary Dispensary, Baramati"
+                placeholder="e.g. Primary Veterinary Dispensary, Saoner"
                 value={newVenue}
                 onChangeText={setNewVenue}
               />

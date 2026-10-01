@@ -197,7 +197,7 @@ export default function LeafletMap({
   onSelectCase = null,
   onSelectZone = null,
   radiusKm = 20,
-  district = 'Pune',
+  district = 'Nagpur',
   enableRealtime = true,
   lang = 'hi'
 }) {
@@ -308,7 +308,7 @@ export default function LeafletMap({
       ? [parseFloat(userLocation[0]), parseFloat(userLocation[1])]
       : null;
 
-  let defaultCenter = [18.5204, 73.8567]; // Pune District Default
+  let defaultCenter = [21.1458, 79.0882]; // Nagpur District Default
   if (validUserLocation) {
     defaultCenter = validUserLocation;
   } else if (liveCases.length > 0) {

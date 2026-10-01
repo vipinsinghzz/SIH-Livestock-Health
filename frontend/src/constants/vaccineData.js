@@ -500,7 +500,7 @@ export const getAIVaccineRecommendations = ({
   breed = '',
   gender = 'Female',
   diseaseHistory = [],
-  district = 'Pune',
+  district = 'Nagpur',
   currentVaccinations = [],
   lang = 'hi'
 }) => {
@@ -541,7 +541,7 @@ export const getAIVaccineRecommendations = ({
   }
 
   if (['cattle', 'buffalo'].includes(normalizedSpecies) && !isRecentlyGiven('hs')) {
-    const isWaterloggedDistrict = ['pune', 'kolhapur', 'satara', 'sangli', 'solapur', 'ahmednagar'].some((d) =>
+    const isWaterloggedDistrict = ['nagpur', 'wardha', 'bhandara', 'chandrapur', 'pune', 'kolhapur'].some((d) =>
       (district || '').toLowerCase().includes(d)
     );
 

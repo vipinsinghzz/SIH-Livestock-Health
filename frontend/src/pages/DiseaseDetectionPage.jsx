@@ -240,8 +240,8 @@ export default function DiseaseDetectionPage() {
   const [caseIdSaved, setCaseIdSaved] = useState('');
 
   // Referral State
-  const [userCoords, setUserCoords] = useState({ lat: 18.5204, lng: 73.8567 });
-  const [detectedDistrict, setDetectedDistrict] = useState('Pune');
+  const [userCoords, setUserCoords] = useState({ lat: 21.1458, lng: 79.0882 });
+  const [detectedDistrict, setDetectedDistrict] = useState(user?.district || 'Nagpur');
   const [districtVets, setDistrictVets] = useState([]);
   const [referralCase, setReferralCase] = useState(null);
   const [isCreatingReferral, setIsCreatingReferral] = useState(false);
@@ -513,11 +513,11 @@ export default function DiseaseDetectionPage() {
         notes: customNotes,
         photos: photoPreview ? [photoPreview] : [],
         location: {
-          lat: userCoords.lat || 18.5204,
-          lng: userCoords.lng || 73.8567,
-          village: user.village || 'Gram Panchayat',
-          block: user.block || 'Taluka Block',
-          district: user.district || detectedDistrict || 'District'
+          lat: userCoords.lat || 21.1458,
+          lng: userCoords.lng || 79.0882,
+          village: user.village || 'Kelwad',
+          block: user.block || 'Saoner',
+          district: user.district || detectedDistrict || 'Nagpur'
         }
       };
 

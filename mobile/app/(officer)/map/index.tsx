@@ -34,8 +34,8 @@ import { OfflineNotice } from '../../../src/components/OfflineNotice';
 import { useAppLanguage } from '../../../src/services/i18n';
 
 const DEFAULT_MAHARASHTRA_CENTER = {
-  latitude: 18.5204,
-  longitude: 73.8567,
+  latitude: 21.1458,
+  longitude: 79.0882,
 };
 
 export default function OfficerMapScreen() {
@@ -44,7 +44,7 @@ export default function OfficerMapScreen() {
   const { user } = useAuth();
   const { t } = useAppLanguage();
 
-  const district = user?.district;
+  const district = user?.district || 'Nagpur';
 
   // Spatial datasets
   const [containmentZones, setContainmentZones] = useState<ContainmentZone[]>([]);

@@ -32,7 +32,7 @@ export interface StatusFunnel {
 }
 
 export interface BlockDistributionItem {
-  _id: string; // Block name (e.g., "Baramati", "Shirur", "Haveli")
+  _id: string; // Block name (e.g., "Saoner", "Kamptee", "Hingna")
   count: number;
   deaths: number;
 }

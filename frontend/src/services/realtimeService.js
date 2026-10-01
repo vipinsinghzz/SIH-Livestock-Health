@@ -29,7 +29,7 @@ class RealtimeService {
    * @returns {Function} Cleanup function to unsubscribe on component unmount
    */
   subscribeToDistrictCases(district, onEvent) {
-    const cleanDistrict = (district || 'Pune').trim();
+    const cleanDistrict = (district || 'Nagpur').trim();
     const channelName = `district:${cleanDistrict}`;
 
     // Register callback

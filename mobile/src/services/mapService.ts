@@ -21,10 +21,10 @@ import {
   MapCoordinates,
 } from '../types/map';
 
-// Default Maharashtra center fallback (Pune district)
+// Default Maharashtra center fallback (Nagpur district)
 export const DEFAULT_MAHARASHTRA_CENTER: MapCoordinates = {
-  latitude: 18.5204,
-  longitude: 73.8567,
+  latitude: 21.1458,
+  longitude: 79.0882,
 };
 
 export const mapService = {

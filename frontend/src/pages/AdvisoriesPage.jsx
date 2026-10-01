@@ -15,11 +15,62 @@ import {
   VolumeX
 } from 'lucide-react';
 
+const INITIAL_ADVISORIES = [
+  {
+    _id: 'adv-nag-001',
+    title: {
+      en: 'High Alert: LSD Ring Vaccination Activated in Saoner',
+      hi: 'उच्च सतर्कता: सावनेर ब्लॉक में लम्पी रिंग टीकाकरण अभियान सक्रिय'
+    },
+    message: {
+      en: 'Containment perimeter enforced within 5km of Saoner Rural. 1,500 Capripox doses mobilized. Cattle movements strictly restricted.',
+      hi: 'सावनेर ग्रामीण के 5 किमी के भीतर रोकथाम परिधि लागू। 1,500 खुराक लंपी वैक्सीन तैनात। गोवंश परिवहन प्रतिबंधित।'
+    },
+    severity: 'Critical',
+    targetBlock: 'Saoner',
+    targetDistrict: 'Nagpur',
+    issuedBy: 'District Animal Husbandry Office, Nagpur',
+    createdAt: new Date().toISOString()
+  },
+  {
+    _id: 'adv-nag-002',
+    title: {
+      en: 'FMD Phase IV Booster Drive in Kamptee & Kalmeshwar',
+      hi: 'कामठी एवं कलमेश्वर में एफएमडी चरण IV बूस्टर अभियान'
+    },
+    message: {
+      en: 'Free government vaccination camp operating at Yerkheda Veterinary Dispensary daily from 09:30 AM to 04:00 PM.',
+      hi: 'येरखेड़ा पशु चिकित्सालय में निःशुल्क सरकारी टीकाकरण शिविर प्रतिदिन सुबह 09:30 से शाम 04:00 बजे तक चालू।'
+    },
+    severity: 'High',
+    targetBlock: 'Kamptee',
+    targetDistrict: 'Nagpur',
+    issuedBy: 'Zilla Parishad Animal Husbandry Division, Nagpur',
+    createdAt: new Date(Date.now() - 86400000).toISOString()
+  },
+  {
+    _id: 'adv-nag-003',
+    title: {
+      en: 'Biosecurity Protocols for Small Ruminants in Ramtek',
+      hi: 'रामटेक में भेड़-बकरियों हेतु जैव-सुरक्षा दिशानिर्देश'
+    },
+    message: {
+      en: 'Inspect sheep and goats daily for oral erosions or vesicular lesions. Isolate symptomatic animals immediately and contact 1962.',
+      hi: 'भेड़-बकरियों के मुंह और होठों के छालों का दैनिक निरीक्षण करें। लक्षण दिखने पर पशु अलग करें और 1962 पर सूचित करें।'
+    },
+    severity: 'Moderate',
+    targetBlock: 'Ramtek',
+    targetDistrict: 'Nagpur',
+    issuedBy: 'Regional Disease Diagnostic Laboratory (RDDL), Nagpur',
+    createdAt: new Date(Date.now() - 172800000).toISOString()
+  }
+];
+
 export default function AdvisoriesPage() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const [advisories, setAdvisories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [advisories, setAdvisories] = useState(INITIAL_ADVISORIES);
+  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [playingId, setPlayingId] = useState(null);
 
@@ -34,9 +85,14 @@ export default function AdvisoriesPage() {
   const fetchAdvisories = async () => {
     try {
       const res = await api.get('/advisories');
-      setAdvisories(res.data.advisories || []);
+      if (res.data?.advisories && res.data.advisories.length > 0) {
+        setAdvisories(res.data.advisories);
+      } else {
+        setAdvisories(INITIAL_ADVISORIES);
+      }
     } catch (err) {
       console.error('Error fetching advisories:', err);
+      setAdvisories(INITIAL_ADVISORIES);
     } finally {
       setLoading(false);
     }
@@ -73,7 +129,7 @@ export default function AdvisoriesPage() {
         message: { en: messageEn, hi: messageHi || messageEn },
         severity,
         targetBlock,
-        targetDistrict: 'Pune'
+        targetDistrict: user?.district || 'Nagpur'
       });
       setModalOpen(false);
       fetchAdvisories();
@@ -147,7 +203,7 @@ export default function AdvisoriesPage() {
                       <h3 className="text-base font-extrabold text-slate-900">{title}</h3>
                       <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-emerald-600" /> {adv.targetBlock} ({adv.targetDistrict || 'Pune'})
+                          <MapPin className="w-3 h-3 text-emerald-600" /> {adv.targetBlock} ({adv.targetDistrict || 'Nagpur'})
                         </span>
                         <span>•</span>
                         <span>{new Date(adv.createdAt).toLocaleDateString(i18n.language || 'en')}</span>
@@ -279,12 +335,13 @@ export default function AdvisoriesPage() {
                     onChange={(e) => setTargetBlock(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-stone-50"
                   >
-                    <option value="All">सभी ब्लॉक (All)</option>
-                    <option value="Baramati">Baramati</option>
-                    <option value="Shirur">Shirur</option>
-                    <option value="Haveli">Haveli</option>
-                    <option value="Khed">Khed</option>
-                    <option value="Indapur">Indapur</option>
+                    <option value="All">सभी ब्लॉक (All Nagpur)</option>
+                    <option value="Saoner">Saoner</option>
+                    <option value="Kamptee">Kamptee</option>
+                    <option value="Hingna">Hingna</option>
+                    <option value="Ramtek">Ramtek</option>
+                    <option value="Kalmeshwar">Kalmeshwar</option>
+                    <option value="Umred">Umred</option>
                   </select>
                 </div>
               </div>

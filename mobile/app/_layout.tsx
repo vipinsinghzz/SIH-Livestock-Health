@@ -126,6 +126,13 @@ function NavigationGuard() {
           }}
         />
         <Stack.Screen
+          name="language-selection"
+          options={{
+            title: 'Choose Language',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="(auth)"
           options={{
             headerShown: false,
@@ -192,6 +199,7 @@ function NavigationGuard() {
 
 export default function RootLayout() {
   console.log('[DIAGNOSTIC] RootLayout mounting tree with SafeAreaProvider, AuthProvider, NavigationGuard');
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

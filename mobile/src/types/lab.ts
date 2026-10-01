@@ -35,9 +35,9 @@ export const SAMPLE_TYPES: LabSampleType[] = [
 ];
 
 export const DESTINATION_LABS: string[] = [
-  'District Disease Diagnostic Laboratory (DDDL), Pune',
-  'Western Regional Disease Diagnostic Laboratory (WRDDL), Pune',
-  'State Veterinary Diagnostic Institute, Aundh, Pune',
+  'Regional Disease Diagnostic Laboratory (RDDL), Nagpur',
+  'College of Veterinary & Animal Sciences Diagnostic Lab, Nagpur',
+  'District Disease Investigation Laboratory (DDIL), Nagpur',
   'ICAR-National Institute of High Security Animal Diseases (NIHSAD)'
 ];
 

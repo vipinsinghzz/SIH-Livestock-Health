@@ -491,7 +491,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
     breed: modalAnimal.breed,
     gender: modalAnimal.gender,
     diseaseHistory: modalAnimal.timeline || [],
-    district: modalAnimal.district || 'Pune',
+    district: modalAnimal.district || 'Nagpur',
     currentVaccinations: allVaccinations,
     lang: currentLang
   });
@@ -1293,7 +1293,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                       </span>
                     </div>
                     <span className="text-[11px] text-emerald-800 font-mono font-medium">
-                      {speciesDisplayName} • {modalAnimal.age} {t('farmer_dash.years', 'Years')} • {modalAnimal.district || 'Pune'}
+                      {speciesDisplayName} • {modalAnimal.age} {t('farmer_dash.years', 'Years')} • {modalAnimal.district || 'Nagpur'}
                     </span>
                   </div>
 

@@ -2,18 +2,20 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Navigation, Camera, X, Phone, User } from 'lucide-react';
 
-const PUNE_BLOCKS = [
-  'Baramati',
-  'Shirur',
-  'Haveli',
-  'Khed',
-  'Indapur',
-  'Daund',
-  'Junnar',
-  'Ambegaon',
-  'Purandar',
-  'Bhor',
-  'Maval'
+const NAGPUR_BLOCKS = [
+  'Saoner',
+  'Kamptee',
+  'Hingna',
+  'Ramtek',
+  'Kalmeshwar',
+  'Umred',
+  'Katol',
+  'Narkhed',
+  'Parseoni',
+  'Mouda',
+  'Bhiwapur',
+  'Kuhi',
+  'Nagpur Rural'
 ];
 
 export default function Step3LocationPhotos({ formData, updateFormData, user }) {
@@ -50,7 +52,7 @@ export default function Step3LocationPhotos({ formData, updateFormData, user }) 
             <span>क्षेत्रीय स्थान (Location Details)</span>
           </label>
           <span className="text-xs text-slate-400">
-            {user?.district ? `${user.district}, ${user.village || ''}` : 'सीहोर / पुणे'}
+            {user?.district ? `${user.district}, ${user.village || ''}` : 'नागपुर (महाराष्ट्र)'}
           </span>
         </div>
 
@@ -62,7 +64,7 @@ export default function Step3LocationPhotos({ formData, updateFormData, user }) 
             <input
               type="text"
               required
-              placeholder="e.g. Malegaon Bk"
+              placeholder="e.g. Yerkheda / Saoner Rural"
               value={formData.location?.village || ''}
               onChange={(e) =>
                 updateFormData({
@@ -78,7 +80,7 @@ export default function Step3LocationPhotos({ formData, updateFormData, user }) 
               {t('wizard.block_label')} <span className="text-red-500">*</span>
             </label>
             <select
-              value={formData.location?.block || 'Baramati'}
+              value={formData.location?.block || 'Kamptee'}
               onChange={(e) =>
                 updateFormData({
                   location: { ...formData.location, block: e.target.value }
@@ -86,7 +88,7 @@ export default function Step3LocationPhotos({ formData, updateFormData, user }) 
               }
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
             >
-              {PUNE_BLOCKS.map((b) => (
+              {NAGPUR_BLOCKS.map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
@@ -101,7 +103,7 @@ export default function Step3LocationPhotos({ formData, updateFormData, user }) 
             <input
               type="text"
               readOnly
-              value={formData.location?.district || 'Pune'}
+              value={formData.location?.district || user?.district || 'Nagpur'}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 text-sm font-semibold"
             />
           </div>

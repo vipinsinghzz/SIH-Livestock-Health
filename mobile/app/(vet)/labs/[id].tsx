@@ -279,7 +279,7 @@ export default function LabReferralDetailScreen() {
               <Text style={styles.infoLabel}>{t('common.location', 'Farm Location')}</Text>
               <Text style={styles.infoValue}>
                 {referral.report?.village ? `${referral.report.village}, ` : ''}
-                {referral.report?.district || 'Pune'}
+                {referral.report?.district || 'Nagpur'}
               </Text>
             </View>
             <View style={styles.infoCol}>

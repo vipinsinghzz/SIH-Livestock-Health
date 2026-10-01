@@ -132,7 +132,7 @@ exports.createReport = async (req, res, next) => {
         lng: parseFloat(location.lng),
         village: location.village,
         block: location.block,
-        district: location.district || req.user.district || 'Pune'
+        district: location.district || req.user.district || 'Nagpur'
       },
       photos: photoList,
       reporterContact: reporterContact || {

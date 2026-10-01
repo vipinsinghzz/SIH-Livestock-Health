@@ -44,7 +44,7 @@ export default function VetContainmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useAppLanguage();
-  const userDistrict = user?.district || 'Pune';
+  const userDistrict = user?.district || 'Nagpur';
 
   const STATUS_FILTERS: Array<{ key: string; label: string }> = [
     { key: 'all', label: t('vet.allPerimeters', 'All Perimeters') },
@@ -68,9 +68,9 @@ export default function VetContainmentScreen() {
   const [createCaseId, setCreateCaseId] = useState<string>('');
   const [createRadiusKm, setCreateRadiusKm] = useState<number>(5.0);
   const [createVillage, setCreateVillage] = useState<string>('');
-  const [createBlock, setCreateBlock] = useState<string>(user?.block || 'Baramati');
-  const [createLat, setCreateLat] = useState<string>('18.5204');
-  const [createLng, setCreateLng] = useState<string>('73.8567');
+  const [createBlock, setCreateBlock] = useState<string>(user?.block || 'Saoner');
+  const [createLat, setCreateLat] = useState<string>('21.1458');
+  const [createLng, setCreateLng] = useState<string>('79.0882');
   const [createNotes, setCreateNotes] = useState<string>('');
   const [submittingCreate, setSubmittingCreate] = useState<boolean>(false);
 

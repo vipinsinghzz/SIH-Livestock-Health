@@ -1,10 +1,18 @@
 /**
- * Livestock Saathi - Officer Executive Dashboard & KPI Command Center
+ * Livestock Saathi - Ultra-Premium Officer Executive Dashboard & KPI Command Center
  * File: mobile/app/(officer)/index.tsx
  *
- * Production Executive Surveillance Command Center for District Veterinary & Animal Husbandry Officers.
- * Fetches real metrics from GET /api/dashboard/summary with offline SQLite caching.
- * Strictly adheres to server-authoritative data (zero fake numbers, zero mock KPIs).
+ * Production Executive Surveillance Command Center for District Veterinary & Animal Husbandry Officers:
+ * - Luxury executive command navy header (#0B132B / #1E1B4B) with safe-area padding
+ * - Cadre badge: "DISTRICT EPIDEMIOLOGICAL COMMAND CENTER"
+ * - Instant sub-district / block filter ribbon
+ * - Active DBSCAN outbreak alert priority callout banner
+ * - 6-Metric High-Density KPI Grid (Total Reports, Active Cases, Mortalities, Critical Triage, Outbreaks, Vaccination %)
+ * - Operational capacity progress strip & diagnostic lab pipeline
+ * - Sub-district disease burden distribution
+ * - 8-Module Surveillance & Operations Command Suite with real asset icons
+ * - Fixed universal floating bottom dock (<OfficerFloatingNav activeTab="dashboard" />)
+ * - Zero raw text emojis; platform-safe typography stack
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,18 +25,44 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Image,
+  Platform,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useAppLanguage } from '../../src/services/i18n';
 import { officerService } from '../../src/services/officerService';
 import { DashboardSummary } from '../../src/types/officer';
-import { colors, typography, spacing, radii, shadows } from '../../src/theme';
+import { shadows } from '../../src/theme';
+import { OfficerFloatingNav } from '../../src/components/OfficerFloatingNav';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Native typography stack
+const FONT_REGULAR = Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
+const FONT_MEDIUM = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
+const FONT_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
+
+// Static assets
+const ICON_HOME = require('../../assets/icons/nav_home.png');
+const ICON_SURVEILLANCE = require('../../assets/icons/stat_case.png');
+const ICON_ALERT = require('../../assets/icons/stat_alert.png');
+const ICON_SHIELD = require('../../assets/icons/shield.png');
+const ICON_VACCINE = require('../../assets/icons/stat_vaccine.png');
+const ICON_LOCATION = require('../../assets/icons/location.png');
+const ICON_BELL = require('../../assets/icons/bell_minimal_green.png');
+const ICON_PERSON = require('../../assets/icons/person.png');
+const ICON_REFRESH = require('../../assets/icons/refresh.png');
+const ICON_CHEVRON = require('../../assets/icons/chevron-right.png');
+const ICON_CLIPBOARD = require('../../assets/icons/clipboard.png');
+const ICON_WARN = require('../../assets/icons/alert.png');
 
 export default function OfficerHomeScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { t } = useAppLanguage();
+  const { t, isEnglish } = useAppLanguage();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -39,8 +73,8 @@ export default function OfficerHomeScreen() {
   const [selectedBlock, setSelectedBlock] = useState<string>('All');
 
   const userId = user?.id || (user as any)?._id || 'officer_default';
-  const officerName = user?.name || 'District Officer';
-  const districtName = user?.district || 'District Surveillance';
+  const officerName = user?.name || (isEnglish ? 'District Officer' : 'ज़िला अधिकारी');
+  const districtName = user?.district || (isEnglish ? 'District Jurisdiction' : 'ज़िला कार्यक्षेत्र');
 
   const loadDashboardData = useCallback(async (block: string = selectedBlock, isPullRefresh = false) => {
     if (isPullRefresh) {
@@ -74,12 +108,14 @@ export default function OfficerHomeScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      t('common.logOut', 'Sign Out'),
-      t('officer.signOutConfirm', 'Are you sure you want to sign out from the Officer Command Center?'),
+      isEnglish ? 'Sign Out' : 'लॉग आउट',
+      isEnglish
+        ? 'Are you sure you want to sign out from the Officer Command Center?'
+        : 'क्या आप अधिकारी कमांड सेंटर से साइन आउट करना चाहते हैं?',
       [
-        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        { text: isEnglish ? 'Cancel' : 'रद्द करें', style: 'cancel' },
         {
-          text: t('common.logOut', 'Sign Out'),
+          text: isEnglish ? 'Sign Out' : 'साइन आउट',
           style: 'destructive',
           onPress: async () => {
             await logout();
@@ -91,7 +127,7 @@ export default function OfficerHomeScreen() {
   };
 
   const formatLastUpdated = (timestamp: number | null): string => {
-    if (!timestamp) return 'Last updated: Not available';
+    if (!timestamp) return isEnglish ? 'Live Synced' : 'सक्रिय सिंक';
     const d = new Date(timestamp);
     const day = d.getDate();
     const month = d.toLocaleString('en-US', { month: 'short' });
@@ -99,10 +135,9 @@ export default function OfficerHomeScreen() {
     const minutes = d.getMinutes().toString().padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12 || 12;
-    return `Last updated: ${day} ${month}, ${hours}:${minutes} ${ampm}`;
+    return `${day} ${month}, ${hours}:${minutes} ${ampm}`;
   };
 
-  // Extract block names dynamically from real block distribution if available
   const availableBlocks = ['All'];
   if (summary?.blockDistribution) {
     summary.blockDistribution.forEach((b) => {
@@ -112,811 +147,1151 @@ export default function OfficerHomeScreen() {
     });
   }
 
+  const outbreakCount = summary?.triageMetrics?.outbreakCount || 0;
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => loadDashboardData(selectedBlock, true)}
-          colors={[colors.light.officerBadge]}
-          tintColor={colors.light.officerBadge}
-        />
-      }
-    >
-      {/* 1. Header Banner */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.badgeRow}>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>{t('nav.officerCommand', 'OFFICER COMMAND CENTER')}</Text>
+    <View style={styles.screenWrapper}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" backgroundColor="#0B132B" />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadDashboardData(selectedBlock, true)}
+            colors={['#4338CA']}
+            tintColor="#4338CA"
+          />
+        }
+      >
+        {/* 1. Ultra-Premium Command Header */}
+        <View style={styles.commandHeader}>
+          {/* Top Cadre Badge Row */}
+          <View style={styles.headerTopRow}>
+            <View style={styles.cadreBadge}>
+              <View style={styles.pulseDot} />
+              <Text style={styles.cadreBadgeText}>
+                {isEnglish ? 'DISTRICT EPIDEMIOLOGICAL COMMAND CENTER' : 'ज़िला महामारी विज्ञान कमांड सेंटर'}
+              </Text>
             </View>
-            <View style={styles.pulseDot} />
+
+            <View style={styles.headerActionGroup}>
+              <TouchableOpacity
+                onPress={() => router.push('/(officer)/profile' as any)}
+                style={styles.headerIconBtn}
+                activeOpacity={0.8}
+              >
+                <Image source={ICON_PERSON} style={styles.headerIconImg} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={styles.headerSignOutBtn}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.headerSignOutText}>{isEnglish ? 'Exit' : 'निकास'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.headerActions}>
+
+          {/* Officer Title & District */}
+          <View style={styles.titleInfoWrap}>
+            <Text style={styles.officerNameText}>{officerName}</Text>
+            <Text style={styles.districtJurisdictionText}>
+              {isEnglish ? 'Administrative Jurisdiction: ' : 'प्रशासनिक क्षेत्राधिकार: '}
+              <Text style={styles.districtHighlight}>{districtName}</Text>
+            </Text>
+          </View>
+
+          {/* Sync Timestamp & Quick Refresh */}
+          <View style={styles.syncRow}>
+            <View style={styles.syncIndicator}>
+              <View style={styles.syncDot} />
+              <Text style={styles.syncTimestampText}>
+                {isEnglish ? 'Synced: ' : 'अंतिम सिंक: '}
+                {formatLastUpdated(lastUpdated)}
+              </Text>
+            </View>
             <TouchableOpacity
-              onPress={() => router.push('/(officer)/profile' as any)}
-              style={styles.profileButton}
-              activeOpacity={0.7}
-              accessibilityLabel={t('common.profile', 'Profile')}
+              onPress={() => loadDashboardData(selectedBlock, false)}
+              style={styles.refreshPillBtn}
+              activeOpacity={0.8}
+              disabled={loading || refreshing}
             >
-              <Text style={styles.profileButtonText}>👤 {t('common.profile', 'Profile')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
-              <Text style={styles.logoutButtonText}>{t('common.signOut', 'Sign Out')}</Text>
+              <Image source={ICON_REFRESH} style={styles.refreshPillIcon} />
+              <Text style={styles.refreshPillText}>{isEnglish ? 'Sync Feed' : 'सिंक करें'}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Offline Banner */}
+          {isFromCache && (
+            <View style={styles.offlineBanner}>
+              <Image source={ICON_WARN} style={styles.offlineBannerIcon} />
+              <Text style={styles.offlineBannerText}>
+                {isEnglish
+                  ? 'Offline Mode: Displaying cached district surveillance records.'
+                  : 'ऑफ़लाइन मोड: डिवाइस पर सहेजे गए रिकॉर्ड दिखाए जा रहे हैं।'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        <Text style={styles.title}>{officerName}</Text>
-        <Text style={styles.subtitle}>
-          Administrative Jurisdiction: <Text style={styles.boldText}>{districtName}</Text>
-        </Text>
-
-        {/* Sync & Offline Status */}
-        <View style={styles.metaRow}>
-          <Text style={styles.lastUpdatedText}>{formatLastUpdated(lastUpdated)}</Text>
-          <TouchableOpacity
-            onPress={() => loadDashboardData(selectedBlock, false)}
-            style={styles.refreshIconBtn}
-            disabled={loading || refreshing}
-          >
-            <Text style={styles.refreshIconText}>🔄 {t('common.refresh', 'Refresh')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Offline Banner */}
-        {isFromCache && (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineBannerIcon}>⚠️</Text>
-            <Text style={styles.offlineBannerText}>
-              Offline Mode — displaying cached surveillance data.
+        {/* 2. Loading State */}
+        {loading && !refreshing && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4338CA" />
+            <Text style={styles.loadingText}>
+              {isEnglish
+                ? 'Syncing Epidemiological Surveillance Metrics...'
+                : 'महामारी विज्ञान डेटा सिंक किया जा रहा है...'}
             </Text>
           </View>
         )}
-      </View>
 
-      {/* 2. Loading State */}
-      {loading && !refreshing && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.light.officerBadge} />
-          <Text style={styles.loadingText}>{t('common.loading', 'Syncing Epidemiological Surveillance Metrics...')}</Text>
-        </View>
-      )}
-
-      {/* 3. Error / Unavailable State (Honest, No Fake Data) */}
-      {!loading && errorMessage && !summary && (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>{t('common.error', 'Surveillance Data Unavailable')}</Text>
-          <Text style={styles.errorMessage}>{errorMessage}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => loadDashboardData(selectedBlock, false)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.retryButtonText}>{t('common.retry', 'Retry Sync')}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 4. Active Dashboard Content */}
-      {!loading && summary && (
-        <>
-          {/* Sub-District / Block Filter */}
-          {availableBlocks.length > 1 && (
-            <View style={styles.filterSection}>
-              <Text style={styles.filterLabel}>Filter by Block / Sub-District:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-                {availableBlocks.map((b) => {
-                  const isSelected = selectedBlock === b;
-                  return (
-                    <TouchableOpacity
-                      key={b}
-                      style={[styles.filterChip, isSelected && styles.filterChipActive]}
-                      onPress={() => setSelectedBlock(b)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}>
-                        {b === 'All' ? 'All Blocks' : b}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Active Outbreak Alert Callout */}
-          {(summary.triageMetrics?.outbreakCount || 0) > 0 && (
-            <View style={styles.outbreakAlertCard}>
-              <View style={styles.outbreakAlertHeader}>
-                <Text style={styles.outbreakAlertIcon}>🚨</Text>
-                <Text style={styles.outbreakAlertTitle}>
-                  {summary.triageMetrics.outbreakCount} Active Outbreak Cluster
-                  {summary.triageMetrics.outbreakCount > 1 ? 's' : ''} Detected
-                </Text>
-              </View>
-              <Text style={styles.outbreakAlertBody}>
-                DBSCAN spatial clustering identified proximity outbreak clusters in {districtName}.
-                Immediate containment perimeters and emergency ring vaccination required.
-              </Text>
-              <View style={styles.outbreakActionRow}>
-                <TouchableOpacity
-                  style={styles.outbreakActionBtn}
-                  onPress={() => router.push('/(officer)/outbreaks' as any)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.outbreakActionBtnText}>View Outbreak Clusters →</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.outbreakActionBtn, styles.outbreakContainmentBtn]}
-                  onPress={() => router.push('/(officer)/containment' as any)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.outbreakActionBtnText}>Manage Containment →</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* 5. KPI Metric Grid */}
-          <Text style={styles.sectionTitle}>{t('officer.kpis', 'District Epidemiological KPIs')}</Text>
-          <View style={styles.kpiGrid}>
-            {/* Total Reports */}
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.totalReports', 'TOTAL REPORTS')}</Text>
-              <Text style={styles.kpiValue}>{summary.totalReports}</Text>
-              <Text style={styles.kpiSub}>Logged cases</Text>
-            </View>
-
-            {/* Active Cases */}
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.activeCases', 'ACTIVE CASES')}</Text>
-              <Text style={[styles.kpiValue, { color: colors.light.info }]}>
-                {summary.activeCases}
-              </Text>
-              <Text style={styles.kpiSub}>Under investigation</Text>
-            </View>
-
-            {/* Livestock Mortalities */}
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.mortalities', 'MORTALITIES')}</Text>
-              <Text style={[styles.kpiValue, { color: colors.light.danger }]}>
-                {summary.totalMortality}
-              </Text>
-              <Text style={[styles.kpiSub, { color: colors.light.danger }]}>
-                Reported deaths
-              </Text>
-            </View>
-
-            {/* Critical Triage */}
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.highRiskZones', 'HIGH / CRITICAL')}</Text>
-              <Text style={[styles.kpiValue, { color: colors.light.warning }]}>
-                {(summary.triageMetrics?.criticalCount || 0) +
-                  (summary.triageMetrics?.highCount || 0)}
-              </Text>
-              <Text style={styles.kpiSub}>Urgent triage</Text>
-            </View>
-
-            {/* Outbreaks */}
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.activeClusters', 'OUTBREAKS')}</Text>
-              <Text style={[styles.kpiValue, { color: colors.light.danger }]}>
-                {summary.triageMetrics?.outbreakCount || 0}
-              </Text>
-              <Text style={styles.kpiSub}>Cluster matches</Text>
-            </View>
-
-            {/* Vaccination Coverage */}
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>{t('officer.vaccineCoverage', 'VACCINATION')}</Text>
-              <Text style={[styles.kpiValue, { color: colors.light.success }]}>
-                {summary.vaccination?.coveragePct ?? 0}%
-              </Text>
-              <Text style={styles.kpiSub}>District coverage</Text>
-            </View>
+        {/* 3. Error State */}
+        {!loading && errorMessage && !summary && (
+          <View style={styles.errorCard}>
+            <Image source={ICON_WARN} style={styles.errorCardIcon} />
+            <Text style={styles.errorCardTitle}>
+              {isEnglish ? 'Surveillance Data Unavailable' : 'निगरानी डेटा अनुपलब्ध'}
+            </Text>
+            <Text style={styles.errorCardMessage}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => loadDashboardData(selectedBlock, false)}
+              activeOpacity={0.85}
+            >
+              <Image source={ICON_REFRESH} style={styles.retryBtnIcon} />
+              <Text style={styles.retryBtnText}>{isEnglish ? 'Retry Sync' : 'पुनः प्रयास करें'}</Text>
+            </TouchableOpacity>
           </View>
+        )}
 
-          {/* 6. Operational Status & Capacity Strips */}
-          <Text style={styles.sectionTitle}>{t('officer.capacityDiagnostics', 'Operational Capacity & Diagnostics')}</Text>
-          <View style={styles.capacityCard}>
-            <View style={styles.capacityRow}>
-              <View>
-                <Text style={styles.capacityTitle}>{t('officer.vaccineDriveCoverage', 'Vaccination Drive Coverage')}</Text>
-                <Text style={styles.capacitySubtitle}>
-                  {summary.vaccination?.totalCovered?.toLocaleString() || '0'} of{' '}
-                  {summary.vaccination?.totalTarget?.toLocaleString() || '0'} livestock protected
+        {/* 4. Active Dashboard Content */}
+        {!loading && summary && (
+          <>
+            {/* Sub-District / Block Filter Ribbon */}
+            {availableBlocks.length > 1 && (
+              <View style={styles.blockFilterSection}>
+                <Text style={styles.blockFilterLabel}>
+                  {isEnglish ? 'Filter Sub-District / Block:' : 'ब्लॉक अनुसार फ़िल्टर करें:'}
                 </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.blockChipsScroll}>
+                  {availableBlocks.map((b) => {
+                    const isSelected = selectedBlock === b;
+                    return (
+                      <TouchableOpacity
+                        key={b}
+                        style={[styles.blockChip, isSelected ? styles.blockChipActive : styles.blockChipInactive]}
+                        onPress={() => setSelectedBlock(b)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.blockChipText, isSelected ? styles.blockChipTextActive : styles.blockChipTextInactive]}>
+                          {b === 'All' ? (isEnglish ? 'All Blocks' : 'सभी ब्लॉक') : b}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
-              <View style={styles.capacityBadge}>
-                <Text style={styles.capacityBadgeText}>
+            )}
+
+            {/* Urgent Outbreak Cluster Priority Callout */}
+            {outbreakCount > 0 && (
+              <View style={styles.outbreakAlertCard}>
+                <View style={styles.outbreakAlertHeader}>
+                  <Image source={ICON_ALERT} style={styles.outbreakAlertIcon} />
+                  <View style={styles.outbreakAlertTitleCol}>
+                    <Text style={styles.outbreakAlertTitle}>
+                      {outbreakCount} {isEnglish ? 'Active Outbreak Cluster' : 'सक्रिय प्रकोप क्लस्टर'}
+                      {outbreakCount > 1 ? (isEnglish ? 's' : '') : ''}
+                    </Text>
+                    <Text style={styles.outbreakUrgencyPill}>
+                      {isEnglish ? 'CRITICAL CONTAINMENT REQUIRED' : 'तत्काल रोकथाम आवश्यक'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.outbreakAlertBody}>
+                  {isEnglish
+                    ? `DBSCAN spatial clustering detected disease transmission hotspots in ${districtName}. Implement containment perimeters and schedule ring vaccination drives immediately.`
+                    : `DBSCAN स्थानिक क्लस्टरिंग द्वारा ${districtName} में संक्रमण हॉटस्पॉट की पहचान की गई है। तुरंत कंटेनमेंट ज़ोन घोषित करें।`}
+                </Text>
+                <View style={styles.outbreakActionRow}>
+                  <TouchableOpacity
+                    style={styles.outbreakBtnPrimary}
+                    onPress={() => router.push('/(officer)/outbreaks' as any)}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={styles.outbreakBtnText}>
+                      {isEnglish ? 'Examine Outbreak Clusters' : 'क्लस्टर परीक्षण करें'}
+                    </Text>
+                    <Image source={ICON_CHEVRON} style={styles.outbreakBtnChevron} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.outbreakBtnSecondary}
+                    onPress={() => router.push('/(officer)/containment' as any)}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={styles.outbreakBtnSecText}>
+                      {isEnglish ? 'Manage Containment' : 'कंटेनमेंट ज़ोन'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* 5. 6-KPI Metric Grid */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>
+                {isEnglish ? 'District Epidemiological KPIs' : 'ज़िला महामारी विज्ञान संकेतक'}
+              </Text>
+            </View>
+
+            <View style={styles.kpiGrid}>
+              {/* Total Reports */}
+              <View style={styles.kpiCard}>
+                <View style={styles.kpiHeaderRow}>
+                  <Text style={styles.kpiLabel}>{isEnglish ? 'TOTAL REPORTS' : 'कुल रिपोर्ट'}</Text>
+                  <Image source={ICON_CLIPBOARD} style={[styles.kpiIcon, { tintColor: '#4338CA' }]} />
+                </View>
+                <Text style={styles.kpiValue}>{summary.totalReports}</Text>
+                <Text style={styles.kpiSub}>{isEnglish ? 'Logged cases' : 'दर्ज मामले'}</Text>
+              </View>
+
+              {/* Active Cases */}
+              <View style={styles.kpiCard}>
+                <View style={styles.kpiHeaderRow}>
+                  <Text style={styles.kpiLabel}>{isEnglish ? 'ACTIVE CASES' : 'सक्रिय मामले'}</Text>
+                  <Image source={ICON_SURVEILLANCE} style={[styles.kpiIcon, { tintColor: '#0284C7' }]} />
+                </View>
+                <Text style={[styles.kpiValue, { color: '#0284C7' }]}>{summary.activeCases}</Text>
+                <Text style={styles.kpiSub}>{isEnglish ? 'Under investigation' : 'जांच के अधीन'}</Text>
+              </View>
+
+              {/* Livestock Mortalities */}
+              <View style={styles.kpiCard}>
+                <View style={styles.kpiHeaderRow}>
+                  <Text style={styles.kpiLabel}>{isEnglish ? 'MORTALITIES' : 'मृत्यु संख्या'}</Text>
+                  <Image source={ICON_ALERT} style={[styles.kpiIcon, { tintColor: '#DC2626' }]} />
+                </View>
+                <Text style={[styles.kpiValue, { color: '#DC2626' }]}>{summary.totalMortality}</Text>
+                <Text style={[styles.kpiSub, { color: '#DC2626' }]}>{isEnglish ? 'Reported deaths' : 'दर्ज मौतें'}</Text>
+              </View>
+
+              {/* Critical Triage */}
+              <View style={styles.kpiCard}>
+                <View style={styles.kpiHeaderRow}>
+                  <Text style={styles.kpiLabel}>{isEnglish ? 'HIGH / CRITICAL' : 'गंभीर स्थिति'}</Text>
+                  <Image source={ICON_WARN} style={[styles.kpiIcon, { tintColor: '#D97706' }]} />
+                </View>
+                <Text style={[styles.kpiValue, { color: '#D97706' }]}>
+                  {(summary.triageMetrics?.criticalCount || 0) + (summary.triageMetrics?.highCount || 0)}
+                </Text>
+                <Text style={styles.kpiSub}>{isEnglish ? 'Urgent triage' : 'प्राथमिकता'}</Text>
+              </View>
+
+              {/* Active Outbreaks */}
+              <View style={styles.kpiCard}>
+                <View style={styles.kpiHeaderRow}>
+                  <Text style={styles.kpiLabel}>{isEnglish ? 'OUTBREAKS' : 'प्रकोप क्लस्टर'}</Text>
+                  <Image source={ICON_SHIELD} style={[styles.kpiIcon, { tintColor: '#7C3AED' }]} />
+                </View>
+                <Text style={[styles.kpiValue, { color: '#7C3AED' }]}>{outbreakCount}</Text>
+                <Text style={styles.kpiSub}>{isEnglish ? 'Spatial clusters' : 'क्लस्टर समूह'}</Text>
+              </View>
+
+              {/* Vaccination Coverage */}
+              <View style={styles.kpiCard}>
+                <View style={styles.kpiHeaderRow}>
+                  <Text style={styles.kpiLabel}>{isEnglish ? 'VACCINATION' : 'टीकाकरण'}</Text>
+                  <Image source={ICON_VACCINE} style={[styles.kpiIcon, { tintColor: '#10B981' }]} />
+                </View>
+                <Text style={[styles.kpiValue, { color: '#10B981' }]}>
                   {summary.vaccination?.coveragePct ?? 0}%
                 </Text>
+                <Text style={styles.kpiSub}>{isEnglish ? 'District coverage' : 'ज़िला आच्छादन'}</Text>
               </View>
             </View>
-            <View style={styles.progressBarBg}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${Math.min(100, summary.vaccination?.coveragePct || 0)}%` },
-                ]}
-              />
-            </View>
-          </View>
 
-          {/* Lab Pipeline Summary */}
-          {summary.labPipeline && Object.keys(summary.labPipeline).length > 0 && (
-            <View style={styles.labCard}>
-              <Text style={styles.labCardTitle}>{t('officer.labPipeline', 'Diagnostic Lab Pipeline')}</Text>
-              <View style={styles.labStatsRow}>
-                {Object.entries(summary.labPipeline).map(([status, count]) => (
-                  <View key={status} style={styles.labStatItem}>
-                    <Text style={styles.labStatCount}>{count}</Text>
-                    <Text style={styles.labStatLabel}>{status}</Text>
-                  </View>
-                ))}
+            {/* 6. Operational Status & Vaccination Progress */}
+            <View style={styles.capacityCard}>
+              <View style={styles.capacityHeaderRow}>
+                <View style={styles.capacityTitleCol}>
+                  <Text style={styles.capacityCardTitle}>
+                    {isEnglish ? 'District Vaccination Drive Coverage' : 'ज़िला टीकाकरण अभियान आच्छादन'}
+                  </Text>
+                  <Text style={styles.capacityCardSubtitle}>
+                    {summary.vaccination?.totalCovered?.toLocaleString() || '0'} of{' '}
+                    {summary.vaccination?.totalTarget?.toLocaleString() || '0'}{' '}
+                    {isEnglish ? 'livestock protected' : 'पशु सुरक्षित'}
+                  </Text>
+                </View>
+                <View style={styles.capacityBadgePill}>
+                  <Text style={styles.capacityBadgePillText}>
+                    {summary.vaccination?.coveragePct ?? 0}%
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.progressBarBackground}>
+                <View
+                  style={[
+                    styles.progressBarActiveFill,
+                    { width: `${Math.min(100, summary.vaccination?.coveragePct || 0)}%` },
+                  ]}
+                />
               </View>
             </View>
-          )}
 
-          {/* Sub-District Burden Overview */}
-          {summary.blockDistribution && summary.blockDistribution.length > 0 && (
-            <View style={styles.blockSection}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>{t('officer.subDistrictBurden', 'Sub-District Disease Burden')}</Text>
-                <TouchableOpacity
-                  onPress={() => router.push('/(officer)/surveillance' as any)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.viewDetailsText}>Full Analysis →</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.blockList}>
-                {summary.blockDistribution.slice(0, 4).map((b, idx) => (
-                  <View key={idx} style={styles.blockRow}>
-                    <View>
-                      <Text style={styles.blockName}>{b._id || 'District'} Block</Text>
-                      <Text style={styles.blockDeaths}>
-                        {b.deaths > 0 ? `${b.deaths} mortalities registered` : 'Zero mortalities'}
-                      </Text>
+            {/* Diagnostic Lab Pipeline */}
+            {summary.labPipeline && Object.keys(summary.labPipeline).length > 0 && (
+              <View style={styles.labPipelineCard}>
+                <View style={styles.labHeaderRow}>
+                  <Text style={styles.labCardTitle}>
+                    {isEnglish ? 'Diagnostic Lab Pipeline' : 'नैदानिक लैब परीक्षण पाइपलाइन'}
+                  </Text>
+                </View>
+                <View style={styles.labStatsRow}>
+                  {Object.entries(summary.labPipeline).map(([status, count]) => (
+                    <View key={status} style={styles.labStatItem}>
+                      <Text style={styles.labStatCount}>{count}</Text>
+                      <Text style={styles.labStatLabel}>{status}</Text>
                     </View>
-                    <View style={styles.blockCountBadge}>
-                      <Text style={styles.blockCountText}>{b.count} cases</Text>
-                    </View>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
+            )}
+
+            {/* Sub-District Burden Overview */}
+            {summary.blockDistribution && summary.blockDistribution.length > 0 && (
+              <View style={styles.blockBurdenCard}>
+                <View style={styles.blockHeaderRow}>
+                  <Text style={styles.sectionTitle}>
+                    {isEnglish ? 'Sub-District Disease Burden' : 'उप-ज़िला रोग भार विश्लेषण'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(officer)/surveillance' as any)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.fullAnalysisLink}>
+                      {isEnglish ? 'Full Analysis →' : 'विस्तृत रिपोर्ट →'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.blockList}>
+                  {summary.blockDistribution.slice(0, 4).map((b, idx) => (
+                    <View key={idx} style={styles.blockRowItem}>
+                      <View style={styles.blockNameCol}>
+                        <Text style={styles.blockNameText}>{b._id || 'District'} Block</Text>
+                        <Text style={styles.blockMortalityText}>
+                          {b.deaths > 0
+                            ? `${b.deaths} ${isEnglish ? 'mortalities registered' : 'मौतें दर्ज'}`
+                            : (isEnglish ? 'Zero mortalities' : 'शून्य मृत्यु')}
+                        </Text>
+                      </View>
+                      <View style={styles.blockCountPill}>
+                        <Text style={styles.blockCountPillText}>
+                          {b.count} {isEnglish ? 'cases' : 'मामले'}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </>
+        )}
+
+        {/* 7. 8-Module Surveillance & Operations Command Suite */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>
+            {isEnglish ? 'Surveillance & Operations Command Suite' : 'निगरानी एवं संचालन मॉड्यूल'}
+          </Text>
+        </View>
+
+        <View style={styles.navGrid}>
+          {/* Module 1: Epidemic Surveillance */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/surveillance' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#EEF2FF' }]}>
+              <Image source={ICON_SURVEILLANCE} style={[styles.moduleIconImg, { tintColor: '#4338CA' }]} />
             </View>
-          )}
-        </>
-      )}
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'Epidemic Surveillance' : 'महामारी निगरानी'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? '30-day epidemic curve, triage funnel, and disease breakdown'
+                : '30-दिवसीय वक्र, ट्रायज विश्लेषण व रोग डेटा'}
+            </Text>
+          </TouchableOpacity>
 
-      {/* 7. Quick Navigation to Officer Modules (Always Accessible) */}
-      <Text style={styles.sectionTitle}>{t('officer.operationsModules', 'Surveillance & Operations Modules')}</Text>
-      <View style={styles.navGrid}>
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/surveillance' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>📊</Text>
-          <Text style={styles.navTitle}>{t('nav.epidemicSurveillance', 'Epidemic Surveillance')}</Text>
-          <Text style={styles.navDesc}>30-day epidemic curve, triage funnel, disease breakdown</Text>
-        </TouchableOpacity>
+          {/* Module 2: Outbreak Alerts */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/outbreaks' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#FEF3C7' }]}>
+              <Image source={ICON_ALERT} style={[styles.moduleIconImg, { tintColor: '#B45309' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'Outbreak Alerts' : 'प्रकोप चेतावनी'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'DBSCAN proximity clusters, threshold alarms, high-risk villages'
+                : 'क्लस्टर पहचान, सीमा चेतावनी एवं उच्च जोखिम गांव'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/outbreaks' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>⚠️</Text>
-          <Text style={styles.navTitle}>{t('nav.outbreakAlerts', 'Outbreak Alerts')}</Text>
-          <Text style={styles.navDesc}>DBSCAN proximity clusters, threshold alarms, high-risk villages</Text>
-        </TouchableOpacity>
+          {/* Module 3: Containment Zones */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/containment' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#F3E8FF' }]}>
+              <Image source={ICON_SHIELD} style={[styles.moduleIconImg, { tintColor: '#7C3AED' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'Containment Zones' : 'कंटेनमेंट ज़ोन'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'Quarantine perimeters, movement controls, ring vaccination'
+                : 'क्वारंटाइन परिधि, आवागमन नियंत्रण व रिंग टीकाकरण'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/containment' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>🛡️</Text>
-          <Text style={styles.navTitle}>{t('nav.containmentZones', 'Containment Zones')}</Text>
-          <Text style={styles.navDesc}>Quarantine buffers, movement restrictions, ring vaccination</Text>
-        </TouchableOpacity>
+          {/* Module 4: Mass Vaccination Camps */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/vaccination' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#ECFDF5' }]}>
+              <Image source={ICON_VACCINE} style={[styles.moduleIconImg, { tintColor: '#059669' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'Mass Vaccination Camps' : 'सामूहिक टीकाकरण शिविर'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'District camp scheduling, slot allocation, and field logistics'
+                : 'शिविर समय-सारणी, स्लॉट आवंटन एवं फील्ड रसद'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/vaccination' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>⛺</Text>
-          <Text style={styles.navTitle}>{t('nav.massVaccination', 'Mass Vaccination Camps')}</Text>
-          <Text style={styles.navDesc}>District camp scheduling, slot allocation, and logistics</Text>
-        </TouchableOpacity>
+          {/* Module 5: District GIS Map */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/map' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#E0F2FE' }]}>
+              <Image source={ICON_LOCATION} style={[styles.moduleIconImg, { tintColor: '#0284C7' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'District GIS Map' : 'ज़िला जीआईएस मैप'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'High-density outbreak heatmaps, cluster centers, and zone perimeters'
+                : 'प्रकोप हीटमैप, क्लस्टर केंद्र व ज़ोन सीमाएं'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/map' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>🗺️</Text>
-          <Text style={styles.navTitle}>{t('nav.districtGisMap', 'District GIS Map')}</Text>
-          <Text style={styles.navDesc}>High-density outbreak heatmaps and zone boundaries</Text>
-        </TouchableOpacity>
+          {/* Module 6: Official Advisories */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/advisories' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#FEF3C7' }]}>
+              <Image source={ICON_BELL} style={[styles.moduleIconImg, { tintColor: '#D97706' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'Official Advisories' : 'आधिकारिक परामर्श'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'Biosecurity bulletins, emergency directives, farmer broadcasts'
+                : 'बायोसिक्योरिटी बुलेटिन, आपातकालीन निर्देश व प्रसारण'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/advisories' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>📢</Text>
-          <Text style={styles.navTitle}>{t('nav.officialAdvisories', 'Official Advisories')}</Text>
-          <Text style={styles.navDesc}>Biosecurity bulletins, emergency directives, and broadcasts</Text>
-        </TouchableOpacity>
+          {/* Module 7: NADRES Forewarning */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/forewarning' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#FEE2E2' }]}>
+              <Image source={ICON_WARN} style={[styles.moduleIconImg, { tintColor: '#DC2626' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'NADRES Forewarning' : 'नाड्रेस पूर्व-चेतावनी'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'ICAR-NIVEDI meteorological risk alerts and predictive models'
+                : 'आईसीएआर-निवेदी मौसम संबंधी जोखिम एवं पूर्वानुमान मॉडल'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/forewarning' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>📡</Text>
-          <Text style={styles.navTitle}>{t('nav.nadresForewarning', 'NADRES Forewarning')}</Text>
-          <Text style={styles.navDesc}>ICAR-NIVEDI early warnings, meteorological risk, and alerts</Text>
-        </TouchableOpacity>
+          {/* Module 8: Officer Profile & Settings */}
+          <TouchableOpacity
+            style={styles.moduleCard}
+            onPress={() => router.push('/(officer)/profile' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.moduleIconBox, { backgroundColor: '#F1F5F9' }]}>
+              <Image source={ICON_PERSON} style={[styles.moduleIconImg, { tintColor: '#475569' }]} />
+            </View>
+            <Text style={styles.moduleTitle}>
+              {isEnglish ? 'Officer Profile & Settings' : 'अधिकारी प्रोफ़ाइल व सेटिंग्स'}
+            </Text>
+            <Text style={styles.moduleDesc}>
+              {isEnglish
+                ? 'Credentials, district jurisdiction, language, and system configuration'
+                : 'प्रमाणपत्र, ज़िला अधिकार क्षेत्र, भाषा एवं प्रणाली सेटिंग्स'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
-        <TouchableOpacity
-          style={styles.navCard}
-          onPress={() => router.push('/(officer)/profile' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.navIcon}>🏛️</Text>
-          <Text style={styles.navTitle}>{t('nav.officerProfile', 'Officer Profile & Settings')}</Text>
-          <Text style={styles.navDesc}>Administrative credentials, district jurisdiction, language, and system configuration</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      {/* Universal Fixed Floating Bottom Navigation Dock */}
+      <OfficerFloatingNav activeTab="dashboard" outbreakCount={outbreakCount} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: spacing.base,
-    backgroundColor: colors.light.background,
-    paddingBottom: spacing.xxl * 2,
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#F8FAF9',
   },
-  header: {
-    marginBottom: spacing.base,
+  scrollContainer: {
+    paddingBottom: 130, // Clearance for fixed floating dock
   },
-  headerTop: {
+  commandHeader: {
+    backgroundColor: '#0B132B',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 12 : 52,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    ...shadows.md,
+  },
+  headerTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 8,
   },
-  badgeRow: {
+  cadreBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-  },
-  roleBadge: {
-    backgroundColor: colors.light.officerBadgeBg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.round,
-  },
-  roleBadgeText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
-    letterSpacing: 0.5,
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.light.success,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#38BDF8',
   },
-  headerActions: {
+  cadreBadgeText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#BAE6FD',
+    letterSpacing: 0.6,
+  },
+  headerActionGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 8,
   },
-  profileButton: {
-    backgroundColor: colors.light.officerBadgeBg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radii.sm,
+  headerIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.light.officerBadge,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  profileButtonText: {
-    color: colors.light.officerBadge,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
+  headerIconImg: {
+    width: 15,
+    height: 15,
+    tintColor: '#FFFFFF',
   },
-  logoutButton: {
-    backgroundColor: colors.light.dangerBg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radii.sm,
+  headerSignOutBtn: {
+    backgroundColor: 'rgba(220, 38, 38, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.5)',
   },
-  logoutButtonText: {
-    color: colors.light.danger,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
+  headerSignOutText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FCA5A5',
   },
-  title: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginTop: spacing.xs,
+  titleInfoWrap: {
+    marginBottom: 10,
   },
-  subtitle: {
-    fontSize: typography.sizes.sm,
-    color: colors.light.textSecondary,
+  officerNameText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  districtJurisdictionText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#CBD5E1',
     marginTop: 2,
   },
-  boldText: {
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  districtHighlight: {
+    fontFamily: FONT_BOLD,
+    color: '#38BDF8',
+    fontWeight: '800',
   },
-  metaRow: {
+  syncRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.xs,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  lastUpdatedText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
+  syncIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  refreshIconBtn: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
+  syncDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
   },
-  refreshIconText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
+  syncTimestampText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 11,
+    color: '#E2E8F0',
+  },
+  refreshPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(67, 56, 202, 0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#6366F1',
+  },
+  refreshPillIcon: {
+    width: 11,
+    height: 11,
+    tintColor: '#FFFFFF',
+  },
+  refreshPillText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   offlineBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.light.warningBg,
-    padding: spacing.sm,
-    borderRadius: radii.sm,
-    marginTop: spacing.sm,
-    gap: spacing.xs,
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginTop: 10,
   },
   offlineBannerIcon: {
-    fontSize: 14,
+    width: 14,
+    height: 14,
+    tintColor: '#92400E',
   },
   offlineBannerText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.warning,
-    fontWeight: typography.weights.medium,
     flex: 1,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 11,
+    color: '#92400E',
   },
   loadingContainer: {
-    paddingVertical: spacing.xxl,
+    padding: 32,
     alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'center',
   },
   loadingText: {
-    fontSize: typography.sizes.sm,
-    color: colors.light.textSecondary,
+    fontFamily: FONT_MEDIUM,
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 12,
   },
   errorCard: {
-    backgroundColor: colors.light.surface,
-    padding: spacing.lg,
-    borderRadius: radii.md,
+    backgroundColor: '#FFFFFF',
+    margin: 16,
+    padding: 20,
+    borderRadius: 18,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.light.danger,
-    marginVertical: spacing.lg,
+    borderColor: '#FCA5A5',
     ...shadows.sm,
   },
-  errorIcon: {
-    fontSize: 32,
-    marginBottom: spacing.xs,
+  errorCardIcon: {
+    width: 40,
+    height: 40,
+    tintColor: '#DC2626',
+    marginBottom: 8,
   },
-  errorTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.danger,
+  errorCardTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
   },
-  errorMessage: {
-    fontSize: typography.sizes.sm,
-    color: colors.light.textSecondary,
+  errorCardMessage: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#64748B',
     textAlign: 'center',
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
+    marginBottom: 14,
   },
-  retryButton: {
-    backgroundColor: colors.light.officerBadge,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.md,
-  },
-  retryButtonText: {
-    color: colors.light.textInverse,
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-  },
-  filterSection: {
-    marginBottom: spacing.base,
-  },
-  filterLabel: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  filterScroll: {
+  retryBtn: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#4338CA',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
   },
-  filterChip: {
-    backgroundColor: colors.light.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.round,
+  retryBtnIcon: {
+    width: 13,
+    height: 13,
+    tintColor: '#FFFFFF',
+  },
+  retryBtnText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  blockFilterSection: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  blockFilterLabel: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11,
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  blockChipsScroll: {
+    gap: 8,
+  },
+  blockChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    marginRight: spacing.xs,
   },
-  filterChipActive: {
-    backgroundColor: colors.light.officerBadgeBg,
-    borderColor: colors.light.officerBadge,
+  blockChipActive: {
+    backgroundColor: '#1E1B4B',
+    borderColor: '#1E1B4B',
   },
-  filterChipText: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
-    fontWeight: typography.weights.medium,
+  blockChipInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
   },
-  filterChipTextActive: {
-    color: colors.light.officerBadge,
-    fontWeight: typography.weights.bold,
+  blockChipText: {
+    fontFamily: FONT_MEDIUM,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  blockChipTextActive: {
+    color: '#FFFFFF',
+  },
+  blockChipTextInactive: {
+    color: '#475569',
   },
   outbreakAlertCard: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FFFBEB',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1.5,
-    borderColor: colors.light.danger,
-    borderRadius: radii.md,
-    padding: spacing.base,
-    marginBottom: spacing.base,
+    borderColor: '#F59E0B',
     ...shadows.sm,
   },
   outbreakAlertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginBottom: spacing.xs,
+    gap: 10,
+    marginBottom: 6,
   },
   outbreakAlertIcon: {
-    fontSize: 18,
+    width: 24,
+    height: 24,
+    tintColor: '#DC2626',
+  },
+  outbreakAlertTitleCol: {
+    flex: 1,
   },
   outbreakAlertTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.danger,
+    fontFamily: FONT_BOLD,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  outbreakUrgencyPill: {
+    fontFamily: FONT_BOLD,
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#B45309',
+    letterSpacing: 0.5,
+    marginTop: 1,
   },
   outbreakAlertBody: {
-    fontSize: typography.sizes.xs,
-    color: '#7F1D1D',
+    fontFamily: FONT_REGULAR,
+    fontSize: 12.5,
+    color: '#78350F',
     lineHeight: 18,
-    marginBottom: spacing.sm,
+    marginBottom: 10,
   },
   outbreakActionRow: {
     flexDirection: 'row',
-    gap: spacing.xs,
-    flexWrap: 'wrap',
+    gap: 8,
   },
-  outbreakActionBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.light.danger,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radii.sm,
+  outbreakBtnPrimary: {
+    flex: 1.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#DC2626',
+    paddingVertical: 8,
+    borderRadius: 12,
   },
-  outbreakContainmentBtn: {
-    backgroundColor: colors.light.officerBadge,
+  outbreakBtnText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
-  outbreakActionBtnText: {
-    color: colors.light.textInverse,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
+  outbreakBtnChevron: {
+    width: 10,
+    height: 10,
+    tintColor: '#FFFFFF',
   },
-  sectionTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginVertical: spacing.sm,
+  outbreakBtnSecondary: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  outbreakBtnSecText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#B45309',
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  viewDetailsText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
+  sectionTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
   },
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.base,
+    paddingHorizontal: 16,
+    gap: 10,
   },
   kpiCard: {
-    flex: 1,
-    minWidth: '46%',
-    backgroundColor: colors.light.surface,
-    padding: spacing.base,
-    borderRadius: radii.md,
+    width: (SCREEN_WIDTH - 32 - 10) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    ...shadows.xs,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
+  },
+  kpiHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   kpiLabel: {
+    fontFamily: FONT_BOLD,
     fontSize: 10,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textMuted,
+    fontWeight: '800',
+    color: '#64748B',
     letterSpacing: 0.5,
   },
+  kpiIcon: {
+    width: 16,
+    height: 16,
+  },
   kpiValue: {
-    fontSize: typography.sizes.xxl,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginVertical: 2,
+    fontFamily: FONT_BOLD,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.5,
   },
   kpiSub: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
-  },
-  capacityCard: {
-    backgroundColor: colors.light.surface,
-    padding: spacing.base,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.light.border,
-    marginBottom: spacing.sm,
-    ...shadows.xs,
-  },
-  capacityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  capacityTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-  },
-  capacitySubtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
+    fontFamily: FONT_REGULAR,
+    fontSize: 11,
+    color: '#94A3B8',
     marginTop: 2,
   },
-  capacityBadge: {
-    backgroundColor: colors.light.primarySubtle,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
+  capacityCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
   },
-  capacityBadgeText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.primary,
+  capacityHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  progressBarBg: {
+  capacityTitleCol: {
+    flex: 1,
+  },
+  capacityCardTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  capacityCardSubtitle: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  capacityBadgePill: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  capacityBadgePillText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  progressBarBackground: {
     height: 8,
-    backgroundColor: colors.light.surfaceAlt,
-    borderRadius: radii.round,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
     overflow: 'hidden',
   },
-  progressBarFill: {
+  progressBarActiveFill: {
     height: '100%',
-    backgroundColor: colors.light.primary,
-    borderRadius: radii.round,
+    backgroundColor: '#10B981',
+    borderRadius: 4,
   },
-  labCard: {
-    backgroundColor: colors.light.surface,
-    padding: spacing.base,
-    borderRadius: radii.md,
+  labPipelineCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    marginBottom: spacing.base,
-    ...shadows.xs,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
+  },
+  labHeaderRow: {
+    marginBottom: 8,
   },
   labCardTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
-    marginBottom: spacing.sm,
+    fontFamily: FONT_BOLD,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   labStatsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    gap: 8,
   },
   labStatItem: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 8,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   labStatCount: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    color: colors.light.officerBadge,
+    fontFamily: FONT_BOLD,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   labStatLabel: {
+    fontFamily: FONT_MEDIUM,
     fontSize: 10,
-    color: colors.light.textMuted,
+    color: '#64748B',
     marginTop: 2,
+    textTransform: 'capitalize',
   },
-  blockSection: {
-    marginBottom: spacing.base,
+  blockBurdenCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
+  },
+  blockHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  fullAnalysisLink: {
+    fontFamily: FONT_BOLD,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4338CA',
   },
   blockList: {
-    gap: spacing.xs,
+    gap: 8,
   },
-  blockRow: {
+  blockRowItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.light.surface,
-    padding: spacing.sm,
-    borderRadius: radii.sm,
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.light.border,
+    borderColor: '#E2E8F0',
   },
-  blockName: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  blockNameCol: {
+    flex: 1,
   },
-  blockDeaths: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textMuted,
+  blockNameText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    color: '#0F172A',
   },
-  blockCountBadge: {
-    backgroundColor: colors.light.surfaceAlt,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radii.round,
+  blockMortalityText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
-  blockCountText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  blockCountPill: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  blockCountPillText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#4338CA',
   },
   navGrid: {
-    gap: spacing.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginTop: 4,
   },
-  navCard: {
-    backgroundColor: colors.light.surface,
-    padding: spacing.base,
-    borderRadius: radii.md,
+  moduleCard: {
+    width: (SCREEN_WIDTH - 32 - 10) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
-    borderColor: colors.light.border,
-    ...shadows.xs,
+    borderColor: '#E2E8F0',
+    ...shadows.sm,
   },
-  navIcon: {
-    fontSize: 24,
-    marginBottom: spacing.xs,
+  moduleIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  navTitle: {
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    color: colors.light.textPrimary,
+  moduleIconImg: {
+    width: 20,
+    height: 20,
   },
-  navDesc: {
-    fontSize: typography.sizes.xs,
-    color: colors.light.textSecondary,
-    marginTop: 2,
-    lineHeight: 16,
+  moduleTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  moduleDesc: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 10.5,
+    color: '#64748B',
+    lineHeight: 14,
   },
 });

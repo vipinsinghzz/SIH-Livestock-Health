@@ -28,7 +28,7 @@ class RealtimeHub {
       species: caseData.species,
       risk: caseData.risk,
       status: caseData.status,
-      district: caseData.districtId || caseData.district || 'Pune',
+      district: caseData.districtId || caseData.district || 'Nagpur',
       block: caseData.block || caseData.farmerLocation?.block || '',
       affectedCount: caseData.affectedCount || 1,
       confidence: caseData.confidence,
@@ -81,7 +81,7 @@ class RealtimeHub {
   async notifyCaseCreated(caseDoc, matchingVets = []) {
     const sanitizedVet = this.sanitizePayload(caseDoc, 'veterinarian');
     const sanitizedOfficer = this.sanitizePayload(caseDoc, 'officer');
-    const targetDistrict = (caseDoc.districtId || 'Pune').trim();
+    const targetDistrict = (caseDoc.districtId || 'Nagpur').trim();
 
     // Broadcast to district vets via SSE
     notificationService.broadcastToDistrictVets(targetDistrict, 'NEW_CASE_ALERT', sanitizedVet);
@@ -96,7 +96,7 @@ class RealtimeHub {
    */
   async notifyCaseStatusUpdated(caseDoc, updatedBy, oldStatus, newStatus) {
     const farmerId = String(caseDoc.farmerId || caseDoc.farmerContact?._id || '');
-    const targetDistrict = (caseDoc.districtId || 'Pune').trim();
+    const targetDistrict = (caseDoc.districtId || 'Nagpur').trim();
 
     const payload = {
       caseId: caseDoc.id || caseDoc._id?.toString(),
@@ -140,7 +140,7 @@ class RealtimeHub {
    * 3. CASE CLAIMED
    */
   async notifyCaseClaimed(caseDoc, vetUser) {
-    const targetDistrict = (caseDoc.districtId || 'Pune').trim();
+    const targetDistrict = (caseDoc.districtId || 'Nagpur').trim();
     const farmerId = String(caseDoc.farmerId || '');
 
     const payload = {

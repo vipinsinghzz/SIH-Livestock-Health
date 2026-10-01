@@ -55,13 +55,13 @@ export default function VaccinationPage() {
   const [camps, setCamps] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Farmer GPS / fallback coordinates (Baramati rural cluster)
-  const defaultUserLat = user?.location?.lat && user.location.lat !== 0 ? user.location.lat : 18.1517;
-  const defaultUserLng = user?.location?.lng && user.location.lng !== 0 ? user.location.lng : 74.5772;
+  // Farmer GPS / fallback coordinates (Nagpur rural cluster)
+  const defaultUserLat = user?.location?.lat && user.location.lat !== 0 ? user.location.lat : 21.1458;
+  const defaultUserLng = user?.location?.lng && user.location.lng !== 0 ? user.location.lng : 79.0882;
   const [userCoords, setUserCoords] = useState([defaultUserLat, defaultUserLng]);
 
   // Filters for Nearby Camps
-  const [radiusFilter, setRadiusFilter] = useState(20); // 20 km radius default
+  const [radiusFilter, setRadiusFilter] = useState(50); // 50 km radius default for Nagpur district coverage
   const [selectedVaccineFilter, setSelectedVaccineFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAllSchedule, setShowAllSchedule] = useState(false);
@@ -75,7 +75,7 @@ export default function VaccinationPage() {
   const [completingScheduleItem, setCompletingScheduleItem] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  const detectedDistrict = user?.district || 'Pune';
+  const detectedDistrict = user?.district || 'Nagpur';
 
   useEffect(() => {
     if (showVetModal) {
@@ -100,77 +100,80 @@ export default function VaccinationPage() {
     notes: isEnglish ? 'Administered subcutaneously at camp' : isMarathi ? 'शिबिरात लस देण्यात आली' : 'शिविर में टीका लगाया गया'
   });
 
-  // Upcoming vaccination camps data (SIH PS-128)
+  // Upcoming vaccination camps data (Nagpur District, Maharashtra)
   const initialCamps = [
     {
-      id: 'camp-fmd-1',
-      vaccineName: 'FMD',
-      fullNameEn: 'Foot and Mouth Disease (FMD)',
-      fullNameHi: 'खुरपका-मुंहपका',
-      fullNameMr: 'लाळ-खुरकूत',
-      dateEn: '12 Sept 2026 • 10:00 AM - 04:00 PM',
-      dateHi: '12 सितम्बर 2026 • सुबह 10:00 से शाम 04:00',
-      dateMr: '१२ सप्टेंबर २०२६ • सकाळी १०:०० ते दुपारी ०४:००',
-      villageEn: 'Primary Veterinary Dispensary, Malegaon Bk',
-      villageHi: 'प्राथमिक पशु चिकित्सालय, मालेगांव बुद्रुक',
-      villageMr: 'प्राथमिक पशुवैद्यकीय दवाखाना, माळेगाव बु.',
-      block: 'Baramati',
-      lat: 18.1517,
-      lng: 74.5772,
-      targetAnimalsEn: 'Cattle & Buffalo',
-      targetAnimalsHi: 'गाय एवं भैंस',
-      targetAnimalsMr: 'गाय आणि म्हैस',
-      costEn: 'Free (Govt Drive)',
-      costHi: 'निःशुल्क (सरकारी अभियान)',
-      costMr: 'मोफत (शासकीय मोहीम)',
-      isFree: true,
-      organizerEn: 'Dept of Animal Husbandry, Maharashtra (NADCP)',
-      organizerHi: 'पशुपालन विभाग, महाराष्ट्र शासन (NADCP)',
-      organizerMr: 'पशुसंवर्धन विभाग, महाराष्ट्र शासन (NADCP)',
-      remainingSlots: 48
-    },
-    {
-      id: 'camp-lsd-2',
+      id: 'camp-lsd-nag-sao',
       vaccineName: 'LSD',
-      fullNameEn: 'Lumpy Skin Disease (LSD)',
-      fullNameHi: 'लम्पी त्वचा रोग',
-      fullNameMr: 'लंपी त्वचा रोग',
-      dateEn: '15 Sept 2026 • 09:30 AM - 02:30 PM',
-      dateHi: '15 सितम्बर 2026 • सुबह 09:30 से दोपहर 02:30',
-      dateMr: '१५ सप्टेंबर २०२६ • सकाळी ०९:३० ते दुपारी ०२:३०',
-      villageEn: 'Gram Panchayat Veterinary Clinic, Kathephal',
-      villageHi: 'ग्राम पंचायत पशु चिकित्सा केंद्र, काटेफळ',
-      villageMr: 'ग्रामपंचायत पशुवैद्यकीय केंद्र, काटेफळ',
-      block: 'Baramati',
-      lat: 18.1632,
-      lng: 74.5885,
-      targetAnimalsEn: 'Cattle',
-      targetAnimalsHi: 'गाय एवं गोवंश',
-      targetAnimalsMr: 'गाय आणि गोवंश',
-      costEn: 'Free (Govt Drive)',
+      fullNameEn: 'Lumpy Skin Disease (LSD) Ring Vaccination',
+      fullNameHi: 'लम्पी त्वचा रोग रिंग टीकाकरण',
+      fullNameMr: 'लंपी त्वचा रोग रिंग लसीकरण',
+      dateEn: '15 Oct 2026 • 09:00 AM - 03:30 PM',
+      dateHi: '15 अक्टूबर 2026 • सुबह 09:00 से दोपहर 03:30',
+      dateMr: '१५ ऑक्टोबर २०२६ • सकाळी ०९:०० ते दुपारी ०३:३०',
+      villageEn: 'Taluka Veterinary Polyclinic, Saoner',
+      villageHi: 'तालुका पशु चिकित्सालय, सावनेर',
+      villageMr: 'तालुका पशुवैद्यकीय सर्वचिकित्सालय, सावनेर',
+      block: 'Saoner',
+      district: 'Nagpur',
+      lat: 21.3833,
+      lng: 78.9167,
+      targetAnimalsEn: 'Cattle & Buffalo',
+      targetAnimalsHi: 'गाय एवं भैंस',
+      targetAnimalsMr: 'गाय आणि म्हैस',
+      costEn: 'Free (Govt Emergency Drive)',
+      costHi: 'निःशुल्क (सरकारी आपातकालीन अभियान)',
+      costMr: 'मोफत (शासकीय आपत्कालीन मोहीम)',
+      isFree: true,
+      organizerEn: 'District Animal Husbandry Office, Nagpur (Ring Taskforce)',
+      organizerHi: 'जिला पशुपालन कार्यालय, नागपुर',
+      organizerMr: 'जिल्हा पशुसंवर्धन कार्यालय, नागपूर',
+      remainingSlots: 145
+    },
+    {
+      id: 'camp-fmd-nag-kam',
+      vaccineName: 'FMD',
+      fullNameEn: 'Foot and Mouth Disease (FMD - NADCP Phase IV)',
+      fullNameHi: 'खुरपका-मुंहपका (NADCP चरण IV)',
+      fullNameMr: 'लाळ-खुरकूत (NADCP टप्पा IV)',
+      dateEn: '18 Oct 2026 • 09:30 AM - 04:00 PM',
+      dateHi: '18 अक्टूबर 2026 • सुबह 09:30 से शाम 04:00',
+      dateMr: '१८ ऑक्टोबर २०२६ • सकाळी ०९:३० ते दुपारी ०४:००',
+      villageEn: 'Primary Veterinary Dispensary, Yerkheda, Kamptee',
+      villageHi: 'प्राथमिक पशु चिकित्सा केंद्र, येरखेड़ा, कामठी',
+      villageMr: 'प्राथमिक पशुवैद्यकीय दवाखाना, येरखेडा, कामठी',
+      block: 'Kamptee',
+      district: 'Nagpur',
+      lat: 21.2227,
+      lng: 79.1977,
+      targetAnimalsEn: 'Cattle & Buffalo',
+      targetAnimalsHi: 'गाय एवं भैंस',
+      targetAnimalsMr: 'गाय आणि म्हैस',
+      costEn: 'Free (NADCP Govt Drive)',
       costHi: 'निःशुल्क (सरकारी अभियान)',
       costMr: 'मोफत (शासकीय मोहीम)',
       isFree: true,
-      organizerEn: 'National Livestock Mission (NLM)',
-      organizerHi: 'राष्ट्रीय पशुधन मिशन',
-      organizerMr: 'राष्ट्रीय पशुधन मिशन',
-      remainingSlots: 32
+      organizerEn: 'Dept of Animal Husbandry, Maharashtra & Zilla Parishad Nagpur',
+      organizerHi: 'पशुपालन विभाग, महाराष्ट्र शासन व जिला परिषद नागपुर',
+      organizerMr: 'पशुसंवर्धन विभाग, महाराष्ट्र शासन व जिल्हा परिषद नागपूर',
+      remainingSlots: 92
     },
     {
-      id: 'camp-hs-3',
+      id: 'camp-hs-nag-hin',
       vaccineName: 'HS',
-      fullNameEn: 'Hemorrhagic Septicemia (HS)',
-      fullNameHi: 'गलघोंटू रोग',
-      fullNameMr: 'घटसर्प रोग',
-      dateEn: '18 Sept 2026 • 09:00 AM - 03:00 PM',
-      dateHi: '18 सितम्बर 2026 • सुबह 09:00 से दोपहर 03:00',
-      dateMr: '१८ सप्टेंबर २०२६ • सकाळी ०९:०० ते दुपारी ०३:००',
-      villageEn: 'Animal Health Sub-Centre, Jalochi',
-      villageHi: 'पशु स्वास्थ्य उपकेंद्र, जलोची',
-      villageMr: 'पशु आरोग्य उपकेंद्र, जलोची',
-      block: 'Baramati',
-      lat: 18.1401,
-      lng: 74.561,
+      fullNameEn: 'Hemorrhagic Septicemia (HS) Pre-Monsoon Booster',
+      fullNameHi: 'गलघोंटू रोग प्रतिरक्षण',
+      fullNameMr: 'घटसर्प प्रतिबंधक लसीकरण',
+      dateEn: '22 Oct 2026 • 09:00 AM - 02:30 PM',
+      dateHi: '22 अक्टूबर 2026 • सुबह 09:00 से दोपहर 02:30',
+      dateMr: '२२ ऑक्टोबर २०२६ • सकाळी ०९:०० ते दुपारी ०२:३०',
+      villageEn: 'Veterinary Dispensary, Takalghat, Hingna',
+      villageHi: 'पशु चिकित्सालय, टाकळघाट, हिंगणा',
+      villageMr: 'पशुवैद्यकीय दवाखाना, टाकळघाट, हिंगणा',
+      block: 'Hingna',
+      district: 'Nagpur',
+      lat: 20.9786,
+      lng: 78.9632,
       targetAnimalsEn: 'Cattle & Buffalo',
       targetAnimalsHi: 'गाय एवं भैंस',
       targetAnimalsMr: 'गाय आणि म्हैस',
@@ -178,80 +181,27 @@ export default function VaccinationPage() {
       costHi: 'निःशुल्क (सरकारी अभियान)',
       costMr: 'मोफत (शासकीय मोहीम)',
       isFree: true,
-      organizerEn: 'District Animal Husbandry Office, Pune',
-      organizerHi: 'जिला पशुपालन कार्यालय, पुणे',
-      organizerMr: 'जिल्हा पशुसंवर्धन कार्यालय, पुणे',
-      remainingSlots: 60
+      organizerEn: 'Zilla Parishad Animal Husbandry Division, Nagpur',
+      organizerHi: 'जिला परिषद पशुपालन प्रभाग, नागपुर',
+      organizerMr: 'जिल्हा परिषद पशुसंवर्धन विभाग, नागपूर',
+      remainingSlots: 68
     },
     {
-      id: 'camp-bq-4',
-      vaccineName: 'BQ',
-      fullNameEn: 'Black Quarter (BQ)',
-      fullNameHi: 'लंगड़ा बुखार',
-      fullNameMr: 'फऱ्या रोग',
-      dateEn: '21 Sept 2026 • 10:00 AM - 03:30 PM',
-      dateHi: '21 सितम्बर 2026 • सुबह 10:00 से दोपहर 03:30',
-      dateMr: '२१ सप्टेंबर २०२६ • सकाळी १०:०० ते दुपारी ०३:३०',
-      villageEn: 'Taluka Veterinary Polyclinic, Baramati',
-      villageHi: 'तालुका पशु चिकित्सालय, बारामती',
-      villageMr: 'तालुका पशुवैद्यकीय सर्वचिकित्सालय, बारामती',
-      block: 'Baramati',
-      lat: 18.155,
-      lng: 74.58,
-      targetAnimalsEn: 'Cattle & Buffalo',
-      targetAnimalsHi: 'गाय एवं भैंस',
-      targetAnimalsMr: 'गाय आणि म्हैस',
-      costEn: 'Free (Govt Drive)',
-      costHi: 'निःशुल्क (सरकारी अभियान)',
-      costMr: 'मोफत (शासकीय मोहीम)',
-      isFree: true,
-      organizerEn: 'Zilla Parishad Pune',
-      organizerHi: 'जिला परिषद पुणे',
-      organizerMr: 'जिल्हा परिषद पुणे',
-      remainingSlots: 25
-    },
-    {
-      id: 'camp-bruc-5',
-      vaccineName: 'Brucellosis',
-      fullNameEn: 'Brucellosis (Calfhood S19)',
-      fullNameHi: 'ब्रुसेलोसिस (बछड़ा टीकाकरण)',
-      fullNameMr: 'ब्रुसेलोसिस (वासरांचे लसीकरण)',
-      dateEn: '24 Sept 2026 • 10:30 AM - 02:00 PM',
-      dateHi: '24 सितम्बर 2026 • सुबह 10:30 से दोपहर 02:00',
-      dateMr: '२४ सप्टेंबर २०२६ • सकाळी १०:३० ते दुपारी ०२:००',
-      villageEn: 'Veterinary Sub-Center, Dorlewadi',
-      villageHi: 'पशु उपकेंद्र, दोर्लेवाडी',
-      villageMr: 'पशुवैद्यकीय उपकेंद्र, दोर्लेवाडी',
-      block: 'Baramati',
-      lat: 18.17,
-      lng: 74.59,
-      targetAnimalsEn: 'Female Calves (Cattle & Buffalo)',
-      targetAnimalsHi: 'मादा बछिया (गोवंश एवं भैंस)',
-      targetAnimalsMr: 'मादी वासरे (गाय आणि म्हैस)',
-      costEn: 'Free (Govt Drive)',
-      costHi: 'निःशुल्क (सरकारी अभियान)',
-      costMr: 'मोफत (शासकीय मोहीम)',
-      isFree: true,
-      organizerEn: 'National Animal Disease Control Programme',
-      organizerHi: 'राष्ट्रीय पशु रोग नियंत्रण कार्यक्रम',
-      organizerMr: 'राष्ट्रीय पशु रोग नियंत्रण कार्यक्रम',
-      remainingSlots: 18
-    },
-    {
-      id: 'camp-ppr-6',
+      id: 'camp-ppr-nag-ram',
       vaccineName: 'PPR',
-      fullNameEn: 'Peste des Petits Ruminants (PPR)',
-      fullNameHi: 'बकरी प्लेग (PPR)',
-      fullNameMr: 'शेळी प्लेग (PPR)',
-      dateEn: '28 Sept 2026 • 09:00 AM - 01:00 PM',
-      dateHi: '28 सितम्बर 2026 • सुबह 09:00 से दोपहर 01:00',
-      dateMr: '२८ सप्टेंबर २०२६ • सकाळी ०९:०० ते दुपारी ०१:००',
-      villageEn: 'Sheep & Goat Breeding Centre, Shirur',
-      villageHi: 'भेड़-बकरी प्रजनन विकास केंद्र, शिरूर',
-      villageMr: 'मेंढी व शेळी विकास केंद्र, शिरूर',
-      block: 'Shirur',
-      lat: 18.8276,
-      lng: 74.3774,
+      fullNameEn: 'Peste des Petits Ruminants (PPR Goat Plague)',
+      fullNameHi: 'बकरी प्लेग (PPR) सुरक्षा अभियान',
+      fullNameMr: 'शेळी-मेंढी प्लेग (PPR) सुरक्षा मोहीम',
+      dateEn: '25 Oct 2026 • 10:00 AM - 03:00 PM',
+      dateHi: '25 अक्टूबर 2026 • सुबह 10:00 से दोपहर 03:00',
+      dateMr: '२५ ऑक्टोबर २०२६ • सकाळी १०:०० ते दुपारी ०३:००',
+      villageEn: 'Veterinary Aid Centre, Mansar, Ramtek',
+      villageHi: 'पशु सहायता केंद्र, मनसर, रामटेक',
+      villageMr: 'पशुवैद्यकीय सहाय्य केंद्र, मनसर, रामटेक',
+      block: 'Ramtek',
+      district: 'Nagpur',
+      lat: 21.3986,
+      lng: 79.3288,
       targetAnimalsEn: 'Goat & Sheep',
       targetAnimalsHi: 'बकरी एवं भेड़',
       targetAnimalsMr: 'शेळी आणि मेंढी',
@@ -259,10 +209,38 @@ export default function VaccinationPage() {
       costHi: 'निःशुल्क (सरकारी अभियान)',
       costMr: 'मोफत (शासकीय मोहीम)',
       isFree: true,
-      organizerEn: 'Maharashtra Sheep & Goat Dev Corporation',
-      organizerHi: 'महाराष्ट्र मेंढी व शेळी विकास महामंडळ',
-      organizerMr: 'महाराष्ट्र मेंढी व शेळी विकास महामंडळ',
-      remainingSlots: 75
+      organizerEn: 'Maharashtra Sheep & Goat Dev Corporation, Nagpur',
+      organizerHi: 'महाराष्ट्र मेंढी व शेळी विकास महामंडळ, नागपुर',
+      organizerMr: 'महाराष्ट्र मेंढी व शेळी विकास महामंडळ, नागपूर',
+      remainingSlots: 110
+    },
+    {
+      id: 'camp-bq-nag-kal',
+      vaccineName: 'BQ',
+      fullNameEn: 'Black Quarter (BQ) Prevention Camp',
+      fullNameHi: 'लंगड़ा बुखार (फऱ्या) टीकाकरण',
+      fullNameMr: 'फऱ्या रोग प्रतिबंधक शिबिर',
+      dateEn: '28 Oct 2026 • 10:00 AM - 03:00 PM',
+      dateHi: '28 अक्टूबर 2026 • सुबह 10:00 से दोपहर 03:00',
+      dateMr: '२८ ऑक्टोबर २०२६ • सकाळी १०:०० ते दुपारी ०३:००',
+      villageEn: 'Veterinary Dispensary, Kalmeshwar Market Yard',
+      villageHi: 'पशु चिकित्सालय, कलमेश्वर',
+      villageMr: 'पशुवैद्यकीय दवाखाना, कळमेश्वर बाजार समिती',
+      block: 'Kalmeshwar',
+      district: 'Nagpur',
+      lat: 21.2333,
+      lng: 78.9167,
+      targetAnimalsEn: 'Cattle & Buffalo',
+      targetAnimalsHi: 'गाय एवं भैंस',
+      targetAnimalsMr: 'गाय आणि म्हैस',
+      costEn: 'Free (Govt Drive)',
+      costHi: 'निःशुल्क (सरकारी अभियान)',
+      costMr: 'मोफत (शासकीय मोहीम)',
+      isFree: true,
+      organizerEn: 'District Animal Husbandry Office, Nagpur',
+      organizerHi: 'जिला पशुपालन कार्यालय, नागपुर',
+      organizerMr: 'जिल्हा पशुसंवर्धन कार्यालय, नागपूर',
+      remainingSlots: 85
     }
   ];
 
@@ -294,19 +272,22 @@ export default function VaccinationPage() {
 
       if (animalsRes.status === 'fulfilled') {
         const fetched = animalsRes.value.data?.animals || animalsRes.value || [];
-        // If farmer has no animals, ensure Tommy & Lakshmi exist so farmer can immediately experience full SIH PS-128 features
+        // If farmer has no animals, ensure healthy Nagpur livestock exist so farmer can immediately experience full SIH PS-128 features
         if (fetched.length === 0) {
           const defaultHerd = [
             {
-              _id: 'anim-tommy',
-              tagId: 'MH-12-P-1092',
-              name: 'Tommy',
+              _id: 'anim-gauri-nag',
+              tagId: 'NG-COW-101',
+              name: 'Gauri',
               species: 'Cattle',
-              breed: 'Gir Cow',
+              breed: 'Gaolao Cattle',
               healthStatus: 'Healthy',
+              village: 'Yerkheda',
+              block: 'Kamptee',
+              district: 'Nagpur',
               vaccinations: [
                 { name: 'FMD (Foot and Mouth Disease)', date: '2026-03-15', nextDue: '2026-09-15', status: 'Completed' },
-                { name: 'HS (Hemorrhagic Septicemia)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
+                { name: 'LSD (Lumpy Skin Disease)', date: '2026-04-10', nextDue: '2026-10-10', status: 'Due Soon' }
               ],
               vaccinationHistory: [
                 {
@@ -314,31 +295,60 @@ export default function VaccinationPage() {
                   date: new Date('2026-03-15'),
                   nextDue: new Date('2026-09-15'),
                   dose: 'Primary Dose',
-                  batchNumber: 'FMD-2026-01',
-                  administeredBy: 'Dr. R. K. Shinde',
-                  camp: 'Baramati Veterinary Camp'
+                  batchNumber: 'FMD-2026-NG01',
+                  administeredBy: 'Dr. Rajesh Patil',
+                  camp: 'Kamptee Veterinary Camp'
                 }
               ]
             },
             {
-              _id: 'anim-lakshmi',
-              tagId: 'MH-12-P-1093',
-              name: 'Lakshmi',
+              _id: 'anim-surabhi-nag',
+              tagId: 'NG-COW-102',
+              name: 'Surabhi',
               species: 'Cattle',
-              breed: 'Sahiwal',
+              breed: 'Gir Cow',
               healthStatus: 'Healthy',
+              village: 'Saoner Rural',
+              block: 'Saoner',
+              district: 'Nagpur',
               vaccinations: [
-                { name: 'LSD (Lumpy Skin Disease)', date: '2026-02-20', nextDue: '2026-09-20', status: 'Completed' }
+                { name: 'LSD (Lumpy Skin Disease)', date: '2026-02-20', nextDue: '2026-10-20', status: 'Completed' },
+                { name: 'HS (Hemorrhagic Septicemia)', date: '2026-05-12', nextDue: '2026-11-12', status: 'Completed' }
               ],
               vaccinationHistory: [
                 {
                   vaccine: 'LSD (Lumpy Skin Disease)',
                   date: new Date('2026-02-20'),
-                  nextDue: new Date('2026-09-20'),
+                  nextDue: new Date('2026-10-20'),
                   dose: 'Annual Booster',
-                  batchNumber: 'LSD-2026-88',
-                  administeredBy: 'Dr. Suresh Patil',
-                  camp: 'Malegaon Sub-Centre'
+                  batchNumber: 'LSD-2026-NG88',
+                  administeredBy: 'Dr. Amit Deshmukh',
+                  camp: 'Saoner Polyclinic Ring Camp'
+                }
+              ]
+            },
+            {
+              _id: 'anim-kalu-nag',
+              tagId: 'NG-GOAT-201',
+              name: 'Kalu',
+              species: 'Goat',
+              breed: 'Berari Goat',
+              healthStatus: 'Healthy',
+              village: 'Takalghat',
+              block: 'Hingna',
+              district: 'Nagpur',
+              vaccinations: [
+                { name: 'PPR (Peste des Petits Ruminants)', date: '2026-04-05', nextDue: '2026-10-05', status: 'Due Soon' }
+              ],
+              vaccinationHistory: [
+                {
+                  vaccine: 'PPR (Peste des Petits Ruminants)',
+                  date: new Date('2026-04-05'),
+                  nextDue: new Date('2026-10-05'),
+                  dose: 'Primary Dose',
+                  batchNumber: 'PPR-2026-NG44',
+                  administeredBy: 'Dr. Sneha Kulkarni',
+                  camp: 'Hingna Dispensary Camp'
                 }
               ]
             }
@@ -378,8 +388,8 @@ export default function VaccinationPage() {
             block: c.block,
             district: c.district,
             state: c.state,
-            lat: c.coordinates?.lat || 18.1517,
-            lng: c.coordinates?.lng || 74.5772,
+            lat: c.coordinates?.lat || 21.1458,
+            lng: c.coordinates?.lng || 79.0882,
             targetAnimalsEn: c.targetSpecies || 'Cattle & Buffalo',
             targetAnimalsHi: c.targetSpecies || 'गाय एवं भैंस',
             targetAnimalsMr: c.targetSpecies || 'गाय आणि म्हैस',

@@ -118,8 +118,8 @@ exports.getNearbyVeterinarians = async (req, res) => {
         refLat = DISTRICT_CENTROIDS[req.user.district].lat;
         refLng = DISTRICT_CENTROIDS[req.user.district].lng;
       } else {
-        refLat = 18.5204; // Pune centroid
-        refLng = 73.8567;
+        refLat = 21.1458; // Nagpur centroid
+        refLng = 79.0882;
       }
     }
 
@@ -211,7 +211,7 @@ exports.getDistrictsWithVets = async (req, res) => {
 
     const districtMap = {};
     for (const v of allVets) {
-      const d = v.district || 'Pune';
+      const d = v.district || 'Nagpur';
       if (!districtMap[d]) {
         districtMap[d] = { vetCount: 0, availableCount: 0 };
       }

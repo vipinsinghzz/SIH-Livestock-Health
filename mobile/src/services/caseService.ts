@@ -14,6 +14,7 @@ import {
   CaseDetailResponse,
   CreateCaseInput,
   CreateCaseResponse,
+  sortCasesByCriticality,
 } from '../types/case';
 import {
   getCachedCases,
@@ -29,6 +30,7 @@ export * from '../types/case';
 export const caseService = {
   /**
    * Fetch all referral cases for the authenticated farmer
+   * Sorted by default in descending criticality order (Critical first, Healthy last).
    * Falls back to local SQLite cache when disconnected.
    */
   async getFarmerCases(params?: {
@@ -47,7 +49,7 @@ export const caseService = {
         if (farmerId && cases.length > 0) {
           await saveCasesCache(farmerId, cases);
         }
-        return cases;
+        return sortCasesByCriticality(cases);
       } catch (err) {
         console.warn('[CaseService] Network fetch failed, falling back to cache:', err);
       }
@@ -57,9 +59,9 @@ export const caseService = {
     if (farmerId) {
       const { cases } = await getCachedCases(farmerId);
       if (params?.status) {
-        return cases.filter((c) => c.status === params.status);
+        return sortCasesByCriticality(cases.filter((c) => c.status === params.status));
       }
-      return cases;
+      return sortCasesByCriticality(cases);
     }
 
     return [];

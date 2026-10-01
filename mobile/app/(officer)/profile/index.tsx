@@ -107,9 +107,9 @@ export default function OfficerProfileScreen() {
     : user?.role === 'admin'
     ? 'State Animal Husbandry Administrator'
     : user?.role || t('auth.officer', 'Officer');
-  const districtName = user?.district || 'Pune';
+  const districtName = user?.district || 'Nagpur';
   const stateName = user?.state || 'Maharashtra';
-  const blockName = user?.block || 'Haveli';
+  const blockName = user?.block || 'Saoner';
   const departmentName = user?.department || 'Department of Animal Husbandry, Govt. of Maharashtra';
   const officialEmail = user?.email || 'officer@pashurakshak.in';
   const officialPhone = user?.phone || '+91 98220 33445';

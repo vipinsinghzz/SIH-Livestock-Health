@@ -34,12 +34,14 @@ export default function AuthLayout() {
         name="login"
         options={{
           title: t('common.signIn'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="register"
         options={{
           title: t('common.createAccount'),
+          headerShown: false,
         }}
       />
       <Stack.Screen

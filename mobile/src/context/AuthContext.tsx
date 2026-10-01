@@ -36,6 +36,7 @@ export interface AuthUser {
   registrationNo?: string;
   department?: string;
   preferredLanguage?: string;
+  updatedAt?: string;
 }
 
 export interface RegisterData {
@@ -63,6 +64,7 @@ interface AuthContextType {
   forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   loginAsPersona: (personaKey: 'farmer' | 'vet' | 'officer' | 'admin') => Promise<AuthUser>;
+  updateUserProfile: (updates: Partial<AuthUser>) => Promise<AuthUser>;
   isAuthenticated: boolean;
 }
 
@@ -344,6 +346,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return await login(creds.email, creds.password);
   };
 
+  const updateUserProfile = async (updates: Partial<AuthUser>): Promise<AuthUser> => {
+    if (!user) {
+      throw new ApiError('No active authenticated session found.', 401);
+    }
+
+    const updatedUser: AuthUser = {
+      ...user,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 1. Instantly persist locally in hardware-backed SecureStore
+    await saveUserProfile(updatedUser);
+    setUser(updatedUser);
+
+    // 2. Sync to backend API if connected
+    try {
+      const res = await api.put<{ success: boolean; user: AuthUser }>('/auth/profile', updates);
+      if (res.data?.success && res.data.user) {
+        const merged = { ...updatedUser, ...res.data.user };
+        await saveUserProfile(merged);
+        setUser(merged);
+        return merged;
+      }
+    } catch (err: any) {
+      console.log('[AuthContext] Backend profile sync deferred/offline:', err?.message || err);
+    }
+
+    return updatedUser;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -355,6 +388,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         forgotPassword,
         logout: handleLogout,
         loginAsPersona,
+        updateUserProfile,
         isAuthenticated: Boolean(user && token),
       }}
     >

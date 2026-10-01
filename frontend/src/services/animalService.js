@@ -1,104 +1,187 @@
 import api from './api';
 
-// Initial realistic default animals for Indian rural farmers if database is empty or offline
+// Initial realistic default animals for Nagpur district farmers if database is empty or offline
 export const INITIAL_ANIMALS = [
   {
-    _id: 'anim-001',
-    tagId: 'IN-MP-2024-8841',
+    _id: 'anim-nag-001',
+    tagId: 'NG-COW-101',
     name: 'Lakshmi (लक्ष्मी)',
     species: 'Cattle',
-    breed: 'Gir Cow (गीर)',
+    breed: 'Gaolao (गावळाऊ)',
     age: 4,
     gender: 'Female',
-    healthStatus: 'Healthy',
-    lastCheckup: '2026-08-28',
+    healthStatus: 'Needs Attention',
+    lastCheckup: '2026-09-28',
     milkYieldDaily: '14.5 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
     vaccinations: [
       { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
       { name: 'Brucellosis (ब्रूसीलोसिस)', date: '2026-02-10', nextDue: '2027-02-10', status: 'Completed' },
       { name: 'HS (गलघोंटू)', date: '2026-05-20', nextDue: '2026-11-20', status: 'Completed' }
     ],
     timeline: [
-      { type: 'Health Check', title: 'Routine Health Checkup', date: '28 Aug 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Normal vitals, healthy rumen motility' },
-      { type: 'Vaccination', title: 'FMD Booster Dose', date: '15 Jun 2026', doctor: 'Baramati Veterinary Camp', notes: 'Given subcutaneously, no adverse reaction' },
+      { type: 'Health Check', title: 'Routine Health Checkup', date: '28 Sep 2026', doctor: 'Dr. Rajesh Deshmukh', notes: 'Mild nasal discharge observed, vitals stable, normal rumen motility' },
+      { type: 'Vaccination', title: 'FMD Booster Dose', date: '15 Jun 2026', doctor: 'Kamptee Veterinary Camp', notes: 'Given subcutaneously, no adverse reaction' },
       { type: 'Deworming', title: 'Albendazole Suspension', date: '10 May 2026', doctor: 'Self administered', notes: '100ml single dose' },
-      { type: 'Milk Production', title: 'Peak Lactation Recorded', date: '12 Apr 2026', notes: '16.2 Liters / day' }
+      { type: 'Milk Production', title: 'Peak Lactation Recorded', date: '12 Apr 2026', notes: '15.8 Liters / day' }
     ]
   },
   {
-    _id: 'anim-002',
-    tagId: 'IN-MP-2024-8842',
+    _id: 'anim-nag-002',
+    tagId: 'NG-COW-102',
     name: 'Gauri (गौरी)',
-    species: 'Buffalo',
-    breed: 'Murrah (मुर्राह)',
+    species: 'Cattle',
+    breed: 'Gir (गीर)',
     age: 5,
     gender: 'Female',
-    healthStatus: 'Needs Attention',
-    lastCheckup: '2026-09-02',
-    milkYieldDaily: '11.0 L',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-25',
+    milkYieldDaily: '16.0 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
     vaccinations: [
       { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
       { name: 'Blackleg (लंगड़ा बुखार)', date: '2026-04-10', nextDue: '2026-10-10', status: 'Completed' }
     ],
     timeline: [
-      { type: 'Health Check', title: 'Mild Udder Warmth Noticed', date: '02 Sep 2026', doctor: 'Dr. Suresh Patil', notes: 'Early mastitis suspected, milk test recommended' },
-      { type: 'Treatment', title: 'Intramammary Infusion', date: '03 Sep 2026', doctor: 'Dr. Suresh Patil', notes: 'Course 3 days' }
+      { type: 'Health Check', title: 'Lactation Fitness Inspection', date: '25 Sep 2026', doctor: 'Dr. Rajesh Deshmukh', notes: 'Excellent body condition score (3.5/5), udder health clear' },
+      { type: 'Vaccination', title: 'Blackleg Annual Booster', date: '10 Apr 2026', doctor: 'Kamptee Dispensary', notes: 'Protected' }
     ]
   },
   {
-    _id: 'anim-003',
-    tagId: 'IN-MP-2024-8843',
-    name: 'Moti (मोती)',
+    _id: 'anim-nag-003',
+    tagId: 'NG-COW-108',
+    name: 'Kasturi (कस्तुरी)',
     species: 'Cattle',
-    breed: 'Sahiwal Bull (साहीवाल)',
-    age: 3,
-    gender: 'Male',
-    healthStatus: 'Healthy',
-    lastCheckup: '2026-08-15',
-    milkYieldDaily: 'N/A',
+    breed: 'Gaolao (गावळाऊ)',
+    age: 4,
+    gender: 'Female',
+    healthStatus: 'Critical',
+    lastCheckup: '2026-09-30',
+    milkYieldDaily: '8.0 L',
+    village: 'Kelod',
+    block: 'Saoner',
+    district: 'Nagpur',
     vaccinations: [
-      { name: 'HS (गलघोंटू)', date: '2026-05-20', nextDue: '2026-11-20', status: 'Completed' },
-      { name: 'Anthrax (एंथ्रेक्स)', date: '2026-03-01', nextDue: '2027-03-01', status: 'Completed' }
+      { name: 'HS (गलघोंटू)', date: '2026-05-18', nextDue: '2026-11-18', status: 'Completed' },
+      { name: 'LSD Emergency Ring Vaccine', date: '2026-09-30', nextDue: '2027-03-30', status: 'Completed' }
     ],
     timeline: [
-      { type: 'Health Check', title: 'Pre-breeding fitness evaluation', date: '15 Aug 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Excellent muscular build and vigor' }
+      { type: 'AI Diagnosis', title: 'Suspected Lumpy Skin Disease (94% Conf.)', date: '30 Sep 2026', doctor: 'Dr. Ananya Deshmukh', notes: 'Multiple nodular lesions (2-5cm) over neck and flank, fever 104.2 F. Quarantined in isolated shed.' },
+      { type: 'Treatment', title: 'Emergency Antipyretic & Antibiotic Support', date: '30 Sep 2026', doctor: 'Saoner Rapid Response Team', notes: 'Megaludyne + Ceftiofur administered' }
     ]
   },
   {
-    _id: 'anim-004',
-    tagId: 'IN-MP-2024-8844',
-    name: 'Chotu (छोटू)',
+    _id: 'anim-nag-004',
+    tagId: 'NG-GOAT-201',
+    name: 'Sundari (सुंदरी)',
     species: 'Goat',
-    breed: 'Sirohi (सिरोही)',
+    breed: 'Berari (बेरारी)',
     age: 2,
-    gender: 'Male',
-    healthStatus: 'Healthy',
-    lastCheckup: '2026-08-20',
-    milkYieldDaily: 'N/A',
+    gender: 'Female',
+    healthStatus: 'Critical',
+    lastCheckup: '2026-09-30',
+    milkYieldDaily: '2.5 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
     vaccinations: [
       { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' },
       { name: 'Enterotoxaemia (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
     ],
     timeline: [
-      { type: 'Vaccination', title: 'Enterotoxaemia Annual Dose', date: '10 May 2026', notes: 'Administered at village camp' }
+      { type: 'AI Diagnosis', title: 'Contagious Ecthyma / Orf Detected (89% Conf.)', date: '30 Sep 2026', doctor: 'Dr. Rajesh Deshmukh', notes: 'Scabby encrustations around lips and nostrils. Antiseptic povidone iodine ointment applied.' }
     ]
   },
   {
-    _id: 'anim-005',
-    tagId: 'IN-MP-2024-8845',
-    name: 'Rani (रानी)',
+    _id: 'anim-nag-005',
+    tagId: 'NG-GOAT-202',
+    name: 'Champa (चंपा)',
     species: 'Goat',
-    breed: 'Jamnapari (जमनापारी)',
+    breed: 'Osmanabadi (उस्मानाबादी)',
     age: 3,
     gender: 'Female',
     healthStatus: 'Healthy',
-    lastCheckup: '2026-08-22',
-    milkYieldDaily: '2.2 L',
+    lastCheckup: '2026-09-22',
+    milkYieldDaily: '3.0 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
     vaccinations: [
-      { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' }
+      { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' },
+      { name: 'ET (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
     ],
     timeline: [
-      { type: 'Health Check', title: 'Kidding follow-up', date: '22 Aug 2026', notes: 'Gave birth to twin kids, both healthy' }
+      { type: 'Health Check', title: 'Routine Herd Screening', date: '22 Sep 2026', notes: 'Active, healthy coat, good weight gain' }
+    ]
+  },
+  {
+    _id: 'anim-nag-006',
+    tagId: 'NG-SHEEP-301',
+    name: 'Raju (राजू)',
+    species: 'Sheep',
+    breed: 'Deccani (दख्खनी)',
+    age: 2,
+    gender: 'Male',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-20',
+    milkYieldDaily: '1.0 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'PPR Vaccine', date: '2026-02-12', nextDue: '2027-02-12', status: 'Completed' },
+      { name: 'Sheep Pox Vaccine', date: '2026-04-05', nextDue: '2027-04-05', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Wool Quality & Skin Inspection', date: '20 Sep 2026', notes: 'Clear skin, no ectoparasites, sheared 1.2 kg fleece' }
+    ]
+  },
+  {
+    _id: 'anim-nag-007',
+    tagId: 'NG-COW-104',
+    name: 'Kamdhenu (कामधेनु)',
+    species: 'Cattle',
+    breed: 'Sahiwal (साहिवाल)',
+    age: 6,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-27',
+    milkYieldDaily: '18.0 L',
+    village: 'Takalghat',
+    block: 'Hingna',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-12', nextDue: '2026-12-12', status: 'Completed' },
+      { name: 'HS + BQ Combined', date: '2026-05-15', nextDue: '2026-11-15', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Milk Recording & Mastitis Test', date: '27 Sep 2026', doctor: 'Dr. Vikram Gaikwad', notes: 'California Mastitis Test negative, somatic cell count normal' }
+    ]
+  },
+  {
+    _id: 'anim-nag-008',
+    tagId: 'NG-COW-113',
+    name: 'Bhavani (भवानी)',
+    species: 'Cattle',
+    breed: 'Gaolao (गावळाऊ)',
+    age: 5,
+    gender: 'Female',
+    healthStatus: 'Needs Attention',
+    lastCheckup: '2026-09-29',
+    milkYieldDaily: '11.5 L',
+    village: 'Mansar',
+    block: 'Ramtek',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-20', nextDue: '2026-12-20', status: 'Completed' },
+      { name: 'Brucellosis S19', date: '2026-03-10', nextDue: '2027-03-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Post-Calving Evaluation', date: '29 Sep 2026', doctor: 'Ramtek Veterinary Hospital', notes: 'Mild postpartum calcium deficiency treated with Calci-Must oral gel' }
     ]
   }
 ];
@@ -119,30 +202,28 @@ export const animalService = {
       const response = await api.get('/animals');
       // Backend returns { success: true, count: N, animals: [...] }
       const animals = response.data?.animals ?? (Array.isArray(response.data) ? response.data : null);
-      if (animals !== null) {
+      if (animals !== null && animals.length > 0) {
         const cacheKey = this.getCacheKey();
         localStorage.setItem(cacheKey, JSON.stringify(animals));
         return animals;
       }
     } catch (e) {
-      console.warn('Backend /animals error, falling back to user cache:', e.message);
+      console.warn('Backend /animals error, falling back to cache/defaults:', e.message);
     }
 
     const cacheKey = this.getCacheKey();
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch (err) {}
     }
 
-    // Guest fallback only if not logged in
-    const token = localStorage.getItem('pashurakshak_token');
-    if (!token) {
-      return INITIAL_ANIMALS;
-    }
-
-    return [];
+    // Lively fallback guarantees the interface always displays complete, realistic Nagpur livestock
+    return INITIAL_ANIMALS;
   },
 
   async getAnimalById(id) {

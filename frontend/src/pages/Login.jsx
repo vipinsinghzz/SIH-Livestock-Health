@@ -161,19 +161,19 @@ export default function Login() {
                   className="p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group"
                 >
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
-                    🌾 Ramesh Patil
+                    🌾 Suresh Patil
                   </div>
-                  <div className="text-xs text-slate-500 font-medium">Baramati (3 cows)</div>
+                  <div className="text-xs text-slate-500 font-medium">Saoner, Nagpur (6 cattle)</div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickDemo('farmer_santosh')}
+                  onClick={() => handleQuickDemo('farmer_sunita')}
                   className="p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group"
                 >
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
-                    🌾 Santosh Shinde
+                    🌾 Sunita Meshram
                   </div>
-                  <div className="text-xs text-slate-500 font-medium">Shirur (2 cows)</div>
+                  <div className="text-xs text-slate-500 font-medium">Kamptee, Nagpur (5 goats)</div>
                 </button>
               </div>
             )}
@@ -186,9 +186,9 @@ export default function Login() {
               >
                 <div>
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
-                    🩺 Dr. Ananya Deshmukh
+                    🩺 Dr. Amit Deshmukh
                   </div>
-                  <div className="text-xs text-slate-500 font-medium">Veterinary Medical Officer (Surveillance Queue)</div>
+                  <div className="text-xs text-slate-500 font-medium">Veterinary Medical Officer (Saoner & Kamptee)</div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700" />
               </button>
@@ -202,9 +202,9 @@ export default function Login() {
               >
                 <div>
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
-                    🏛️ Dr. Suresh Kulkarni
+                    🏛️ Dr. Vivek Joshi
                   </div>
-                  <div className="text-xs text-slate-500 font-medium">District Animal Husbandry Officer (Command Portal)</div>
+                  <div className="text-xs text-slate-500 font-medium">District Animal Husbandry Officer (Nagpur)</div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700" />
               </button>

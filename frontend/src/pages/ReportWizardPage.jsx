@@ -30,11 +30,11 @@ export default function ReportWizardPage() {
     symptoms: ['mouth blisters', 'excessive salivation'],
     notes: '',
     location: {
-      lat: 18.1517,
-      lng: 74.5772,
-      village: user?.village || 'Malegaon Bk',
-      block: user?.block || 'Baramati',
-      district: user?.district || 'Pune'
+      lat: 21.1458,
+      lng: 79.0882,
+      village: user?.village || 'Yerkheda',
+      block: user?.block || 'Kamptee',
+      district: user?.district || 'Nagpur'
     },
     photos: [],
     reporterContact: {

@@ -18,14 +18,14 @@ export default function VetLayout() {
     <Stack
       screenOptions={{
         headerStyle: {
-          backgroundColor: colors.light.vetBadge,
+          backgroundColor: '#0F5132',
         },
-        headerTintColor: colors.light.textInverse,
+        headerTintColor: '#FFFFFF',
         headerTitleStyle: {
-          fontWeight: '600',
+          fontWeight: '800',
         },
         contentStyle: {
-          backgroundColor: colors.light.background,
+          backgroundColor: '#F8FAFC',
           flex: 1,
         },
       }}
@@ -33,28 +33,25 @@ export default function VetLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: t('nav.vetWorkspace', 'Veterinarian Workspace'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="referrals/index"
         options={{
-          title: t('nav.incomingReferrals', 'Incoming Referrals'),
-          headerBackTitle: t('common.back', 'Back'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="referrals/[id]"
         options={{
-          title: t('nav.referralDetails', 'Referral Details'),
-          headerBackTitle: t('common.back', 'Back'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="cases/index"
         options={{
-          title: t('nav.clinicalCases', 'Clinical Cases'),
-          headerBackTitle: t('common.back', 'Back'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -74,8 +71,7 @@ export default function VetLayout() {
       <Stack.Screen
         name="map/index"
         options={{
-          title: t('nav.fieldMap', 'Field Cases GIS Map'),
-          headerBackTitle: t('common.back', 'Back'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -88,8 +84,7 @@ export default function VetLayout() {
       <Stack.Screen
         name="notifications/index"
         options={{
-          title: t('nav.clinicalAlerts', 'Clinical Alerts'),
-          headerBackTitle: t('common.back', 'Back'),
+          headerShown: false,
         }}
       />
     </Stack>

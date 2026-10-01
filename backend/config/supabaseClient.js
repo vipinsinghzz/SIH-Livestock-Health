@@ -151,12 +151,38 @@ const MOCK_PROFILES = {
     email: 'farmer@pashurakshak.in',
     role: 'farmer',
     phone: '+919822011223',
-    district: 'Pune',
+    district: 'Nagpur',
     state: 'Maharashtra',
-    village: 'Malegaon Bk',
-    block: 'Baramati',
+    village: 'Yerkheda',
+    block: 'Kamptee',
     preferredLanguage: 'hi',
-    location: { lat: 18.1517, lng: 74.5772 }
+    location: { lat: 21.2400, lng: 79.2150 }
+  },
+  'santosh@pashurakshak.in': {
+    id: '00000000-0000-0000-0000-000000000004',
+    name: 'Santosh Wankhede (संतोष वानखेडे)',
+    email: 'santosh@pashurakshak.in',
+    role: 'farmer',
+    phone: '+919822044556',
+    district: 'Nagpur',
+    state: 'Maharashtra',
+    village: 'Takalghat',
+    block: 'Hingna',
+    preferredLanguage: 'hi',
+    location: { lat: 21.0250, lng: 78.9450 }
+  },
+  'sunita@pashurakshak.in': {
+    id: '00000000-0000-0000-0000-000000000005',
+    name: 'Sunita Pawar (सुनिता पवार)',
+    email: 'sunita@pashurakshak.in',
+    role: 'farmer',
+    phone: '+919822055667',
+    district: 'Nagpur',
+    state: 'Maharashtra',
+    village: 'Mansar',
+    block: 'Ramtek',
+    preferredLanguage: 'mr',
+    location: { lat: 21.3850, lng: 79.2800 }
   },
   'vet@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000002',
@@ -164,14 +190,29 @@ const MOCK_PROFILES = {
     email: 'vet@pashurakshak.in',
     role: 'veterinarian',
     phone: '+919822022334',
-    district: 'Pune',
+    district: 'Nagpur',
     state: 'Maharashtra',
-    village: 'Baramati Town',
-    block: 'Baramati',
+    village: 'Saoner Town',
+    block: 'Saoner',
     registrationNo: 'MAH-VET-2022-4819',
-    department: 'Department of Animal Husbandry, Govt. of Maharashtra',
+    department: 'Department of Animal Husbandry, Govt. of Maharashtra, Saoner Polyclinic',
     preferredLanguage: 'en',
-    location: { lat: 18.1540, lng: 74.5810 }
+    location: { lat: 21.3833, lng: 78.9167 }
+  },
+  'vet2@pashurakshak.in': {
+    id: '00000000-0000-0000-0000-000000000012',
+    name: 'Dr. Rajesh Deshmukh (डॉ. राजेश देशमुख)',
+    email: 'vet2@pashurakshak.in',
+    role: 'veterinarian',
+    phone: '+919822022335',
+    district: 'Nagpur',
+    state: 'Maharashtra',
+    village: 'Kamptee Town',
+    block: 'Kamptee',
+    registrationNo: 'MAH-VET-2020-3102',
+    department: 'Department of Animal Husbandry, Govt. of Maharashtra, Kamptee Dispensary',
+    preferredLanguage: 'en',
+    location: { lat: 21.2227, lng: 79.1970 }
   },
   'officer@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000003',
@@ -179,12 +220,14 @@ const MOCK_PROFILES = {
     email: 'officer@pashurakshak.in',
     role: 'officer',
     phone: '+919822033445',
-    district: 'Pune',
+    district: 'Nagpur',
     state: 'Maharashtra',
-    village: 'Shivajinagar',
-    block: 'Haveli',
+    village: 'Civil Lines',
+    block: 'Nagpur Urban',
+    registrationNo: 'MAH-OFF-2018-0912',
+    department: 'District Animal Husbandry Office, Nagpur',
     preferredLanguage: 'en',
-    location: { lat: 18.5314, lng: 73.8446 }
+    location: { lat: 21.1458, lng: 79.0882 }
   },
   'admin@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000099',
@@ -192,12 +235,12 @@ const MOCK_PROFILES = {
     email: 'admin@pashurakshak.in',
     role: 'admin',
     phone: '+919822099999',
-    district: 'Pune',
+    district: 'Nagpur',
     state: 'Maharashtra',
-    village: 'Pune Central',
-    block: 'Haveli',
+    village: 'Civil Lines',
+    block: 'Nagpur Urban',
     preferredLanguage: 'en',
-    location: { lat: 18.5204, lng: 73.8567 }
+    location: { lat: 21.1458, lng: 79.0882 }
   }
 };
 
@@ -286,7 +329,7 @@ async function verifySupabaseToken(token) {
       user_metadata: decoded.user_metadata || {
         name: mockProfile ? mockProfile.name : 'User',
         role: mockProfile ? mockProfile.role : 'farmer',
-        district: mockProfile ? mockProfile.district : 'Pune'
+        district: mockProfile ? mockProfile.district : 'Nagpur'
       }
     };
 
@@ -309,29 +352,7 @@ async function getProfileByAuthUser(supabaseUser) {
 
   const email = (supabaseUser.email || '').toLowerCase().trim();
 
-  // Check mock/seed profiles first (for offline/test mode)
-  if (email && MOCK_PROFILES[email]) {
-    const p = MOCK_PROFILES[email];
-    return {
-      _id: p.id,
-      id: p.id,
-      auth_user_id: supabaseUser.id,
-      name: p.name,
-      email: p.email,
-      role: p.role,
-      phone: p.phone,
-      district: p.district,
-      state: p.state,
-      village: p.village,
-      block: p.block,
-      location: p.location,
-      preferredLanguage: p.preferredLanguage,
-      registrationNo: p.registrationNo || '',
-      department: p.department || ''
-    };
-  }
-
-  // Live Supabase public.profiles query — uses supabaseAdmin (service-role)
+  // 1. Live Supabase public.profiles query — uses supabaseAdmin (service-role)
   if (supabaseAdmin) {
     try {
       const authUserId = String(supabaseUser.id || '').trim();
@@ -424,7 +445,7 @@ async function getProfileByAuthUser(supabaseUser) {
       if (!data && (authUserId || email || phone)) {
         const meta = supabaseUser.user_metadata || {};
         const safePhone = normalizeIndianPhone(phone || meta.phone || '9822000000');
-        const safeDistrict = meta.district ? String(meta.district).trim() : 'Pune';
+        const safeDistrict = meta.district ? String(meta.district).trim() : 'Nagpur';
         const safeState = meta.state ? String(meta.state).trim() : 'Maharashtra';
         const safeEmail = email || getDeterministicInternalEmail(safePhone);
 
@@ -528,7 +549,29 @@ async function getProfileByAuthUser(supabaseUser) {
     }
   }
 
-  // Synthesize from metadata if not found in table or offline
+  // 2. Check mock/seed profiles fallback (for offline/test mode when not in Supabase)
+  if (email && MOCK_PROFILES[email]) {
+    const p = MOCK_PROFILES[email];
+    return {
+      _id: p.id,
+      id: p.id,
+      auth_user_id: supabaseUser.id,
+      name: p.name,
+      email: p.email,
+      role: p.role,
+      phone: p.phone,
+      district: p.district || 'Nagpur',
+      state: p.state || 'Maharashtra',
+      village: p.village,
+      block: p.block,
+      location: p.location,
+      preferredLanguage: p.preferredLanguage,
+      registrationNo: p.registrationNo || '',
+      department: p.department || ''
+    };
+  }
+
+  // 3. Synthesize from metadata if not found in table or offline
   const meta = supabaseUser.user_metadata || {};
   return {
     _id: supabaseUser.id,
@@ -538,11 +581,11 @@ async function getProfileByAuthUser(supabaseUser) {
     email: supabaseUser.email || '',
     role: meta.role || 'farmer',
     phone: meta.phone || supabaseUser.phone || '',
-    district: meta.district || 'Pune',
+    district: meta.district || 'Nagpur',
     state: meta.state || 'Maharashtra',
     village: meta.village || '',
     block: meta.block || '',
-    location: meta.location || { lat: 0, lng: 0 },
+    location: meta.location || { lat: 21.1458, lng: 79.0882 },
     preferredLanguage: meta.preferredLanguage || 'hi',
     registrationNo: meta.registrationNo || '',
     department: meta.department || ''

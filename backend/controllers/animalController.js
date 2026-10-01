@@ -97,7 +97,7 @@ async function resolveFarmerProfile(user) {
 
       // 5. If user is authenticated but profile is missing from public.profiles, auto-provision
       if (authUserId || email || phone) {
-        const safeDistrict = user.district ? String(user.district).trim() : 'Pune';
+        const safeDistrict = user.district ? String(user.district).trim() : 'Nagpur';
         const safeState = user.state ? String(user.state).trim() : 'Maharashtra';
         const safePhone = normalizeIndianPhone(phone || '9822000000');
         const safeEmail = email || getDeterministicInternalEmail(safePhone);
@@ -180,7 +180,7 @@ async function resolveFarmerProfile(user) {
       email: user.email || '',
       village: user.village || '',
       block: user.block || '',
-      district: user.district || 'Pune',
+      district: user.district || 'Nagpur',
       role: user.role || 'farmer'
     };
   }
@@ -196,7 +196,7 @@ async function resolveFarmerProfile(user) {
       email: mp.email,
       village: mp.village || user.village || '',
       block: mp.block || user.block || '',
-      district: mp.district || user.district || 'Pune',
+      district: mp.district || user.district || 'Nagpur',
       role: mp.role || 'farmer'
     };
   }
@@ -221,7 +221,7 @@ async function resolveFarmerProfile(user) {
           email: u.email,
           village: u.village || '',
           block: u.block || '',
-          district: u.district || 'Pune',
+          district: u.district || 'Nagpur',
           role: u.role || 'farmer'
         };
       }
@@ -413,7 +413,7 @@ exports.createAnimal = async (req, res, next) => {
      */
     const finalVillage = (village || profile.village || req.user.village || 'Rural Village').trim();
     const finalBlock = (block || profile.block || req.user.block || finalVillage || 'Rural Block').trim();
-    const finalDistrict = (district || profile.district || req.user.district || 'Pune').trim();
+    const finalDistrict = (district || profile.district || req.user.district || 'Nagpur').trim();
 
     console.log('[Animal] Inserting animal record:', {
       tagId: finalTagId,

@@ -698,7 +698,7 @@ const animals = {
           owner_id: snakeData.owner_id,
           village: (snakeData.village || '').trim(),
           block: (snakeData.block || '').trim(),
-          district: (snakeData.district && String(snakeData.district).trim()) ? String(snakeData.district).trim() : 'Pune'
+          district: (snakeData.district && String(snakeData.district).trim()) ? String(snakeData.district).trim() : 'Nagpur'
         };
 
         const { data: inserted, error } = await supabase
@@ -742,7 +742,7 @@ const animals = {
         const mongoData = { ...data };
         mongoData.village = (mongoData.village || createdAnimal.village || 'Rural Village').trim();
         mongoData.block = (mongoData.block || createdAnimal.block || mongoData.village || 'Rural Block').trim();
-        mongoData.district = (mongoData.district || createdAnimal.district || 'Pune').trim();
+        mongoData.district = (mongoData.district || createdAnimal.district || 'Nagpur').trim();
         if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
           const u = await User.findOne({ email: 'farmer@pashurakshak.in' });
           if (u) mongoData.ownerId = u._id;
@@ -763,7 +763,7 @@ const animals = {
         owner_id: data.ownerId,
         village: (data.village || '').trim() || 'Rural Village',
         block: (data.block || data.village || '').trim() || 'Rural Block',
-        district: (data.district || '').trim() || 'Pune',
+        district: (data.district || '').trim() || 'Nagpur',
         createdAt: new Date().toISOString()
       };
       OFFLINE_ANIMALS.push(offlineRecord);
@@ -775,7 +775,7 @@ const animals = {
           const mongoData = { ...data };
           mongoData.village = (mongoData.village || 'Rural Village').trim();
           mongoData.block = (mongoData.block || mongoData.village || 'Rural Block').trim();
-          mongoData.district = (mongoData.district || 'Pune').trim();
+          mongoData.district = (mongoData.district || 'Nagpur').trim();
           if (!mongoose.Types.ObjectId.isValid(mongoData.ownerId)) {
             const u = await User.findOne({ email: 'farmer@pashurakshak.in' }).catch(() => null);
             mongoData.ownerId = u ? u._id : new mongoose.Types.ObjectId();
@@ -1022,7 +1022,7 @@ const reports = {
             affected_count: snake.affected_count || 1,
             village: snake.location?.village || snake.village || '',
             block: snake.location?.block || snake.block || '',
-            district: snake.location?.district || snake.district || 'Pune',
+            district: snake.location?.district || snake.district || 'Nagpur',
             latitude: snake.location?.lat || snake.latitude || 0,
             longitude: snake.location?.lng || snake.longitude || 0,
             photos: snake.photos || [],
@@ -1467,10 +1467,10 @@ const diseaseCases = {
           disease: snake.disease || 'Suspected Disease',
           confidence: snake.confidence || 85,
           risk: snake.risk || 'High',
-          district_id: snake.district_id || snake.district || 'Pune',
+          district_id: snake.district_id || snake.district || 'Nagpur',
           state: snake.state || 'Maharashtra',
-          latitude: typeof snake.latitude === 'number' ? snake.latitude : (parseFloat(snake.latitude) || 18.5204),
-          longitude: typeof snake.longitude === 'number' ? snake.longitude : (parseFloat(snake.longitude) || 73.8567),
+          latitude: typeof snake.latitude === 'number' ? snake.latitude : (parseFloat(snake.latitude) || 21.1458),
+          longitude: typeof snake.longitude === 'number' ? snake.longitude : (parseFloat(snake.longitude) || 79.0882),
           farmer_location: snake.farmer_location || {},
           farmer_contact: snake.farmer_contact || {},
           symptoms: Array.isArray(snake.symptoms) ? snake.symptoms : (snake.symptoms ? [snake.symptoms] : []),
@@ -2077,7 +2077,7 @@ const labReferrals = {
             report_id: snake.report_id,
             sample_type: snake.sample_type || 'Blood / Serum',
             collection_date: snake.collection_date || new Date().toISOString(),
-            referred_lab: snake.referred_lab || 'District Disease Diagnostic Laboratory (DDDL), Pune',
+            referred_lab: snake.referred_lab || 'Regional Disease Diagnostic Laboratory (RDDL), Nagpur',
             status: snake.status || 'Collected',
             collected_by: snake.collected_by || null,
             result_summary: snake.result_summary || {}
@@ -2216,8 +2216,8 @@ const advisories = {
             disease: snake.disease || 'General Health',
             target_village: snake.target_village || 'All',
             target_block: snake.target_block || 'All',
-            target_district: snake.target_district || 'Pune',
-            issued_by: snake.issued_by || 'District Animal Husbandry Department'
+            target_district: snake.target_district || 'Nagpur',
+            issued_by: snake.issued_by || 'District Animal Husbandry Department, Nagpur'
           })
           .select()
           .single();
@@ -2258,14 +2258,14 @@ const advisories = {
 const MOCK_VACCINATION_DRIVES = [
   {
     id: '20000000-0000-0000-0000-000000000001',
-    campId: 'RING-CAMP-2026-PUN-1042',
+    campId: 'RING-CAMP-2026-NAG-SAO-01',
     state: 'Maharashtra',
-    district: 'Pune',
-    block: 'Baramati',
-    village: 'Malegaon Rural',
-    venue: 'Malegaon Gram Panchayat Animal Health Centre',
-    latitude: 18.1517,
-    longitude: 74.5772,
+    district: 'Nagpur',
+    block: 'Saoner',
+    village: 'Saoner Town',
+    venue: 'Taluka Veterinary Polyclinic, Saoner',
+    latitude: 21.3833,
+    longitude: 78.9167,
     vaccine: 'Lumpy Skin Disease (Neethling strain)',
     vaccineFullName: 'Lumpy Skin Disease Live Attenuated Homologous Vaccine',
     targetSpecies: 'Cattle & Buffalo',
@@ -2275,77 +2275,77 @@ const MOCK_VACCINATION_DRIVES = [
     endTime: '05:00 PM',
     cost: 'Free (Emergency Outbreak Ring)',
     isFree: true,
-    organizingHospital: 'District Veterinary Outbreak Response Unit, Pune',
+    organizingHospital: 'District Veterinary Outbreak Response Unit, Nagpur',
     assignedOfficer: 'Dr. Ananya Deshmukh',
     assignedOfficerId: '00000000-0000-0000-0000-000000000002',
     contactNumber: '1962',
-    capacity: 300,
-    bookedSlots: 45,
-    remainingSlots: 255,
-    targetCount: 300,
-    coveredCount: 45,
+    capacity: 350,
+    bookedSlots: 65,
+    remainingSlots: 285,
+    targetCount: 350,
+    coveredCount: 65,
     status: 'Upcoming',
-    notes: 'Emergency 5km ring vaccination protocol triggered for active LSD containment.'
+    notes: 'Emergency 5km ring vaccination protocol triggered for active LSD containment in Saoner block.'
   },
   {
     id: '20000000-0000-0000-0000-000000000002',
-    campId: 'CAMP-2026-PUN-SHIRUR-01',
+    campId: 'CAMP-2026-NAG-KAM-02',
     state: 'Maharashtra',
-    district: 'Pune',
-    block: 'Shirur',
-    village: 'Koregaon Bhima',
-    venue: 'Taluka Veterinary Dispensary, Shirur Main Road',
-    latitude: 18.8276,
-    longitude: 74.3774,
+    district: 'Nagpur',
+    block: 'Kamptee',
+    village: 'Yerkheda',
+    venue: 'Gram Panchayat Veterinary Centre, Yerkheda',
+    latitude: 21.2400,
+    longitude: 79.2150,
     vaccine: 'FMD Trivalent Inactivated Vaccine',
     vaccineFullName: 'Foot and Mouth Disease Inactivated Oil-Adjuvant Vaccine',
     targetSpecies: 'Cattle, Buffalo, Sheep & Goat',
-    campDate: new Date(Date.now() + 5 * 86400000).toISOString(),
-    startDate: new Date(Date.now() + 5 * 86400000).toISOString(),
+    campDate: new Date(Date.now() + 4 * 86400000).toISOString(),
+    startDate: new Date(Date.now() + 4 * 86400000).toISOString(),
     startTime: '09:00 AM',
     endTime: '04:30 PM',
     cost: 'Free (Govt Drive)',
     isFree: true,
-    organizingHospital: 'Shirur Taluka Veterinary Polyclinic',
-    assignedOfficer: 'Dr. Rajesh Shinde',
-    assignedOfficerId: '00000000-0000-0000-0000-000000000006',
+    organizingHospital: 'Kamptee Taluka Veterinary Dispensary',
+    assignedOfficer: 'Dr. Rajesh Deshmukh',
+    assignedOfficerId: '00000000-0000-0000-0000-000000000012',
     contactNumber: '1962',
-    capacity: 250,
-    bookedSlots: 80,
-    remainingSlots: 170,
-    targetCount: 250,
-    coveredCount: 80,
+    capacity: 300,
+    bookedSlots: 92,
+    remainingSlots: 208,
+    targetCount: 300,
+    coveredCount: 92,
     status: 'Upcoming',
     notes: 'Bi-annual FMD mass vaccination drive under National Livestock Mission.'
   },
   {
     id: '20000000-0000-0000-0000-000000000003',
-    campId: 'CAMP-2026-PUN-KHED-02',
+    campId: 'CAMP-2026-NAG-HIN-03',
     state: 'Maharashtra',
-    district: 'Pune',
-    block: 'Khed',
-    village: 'Chakan',
-    venue: 'Primary Veterinary Centre, Chakan Market Yard',
-    latitude: 18.7597,
-    longitude: 73.8585,
+    district: 'Nagpur',
+    block: 'Hingna',
+    village: 'Takalghat',
+    venue: 'Primary Veterinary Dispensary, Takalghat Main Road',
+    latitude: 21.0250,
+    longitude: 78.9450,
     vaccine: 'HS + BQ Combined Vaccine',
     vaccineFullName: 'Haemorrhagic Septicaemia & Black Quarter Alum-Precipitated Vaccine',
     targetSpecies: 'Cattle & Buffalo',
-    campDate: new Date(Date.now() - 3 * 86400000).toISOString(),
-    startDate: new Date(Date.now() - 3 * 86400000).toISOString(),
+    campDate: new Date(Date.now() - 2 * 86400000).toISOString(),
+    startDate: new Date(Date.now() - 2 * 86400000).toISOString(),
     startTime: '09:00 AM',
     endTime: '04:00 PM',
     cost: 'Free (Govt Drive)',
     isFree: true,
-    organizingHospital: 'Khed Veterinary Dispensary',
-    assignedOfficer: 'Dr. Suresh Kulkarni',
-    assignedOfficerId: '00000000-0000-0000-0000-000000000003',
+    organizingHospital: 'Hingna Veterinary Dispensary',
+    assignedOfficer: 'Dr. Vikram Gaikwad',
+    assignedOfficerId: '00000000-0000-0000-0000-000000000014',
     contactNumber: '1962',
-    capacity: 200,
-    bookedSlots: 192,
+    capacity: 250,
+    bookedSlots: 242,
     remainingSlots: 8,
-    targetCount: 200,
-    coveredCount: 192,
+    targetCount: 250,
+    coveredCount: 242,
     status: 'Completed',
     notes: 'Successful pre-monsoon clostridial coverage achieved.'
   }
@@ -2359,12 +2359,12 @@ const vaccinationDrives = {
     const drivePayload = {
       camp_id: snake.camp_id || `CAMP-${Date.now()}`,
       state: snake.state || 'Maharashtra',
-      district: snake.district || 'Pune',
+      district: snake.district || 'Nagpur',
       block: snake.block || '',
       village: snake.village || '',
       venue: snake.venue || `Primary Veterinary Dispensary, ${snake.village || ''}`,
-      latitude: parseFloat(snake.latitude || snake.lat || 18.1517),
-      longitude: parseFloat(snake.longitude || snake.lng || 74.5772),
+      latitude: parseFloat(snake.latitude || snake.lat || 21.1458),
+      longitude: parseFloat(snake.longitude || snake.lng || 79.0882),
       vaccine: snake.vaccine || snake.vaccine_name || 'Standard Livestock Vaccine',
       vaccine_full_name: snake.vaccine_full_name || snake.vaccine || '',
       target_species: snake.target_species || 'Cattle & Buffalo',
@@ -2782,7 +2782,7 @@ const containmentZones = {
 // 11. OUTBREAK & RISK DATA REPOSITORY
 // ============================================================================
 const outbreaks = {
-  async getClusters(district = 'Pune', distanceKm = 5.0, minCases = 2) {
+  async getClusters(district = 'Nagpur', distanceKm = 5.0, minCases = 2) {
     if (supabase) {
       try {
         const { data, error } = await supabase.rpc('get_spatial_outbreak_clusters', {
@@ -2860,7 +2860,7 @@ const notifications = {
             type: snake.type || 'NEW_CASE_ALERT',
             title: snake.title || 'Notification',
             message: snake.message || '',
-            district: snake.district || 'Pune',
+            district: snake.district || 'Nagpur',
             status: snake.status || 'DELIVERED',
             metadata: snake.metadata || {}
           })
@@ -2892,7 +2892,7 @@ const notifications = {
             type: snake.type || 'NEW_CASE_ALERT',
             title: snake.title || 'Notification',
             message: snake.message || '',
-            district: snake.district || 'Pune',
+            district: snake.district || 'Nagpur',
             status: snake.status || 'DELIVERED',
             metadata: snake.metadata || {}
           };

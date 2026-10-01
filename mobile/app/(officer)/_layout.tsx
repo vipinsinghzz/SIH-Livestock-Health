@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { Stack } from 'expo-router';
-import { colors } from '../../src/theme';
 import { RouteErrorBoundary } from '../../src/components/RouteErrorBoundary';
 import { useAppLanguage } from '../../src/services/i18n';
 
@@ -18,14 +17,14 @@ export default function OfficerLayout() {
     <Stack
       screenOptions={{
         headerStyle: {
-          backgroundColor: colors.light.officerBadge,
+          backgroundColor: '#1E1B4B',
         },
-        headerTintColor: colors.light.textInverse,
+        headerTintColor: '#FFFFFF',
         headerTitleStyle: {
-          fontWeight: '600',
+          fontWeight: '800',
         },
         contentStyle: {
-          backgroundColor: colors.light.background,
+          backgroundColor: '#F8FAFC',
           flex: 1,
         },
       }}
@@ -33,61 +32,62 @@ export default function OfficerLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: t('nav.officerCommand', 'Officer Command Center'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="surveillance/index"
         options={{
-          title: t('nav.surveillance', 'Epidemic Surveillance'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="outbreaks/index"
         options={{
-          title: t('nav.outbreaks', 'Outbreak Alerts'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="containment/index"
         options={{
-          title: t('nav.containmentZones', 'Containment Zones'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="vaccination/index"
         options={{
-          title: t('nav.camps', 'Mass Vaccination Camps'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="map/index"
         options={{
-          title: t('nav.districtMap', 'District GIS Surveillance Map'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="advisories/index"
         options={{
-          title: t('nav.advisories', 'Official Advisories'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="advisories/[id]"
         options={{
           title: t('nav.advisories', 'Advisory Detail'),
+          headerBackTitle: t('common.back', 'Back'),
         }}
       />
       <Stack.Screen
         name="forewarning/index"
         options={{
-          title: t('nav.forewarning', 'NADRES Forewarning & Alerts'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="profile/index"
         options={{
-          title: t('nav.officerProfile', 'Officer Profile & Settings'),
+          headerShown: false,
         }}
       />
     </Stack>

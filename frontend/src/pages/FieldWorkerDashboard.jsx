@@ -54,8 +54,8 @@ export default function FieldWorkerDashboard({ initialModule }) {
   const isMarathi = i18n.language?.startsWith('mr');
 
   // Dynamic user jurisdiction from authenticated profile (NEVER hardcoded)
-  const userDistrict = user?.district || 'Pune';
-  const userBlock = user?.block || 'Baramati';
+  const userDistrict = user?.district || 'Nagpur';
+  const userBlock = user?.block || 'Kamptee';
 
   // Active view: 'command-center' | 'cases' | 'outbreaks' | 'surveillance' | 'zoonotic' | 'laboratory' | 'containment-vaccination'
   const getActiveView = () => {
@@ -353,8 +353,8 @@ export default function FieldWorkerDashboard({ initialModule }) {
         ...fieldCaseForm,
         district: userDistrict,
         coordinates: {
-          lat: user?.location?.lat || 18.5204,
-          lng: user?.location?.lng || 73.8567
+          lat: user?.location?.lat || 21.1458,
+          lng: user?.location?.lng || 79.0882
         }
       };
       const res = await caseService.createFieldCase(payload);
@@ -401,8 +401,8 @@ export default function FieldWorkerDashboard({ initialModule }) {
         village: zoneForm.village,
         radiusKm: zoneForm.radiusKm,
         center: targetCaseForZoneOrRing?.coordinates || {
-          lat: user?.location?.lat || 18.5204,
-          lng: user?.location?.lng || 73.8567
+          lat: user?.location?.lat || 21.1458,
+          lng: user?.location?.lng || 79.0882
         },
         enforcedRules: zoneForm.enforcedRules,
         notes: zoneForm.notes
@@ -1282,7 +1282,7 @@ export default function FieldWorkerDashboard({ initialModule }) {
               containmentZones={containmentZones}
               reports={reports}
               height="550px"
-              userLocation={[user?.location?.lat || 18.5204, user?.location?.lng || 73.8567]}
+              userLocation={[user?.location?.lat || 21.1458, user?.location?.lng || 79.0882]}
               onSelectCase={(c) => setSelectedCaseForAction(c)}
               onSelectZone={(z) => {
                 alert(`Containment Zone ${z.zoneId}\nDisease: ${z.disease}\nStatus: ${z.status}`);

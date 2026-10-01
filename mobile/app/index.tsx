@@ -1,10 +1,12 @@
 /**
- * PashuCare - Welcome Screen (Initial App Entry)
+ * PashuCare - Welcome Screen (Step 1 of Onboarding)
  * File: mobile/app/index.tsx
  *
  * Full-bleed authentic Indian rural livestock health artwork with organic
- * green/cream visual language, subtle entrance animation, full localization (en/hi/mr),
- * and responsive layout preservation with true vertical center alignment of buttons.
+ * green/cream visual language, preserving full composition and aspect ratio (853 x 1844).
+ * Screen 1 of 2-step onboarding: Displays ONLY the PashuCare artwork and a prominent
+ * centered "Next" button inside the reserved cream/off-white area.
+ * Zero login actions on this screen.
  */
 
 import React, { useEffect, useRef } from 'react';
@@ -21,76 +23,54 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useAuth } from '../src/context/AuthContext';
 import { useAppLanguage } from '../src/services/i18n';
-import { typography, radii } from '../src/theme';
+import { radii } from '../src/theme';
 
 // Artwork native aspect ratio: 853 x 1844 (0.46258)
 const ARTWORK_NATIVE_WIDTH = 853;
 const ARTWORK_NATIVE_HEIGHT = 1844;
-const ARTWORK_ASPECT_RATIO = ARTWORK_NATIVE_WIDTH / ARTWORK_NATIVE_HEIGHT; // ~0.46258
+const ARTWORK_ASPECT_RATIO = ARTWORK_NATIVE_WIDTH / ARTWORK_NATIVE_HEIGHT;
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, loading } = useAuth();
   const { t } = useAppLanguage();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
-  // Subtle entrance animation for the action area (fade-in & gentle translate)
+  // Subtle entrance animation for the action button
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateYAnim = useRef(new Animated.Value(14)).current;
-
-  // Preserve authentication: redirect active authenticated sessions directly to their portal
-  useEffect(() => {
-    if (!loading && isAuthenticated && user) {
-      const role = (user.role || '').toLowerCase();
-      console.log('[PashuCare] Active session detected, directing to portal for role:', role);
-      if (role === 'farmer') {
-        router.replace('/(farmer)');
-      } else if (role === 'veterinarian' || role === 'field_worker') {
-        router.replace('/(vet)');
-      } else if (role === 'officer' || role === 'admin') {
-        router.replace('/(officer)');
-      }
-    }
-  }, [loading, isAuthenticated, user, router]);
+  const translateYAnim = useRef(new Animated.Value(12)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 550,
+        duration: 500,
         useNativeDriver: true,
       }),
       Animated.timing(translateYAnim, {
         toValue: 0,
-        duration: 550,
+        duration: 500,
         useNativeDriver: true,
       }),
     ]).start();
   }, [fadeAnim, translateYAnim]);
 
-  // Reliable responsive dimensions:
-  // Render artwork at full screen width, preserving the 853:1844 aspect ratio.
+  // Render artwork at full screen width while strictly preserving the 853:1844 aspect ratio
   const artworkWidth = windowWidth;
   const artworkHeight = windowWidth / ARTWORK_ASPECT_RATIO;
 
   // Reserved Action Zone coordinates:
-  // - Top boundary (immediately below the feature icons text): 71.2% of artwork height (y = 1312px)
-  // - Bottom boundary (immediately above the rolling green landscape wave): 89.0% of artwork height (y = 1641px)
-  // Using flexbox `justifyContent: 'center'` guarantees true vertical center alignment of the buttons
+  // - Top boundary (immediately below feature icons): 71.2% of artwork height (y = 1312px)
+  // - Bottom boundary (immediately above rolling green landscape): 88.0% of artwork height (y = 1622px)
+  // Total cream region height is ~16.8% of artwork height.
+  // Using flexbox `justifyContent: 'center'` guarantees true vertical center alignment of the Next button
   // within this reserved space across all devices and screen aspect ratios.
   const actionZoneTop = artworkHeight * 0.712;
-  const actionZoneHeight = artworkHeight * (0.89 - 0.712);
+  const actionZoneHeight = artworkHeight * 0.168;
 
-  const handleStart = () => {
-    console.log('[PashuCare] Tapped "Start Using PashuCare" -> navigating to /(auth)/register');
-    router.push('/(auth)/register');
-  };
-
-  const handleLogin = () => {
-    console.log('[PashuCare] Tapped "Login here" -> navigating to /(auth)/login');
-    router.push('/(auth)/login');
+  const handleNext = () => {
+    console.log('[PashuCare] Tapped "Next" -> navigating to /language-selection');
+    router.push('/language-selection' as any);
   };
 
   return (
@@ -117,7 +97,7 @@ export default function WelcomeScreen() {
             accessibilityLabel="PashuCare - Healthy Animals, Prosperous Farmers"
           />
 
-          {/* Reserved Action Zone (Light/Cream Region) with True Vertical Center Alignment */}
+          {/* Reserved Action Zone (Light/Cream Region) with True Center Alignment */}
           <Animated.View
             style={[
               styles.actionZone,
@@ -129,40 +109,20 @@ export default function WelcomeScreen() {
               },
             ]}
           >
-            {/* Primary Action: Start Using PashuCare */}
+            {/* Sole Action: Next Button */}
             <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleStart}
+              style={styles.nextButton}
+              onPress={handleNext}
               activeOpacity={0.85}
               accessible={true}
               accessibilityRole="button"
-              accessibilityLabel={t('welcome.startUsing', 'Start Using PashuCare')}
-              accessibilityHint="Opens account registration and role selection"
+              accessibilityLabel={t('common.next', 'Next')}
+              accessibilityHint="Proceeds to language selection"
             >
-              <Text style={styles.primaryButtonText}>
-                {t('welcome.startUsing', 'Start Using PashuCare')}
+              <Text style={styles.nextButtonText}>
+                {t('common.next', 'Next')}
               </Text>
             </TouchableOpacity>
-
-            {/* Secondary Action: Login Here */}
-            <View style={styles.secondaryRow}>
-              <Text style={styles.secondaryPrompt}>
-                {t('welcome.alreadyRegistered', 'Already registered?')}{' '}
-              </Text>
-              <TouchableOpacity
-                onPress={handleLogin}
-                activeOpacity={0.7}
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel={t('welcome.loginHere', 'Login here')}
-                accessibilityHint="Opens sign in screen"
-                hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
-              >
-                <Text style={styles.loginLink}>
-                  {t('welcome.loginHere', 'Login here')}
-                </Text>
-              </TouchableOpacity>
-            </View>
           </Animated.View>
         </View>
       </ScrollView>
@@ -196,57 +156,36 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    justifyContent: 'center', // True vertical center alignment of buttons
+    justifyContent: 'center', // True vertical center alignment of button inside cream area
     alignItems: 'center',     // Horizontal center alignment
     paddingHorizontal: 28,
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
   },
-  primaryButton: {
-    width: '100%',
+  nextButton: {
     backgroundColor: '#0F5132', // Rich organic brand emerald green
-    paddingVertical: 15,
-    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 56,
     borderRadius: radii.round,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 54,
+    minWidth: 210,
+    maxWidth: 300,
     ...Platform.select({
       ios: {
         shadowColor: '#0F5132',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.28,
-        shadowRadius: 8,
+        shadowRadius: 7,
       },
       android: {
-        elevation: 4,
+        elevation: 3.5,
       },
     }),
   },
-  primaryButtonText: {
+  nextButtonText: {
     color: '#FFFFFF',
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 0.3,
+    fontSize: 17.5,
+    fontWeight: '700',
+    letterSpacing: 0.5,
     textAlign: 'center',
-  },
-  secondaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    paddingVertical: 4,
-  },
-  secondaryPrompt: {
-    fontSize: typography.sizes.xs + 1,
-    color: '#556356', // Warm, calm slate/charcoal over light cream
-    fontWeight: typography.weights.medium,
-  },
-  loginLink: {
-    fontSize: typography.sizes.xs + 1,
-    color: '#0F5132', // Emphasized brand green
-    fontWeight: typography.weights.bold,
-    textDecorationLine: 'underline',
   },
 });

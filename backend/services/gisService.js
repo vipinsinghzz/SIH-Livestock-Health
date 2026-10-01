@@ -141,7 +141,7 @@ class GisService {
   /**
    * 3. Query spatial outbreak clusters using PostGIS DBSCAN
    */
-  async getOutbreakClusters(district = 'Pune', distanceKm = 5.0, minCases = 2) {
+  async getOutbreakClusters(district = 'Nagpur', distanceKm = 5.0, minCases = 2) {
     if (supabase) {
       try {
         const { data, error } = await supabase.rpc('get_spatial_outbreak_clusters', {

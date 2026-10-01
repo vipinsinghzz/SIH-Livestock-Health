@@ -33,7 +33,7 @@ export default function FarmerLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: t('nav.farmerHome'),
+          headerShown: false,
         }}
       />
       <Stack.Screen
