@@ -62,6 +62,7 @@ export default function Navbar() {
 
   const isFarmer = !user || user.role === 'farmer';
   const isVet = user?.role === 'field_worker' || user?.role === 'veterinarian';
+  const showEmergencySOS = isFarmer || isVet;
 
   let navLinks = [];
   if (isFarmer) {
@@ -170,15 +171,17 @@ export default function Navbar() {
 
           {/* 3. Right Utilities: Emergency SOS, Online pill, Language, Persona, Auth (Anchored to Right) */}
           <div className="flex items-center gap-2 sm:gap-2.5 xl:gap-3 shrink-0">
-            {/* Emergency SOS Button (Always Prominent on the Right) */}
-            <Link
-              to="/emergency-sos"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 xl:px-4 py-2 rounded-lg text-sm font-black text-white bg-red-700 hover:bg-red-800 transition-all duration-200 shadow-xs hover:shadow-md border border-red-800 shrink-0"
-              title={isVet ? "24×7 Emergency Veterinary Helpline (Dial 1962)" : "24×7 Emergency Veterinary SOS"}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              <span>{isVet ? 'Emergency 1962' : t('nav.emergency_sos')}</span>
-            </Link>
+            {/* Emergency SOS Button (Only for Farmer and Veterinary, Hidden for Officer) */}
+            {showEmergencySOS && (
+              <Link
+                to="/emergency-sos"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 xl:px-4 py-2 rounded-lg text-sm font-black text-white bg-red-700 hover:bg-red-800 transition-all duration-200 shadow-xs hover:shadow-md border border-red-800 shrink-0"
+                title={isVet ? "24×7 Emergency Veterinary Helpline (Dial 1962)" : "24×7 Emergency Veterinary SOS"}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>{isVet ? 'Emergency 1962' : t('nav.emergency_sos')}</span>
+              </Link>
+            )}
 
             {/* Minimalist Online/Offline indicator */}
             {!isOnline && (
@@ -220,7 +223,11 @@ export default function Navbar() {
                 >
                   <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                   <span className="hidden md:inline font-bold">
-                    {user.name || (user.role === 'farmer' ? t('roles.farmer') : user.role === 'field_worker' ? t('roles.field_worker') : t('roles.officer'))}
+                    {user.role === 'officer'
+                      ? (currentLang === 'en'
+                          ? (user.name?.replace(/\s*\(.*?\)/, '') || 'Dr. Vivek Joshi')
+                          : (user.nameMr || user.nameHi || (user.name?.includes('(') ? user.name.match(/\((.*?)\)/)?.[1] : null) || 'डॉ. विवेक जोशी'))
+                      : (user.name || (user.role === 'farmer' ? t('roles.farmer') : user.role === 'field_worker' ? t('roles.field_worker') : t('roles.officer')))}
                   </span>
                 </button>
 
@@ -290,7 +297,7 @@ export default function Navbar() {
                         user.role === 'officer' ? 'font-black text-purple-700 bg-purple-50/50' : 'text-slate-800'
                       }`}
                     >
-                      <span className="font-bold">🏛️ {t('roles.officer')} — {currentLang === 'en' ? 'Dr. Suresh Kulkarni' : 'डॉ. सुरेश कुलकर्णी'}</span>
+                      <span className="font-bold">🏛️ {currentLang === 'en' ? 'District Livestock Officer' : currentLang === 'mr' ? 'जिल्हा पशुसंवर्धन अधिकारी' : 'जिला पशुपालन अधिकारी'} — {currentLang === 'en' ? 'Dr. Vivek Joshi' : 'डॉ. विवेक जोशी'}</span>
                       {user.role === 'officer' && <span className="text-purple-700 font-black">✓</span>}
                     </button>
                   </div>
@@ -327,14 +334,16 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Mobile/Tablet Emergency SOS Icon Button (visible when sm:hidden) */}
-            <Link
-              to="/emergency-sos"
-              className="sm:hidden w-10 h-10 flex items-center justify-center rounded-xl text-white bg-red-600 hover:bg-red-700 transition shadow-xs animate-pulse"
-              title={t('nav.emergency_sos')}
-            >
-              <AlertTriangle className="w-5 h-5" />
-            </Link>
+            {/* Mobile/Tablet Emergency SOS Icon Button (visible when sm:hidden, only for Farmer and Veterinary) */}
+            {showEmergencySOS && (
+              <Link
+                to="/emergency-sos"
+                className="sm:hidden w-10 h-10 flex items-center justify-center rounded-xl text-white bg-red-600 hover:bg-red-700 transition shadow-xs animate-pulse"
+                title={t('nav.emergency_sos')}
+              >
+                <AlertTriangle className="w-5 h-5" />
+              </Link>
+            )}
 
             {/* Mobile menu trigger */}
             <div className="lg:hidden">
@@ -358,14 +367,16 @@ export default function Navbar() {
             <LivestockSaathiLogo variant="horizontal" size="sm" showSubtitle={true} showTagline={false} />
           </div>
 
-          {/* Emergency SOS Callout in Mobile Drawer */}
-          <Link
-            to="/emergency-sos"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-4 py-3 rounded-xl text-base font-black text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 border border-red-500 shadow-xs text-center animate-pulse"
-          >
-            {isVet ? '🚨 Emergency 1962' : `🚨 24×7 ${t('nav.emergency_sos')}`}
-          </Link>
+          {/* Emergency SOS Callout in Mobile Drawer (Only for Farmer and Veterinary) */}
+          {showEmergencySOS && (
+            <Link
+              to="/emergency-sos"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-4 py-3 rounded-xl text-base font-black text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 border border-red-500 shadow-xs text-center animate-pulse"
+            >
+              {isVet ? '🚨 Emergency 1962' : `🚨 24×7 ${t('nav.emergency_sos')}`}
+            </Link>
+          )}
 
           {/* Mobile Language Selector */}
           <div className="flex items-center justify-between p-3 bg-stone-50 rounded-xl border border-stone-200">

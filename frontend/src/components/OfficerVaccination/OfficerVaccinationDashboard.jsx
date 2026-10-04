@@ -49,7 +49,11 @@ const SUPPORTED_RADII = [1.0, 3.0, 5.0, 10.0];
 export default function OfficerVaccinationDashboard() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const isEnglish = i18n.language?.startsWith('en');
+  const currentLang = (i18n.language || user?.preferredLanguage || 'en').split('-')[0].toLowerCase();
+  const isMr = currentLang === 'mr';
+  const isHi = currentLang === 'hi';
+  const isEn = !isMr && !isHi;
+  const tr = (en, mr, hi) => (isMr ? (mr || en) : isHi ? (hi || mr || en) : en);
 
   const officerDistrict = user?.district || 'Nagpur';
 
@@ -143,12 +147,12 @@ export default function OfficerVaccinationDashboard() {
       }
     } catch (err) {
       console.error('[OfficerVaccinationDashboard] Load error:', err);
-      setErrorMessage('डेटा लोड करने में असमर्थ। कृपया पुनः प्रयास करें (Failed to load real-time campaign telemetry).');
+      setErrorMessage(tr('Failed to load real-time campaign telemetry. Please retry.', 'रिअल-टाइम मोहीम डेटा लोड करण्यात अडचण. कृपया पुन्हा प्रयत्न करा.', 'डेटा लोड करने में असमर्थ। कृपया पुनः प्रयास करें।'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [officerDistrict]);
+  }, [officerDistrict, tr]);
 
   useEffect(() => {
     loadDashboardData();
@@ -203,7 +207,7 @@ export default function OfficerVaccinationDashboard() {
   const handleCreateCampaign = async (e) => {
     e.preventDefault();
     if (!campaignForm.vaccine || !campaignForm.village || !campaignForm.block) {
-      alert('कृपया टीका, गाँव एवं तालुका (Block) अवश्य भरें।');
+      alert(tr('Please enter vaccine, village, and block.', 'कृपया लस, गाव आणि तालुका भरा.', 'कृपया टीका, गाँव एवं तालुका (Block) अवश्य भरें।'));
       return;
     }
 
@@ -218,7 +222,11 @@ export default function OfficerVaccinationDashboard() {
       });
 
       if (res?.success) {
-        showToast(`अभियान ${res.drive?.campId || ''} सफलतापूर्वक निर्धारित किया गया (Campaign scheduled).`);
+        showToast(tr(
+          `Campaign ${res.drive?.campId || ''} scheduled successfully.`,
+          `मोहीम ${res.drive?.campId || ''} यशस्वीरित्या निश्चित केली.`,
+          `अभियान ${res.drive?.campId || ''} सफलतापूर्वक निर्धारित किया गया।`
+        ));
         setCampaignForm({
           vaccine: 'FMD',
           vaccineFullName: 'FMD Trivalent Inactivated Adjuvanted Vaccine',
@@ -237,10 +245,10 @@ export default function OfficerVaccinationDashboard() {
         await loadDashboardData();
         setActiveTab('campaigns');
       } else {
-        alert(res?.message || 'अभियान बनाने में विफलता।');
+        alert(res?.message || tr('Failed to create campaign.', 'मोहीम तयार करण्यात अडचण.', 'अभियान बनाने में विफलता।'));
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'त्रुटि: अभियान रिकॉर्ड नहीं हो सका।');
+      alert(err.response?.data?.message || err.message || tr('Could not schedule campaign.', 'मोहीम जतन होऊ शकली नाही.', 'त्रुटि: अभियान रिकॉर्ड नहीं हो सका।'));
     } finally {
       setSubmittingCreate(false);
     }
@@ -250,7 +258,7 @@ export default function OfficerVaccinationDashboard() {
   const handleCreateRingCampaign = async (e) => {
     e.preventDefault();
     if (!selectedOutbreakCase) {
-      alert('कृपया रिंग टीकाकरण के लिए सक्रिय प्रकोप मामला (Outbreak Case) चुनें।');
+      alert(tr('Please select an active outbreak case for ring vaccination.', 'कृपया रिंग लसीकरणासाठी सक्रिय उद्रेक प्रकरण निवडा.', 'कृपया रिंग टीकाकरण के लिए सक्रिय प्रकोप मामला (Outbreak Case) चुनें।'));
       return;
     }
 
@@ -269,15 +277,19 @@ export default function OfficerVaccinationDashboard() {
       });
 
       if (res?.success) {
-        showToast(`आपातकालीन रिंग टीकाकरण अभियान ${res.drive?.campId || ''} निर्धारित!`);
+        showToast(tr(
+          `Emergency ring campaign ${res.drive?.campId || ''} deployed!`,
+          `तातडीची रिंग लसीकरण मोहीम ${res.drive?.campId || ''} सुरू केली!`,
+          `आपातकालीन रिंग टीकाकरण अभियान ${res.drive?.campId || ''} निर्धारित!`
+        ));
         setSelectedOutbreakCase(null);
         await loadDashboardData();
         setActiveTab('campaigns');
       } else {
-        alert(res?.message || 'रिंग अभियान निर्धारण में समस्या।');
+        alert(res?.message || tr('Failed to schedule ring campaign.', 'रिंग मोहीम निश्चित करण्यात अडचण.', 'रिंग अभियान निर्धारण में समस्या।'));
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'रिंग अभियान स्थापित नहीं हो सका।');
+      alert(err.response?.data?.message || err.message || tr('Could not establish ring campaign.', 'रिंग मोहीम सुरू होऊ शकली नाही.', 'रिंग अभियान स्थापित नहीं हो सका।'));
     } finally {
       setSubmittingRing(false);
     }
@@ -286,7 +298,7 @@ export default function OfficerVaccinationDashboard() {
   // Handle Team Assignment
   const handleAssignTeam = async () => {
     if (!assignModalDrive || !selectedStaffToAssign) {
-      alert('कृपया दल के सदस्य का चयन करें।');
+      alert(tr('Please select a staff member.', 'कृपया कर्मचाऱ्याची निवड करा.', 'कृपया दल के सदस्य का चयन करें।'));
       return;
     }
 
@@ -301,15 +313,19 @@ export default function OfficerVaccinationDashboard() {
       });
 
       if (res?.success) {
-        showToast(`दल सदस्य ${selectedStaffObj?.name || ''} अभियान में नियुक्त किया गया।`);
+        showToast(tr(
+          `Staff member ${selectedStaffObj?.name || ''} assigned to campaign.`,
+          `कर्मचारी ${selectedStaffObj?.name || ''} मोहिमेत नियुक्त केले.`,
+          `दल सदस्य ${selectedStaffObj?.name || ''} अभियान में नियुक्त किया गया।`
+        ));
         setAssignModalDrive(null);
         setSelectedStaffToAssign('');
         await loadDashboardData();
       } else {
-        alert(res?.message || 'नियुक्ति में विफलता।');
+        alert(res?.message || tr('Failed to assign staff.', 'नियुक्ती अयशस्वी.', 'नियुक्ति में विफलता।'));
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'दल नियुक्त नहीं हो सका।');
+      alert(err.response?.data?.message || err.message || tr('Could not assign staff.', 'कर्मचारी नियुक्त करता आले नाहीत.', 'दल नियुक्त नहीं हो सका।'));
     } finally {
       setSubmittingAssign(false);
     }
@@ -318,13 +334,13 @@ export default function OfficerVaccinationDashboard() {
   // Handle Dose Recording
   const handleRecordDose = async () => {
     if (!recordDoseDrive || !doseCountInput) {
-      alert('कृपया टीकों की संख्या दर्ज करें।');
+      alert(tr('Please enter dose count.', 'कृपया डोस संख्या प्रविष्ट करा.', 'कृपया टीकों की संख्या दर्ज करें।'));
       return;
     }
 
     const count = parseInt(doseCountInput, 10);
     if (isNaN(count) || count < 1) {
-      alert('संख्या 1 या अधिक होनी चाहिए।');
+      alert(tr('Dose count must be 1 or higher.', 'संख्या १ किंवा अधिक असावी.', 'संख्या 1 या अधिक होनी चाहिए।'));
       return;
     }
 
@@ -338,14 +354,18 @@ export default function OfficerVaccinationDashboard() {
       });
 
       if (res?.success) {
-        showToast(`${count} खुराक (Doses) सफलतापूर्वक दर्ज की गईं। नया कवरेज: ${res.coveragePercentage}%`);
+        showToast(tr(
+          `${count} doses recorded successfully. New coverage: ${res.coveragePercentage}%`,
+          `${count} डोस यशस्वीरित्या नोंदवले. नवीन कव्हरेज: ${res.coveragePercentage}%`,
+          `${count} खुराक सफलतापूर्वक दर्ज की गईं। नया कवरेज: ${res.coveragePercentage}%`
+        ));
         setRecordDoseDrive(null);
         await loadDashboardData();
       } else {
-        alert(res?.message || 'डोज़ दर्ज करने में विफलता।');
+        alert(res?.message || tr('Failed to record doses.', 'डोस नोंदवण्यात अडचण.', 'डोज़ दर्ज करने में विफलता।'));
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'रिकॉर्ड नहीं हो सका।');
+      alert(err.response?.data?.message || err.message || tr('Could not save doses.', 'नोंद सुरक्षित होऊ शकली नाही.', 'रिकॉर्ड नहीं हो सका।'));
     } finally {
       setSubmittingDose(false);
     }
@@ -355,8 +375,8 @@ export default function OfficerVaccinationDashboard() {
   const handleStatusTransition = async (driveId, newStatus) => {
     const confirmMsg =
       newStatus === 'Completed'
-        ? 'क्या आप सुनिश्चित हैं कि यह अभियान पूर्ण व बंद (Closed) किया जाए?'
-        : `क्या आप अभियान की स्थिति "${newStatus}" करना चाहते हैं?`;
+        ? tr('Are you sure you want to close and complete this campaign?', 'आपण खात्री बाळगता की ही मोहीम पूर्ण व बंद करावी?', 'क्या आप सुनिश्चित हैं कि यह अभियान पूर्ण व बंद (Closed) किया जाए?')
+        : tr(`Update campaign status to "${newStatus}"?`, `मोहीम स्थिती "${newStatus}" मध्ये बदलायची आहे का?`, `क्या आप अभियान की स्थिति "${newStatus}" करना चाहते हैं?`);
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -369,14 +389,18 @@ export default function OfficerVaccinationDashboard() {
       }
 
       if (res?.success) {
-        showToast(`अभियान स्थिति "${newStatus}" में परिवर्तित।`);
+        showToast(tr(
+          `Campaign status updated to "${newStatus}".`,
+          `मोहीम स्थिती "${newStatus}" मध्ये बदलली.`,
+          `अभियान स्थिति "${newStatus}" में परिवर्तित।`
+        ));
         if (selectedDriveForDetail && (selectedDriveForDetail.id === driveId || selectedDriveForDetail._id === driveId)) {
           setSelectedDriveForDetail({ ...selectedDriveForDetail, status: newStatus });
         }
         await loadDashboardData();
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'स्थिति अपडेट नहीं हो सकी।');
+      alert(err.response?.data?.message || err.message || tr('Failed to update status.', 'स्थिती अद्ययावत करण्यात अपयश.', 'स्थिति अपडेट नहीं हो सकी।'));
     }
   };
 
@@ -393,18 +417,22 @@ export default function OfficerVaccinationDashboard() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    NADCP • जिला कमान केंद्र
+                    NADCP • {tr('District Command Center', 'जिल्हा नियंत्रण कक्ष', 'जिला कमान केंद्र')}
                   </span>
                   <span className="text-[11px] font-bold text-slate-400">
-                    District: <strong className="text-white">{officerDistrict}</strong>
+                    {tr('District:', 'जिल्हा:', 'जिला:')} <strong className="text-white">{officerDistrict}</strong>
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     Live Supabase
                   </span>
                 </div>
-                <h1 className="text-lg sm:text-xl font-black tracking-tight text-white mt-0.5">
-                  पशु रोग टीकाकरण एवं अभियान प्रबंधन (Officer Vaccination Command)
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-white mt-0.5" style={{ color: '#ffffff' }}>
+                  {tr(
+                    'Livestock Disease Vaccination & Campaign Command',
+                    'पशु रोग लस व मोहीम व्यवस्थापन - अधिकारी कमान',
+                    'पशु रोग टीकाकरण एवं अभियान प्रबंधन - अधिकारी कमान'
+                  )}
                 </h1>
               </div>
             </div>
@@ -418,7 +446,7 @@ export default function OfficerVaccinationDashboard() {
                 title="Refresh Live Telemetry"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
-                <span>{refreshing ? 'रिफ्रेशिंग...' : 'ताज़ा करें (Sync)'}</span>
+                <span>{refreshing ? tr('Syncing...', 'रिफ्रेश होत आहे...', 'रिफ्रेशिंग...') : tr('Sync Live Data', 'ताजे करा', 'ताज़ा करें')}</span>
               </button>
 
               <button
@@ -427,7 +455,7 @@ export default function OfficerVaccinationDashboard() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
-                <span>नया अभियान (New Campaign)</span>
+                <span>{tr('New Campaign', 'नवीन मोहीम', 'नया अभियान')}</span>
               </button>
             </div>
           </div>
@@ -435,13 +463,13 @@ export default function OfficerVaccinationDashboard() {
           {/* Local Tab Navigation */}
           <div className="flex items-center gap-1 sm:gap-2 mt-4 overflow-x-auto no-scrollbar border-t border-slate-800/80 pt-3">
             {[
-              { id: 'overview', label: 'अवलोकन (Overview)', icon: Activity },
-              { id: 'campaigns', label: `अभियान (Campaigns • ${drives.length})`, icon: Syringe },
-              { id: 'create', label: 'नया अभियान (Plan)', icon: PlusCircle },
-              { id: 'ring', label: `रिंग टीकाकरण (Ring Buffer • ${outbreaks.length})`, icon: Radio },
-              { id: 'map', label: 'निगरानी नक्शा (GIS Map)', icon: Compass },
-              { id: 'coverage', label: 'कवरेज विश्लेषण (Coverage)', icon: BarChart3 },
-              { id: 'teams', label: `कार्यकारी दल (Teams • ${staff.length})`, icon: Users }
+              { id: 'overview', label: tr('Overview', 'आढावा', 'अवलोकन'), icon: Activity },
+              { id: 'campaigns', label: `${tr('Campaigns', 'मोहिमा', 'अभियान')} (${drives.length})`, icon: Syringe },
+              { id: 'create', label: tr('Plan Campaign', 'मोहीम नियोजन', 'अभियान योजना'), icon: PlusCircle },
+              { id: 'ring', label: `${tr('Ring Buffer', 'रिंग बफर', 'रिंग बफर')} (${outbreaks.length})`, icon: Radio },
+              { id: 'map', label: tr('GIS Telemetry Map', 'जीआयएस नकाशा', 'जीआईएस निगरानी नक्शा'), icon: Compass },
+              { id: 'coverage', label: tr('Coverage Analytics', 'कव्हरेज विश्लेषण', 'कवरेज विश्लेषण'), icon: BarChart3 },
+              { id: 'teams', label: `${tr('Field Teams', 'कार्यकारी पथके', 'कार्यकारी दल')} (${staff.length})`, icon: Users }
             ].map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -499,43 +527,57 @@ export default function OfficerVaccinationDashboard() {
             {/* 1. Active Drives */}
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Active Drives</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {tr('Active Drives', 'सक्रिय मोहिमा', 'सक्रिय अभियान')}
+                </span>
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-slate-900">
                 {kpis ? kpis.activeDrives : 'Data unavailable'}
               </div>
-              <p className="text-[11px] text-emerald-700 font-medium mt-1">सक्रिय अभियान क्षेत्र में</p>
+              <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                {tr('Active in field', 'क्षेत्रात सक्रिय', 'सक्रिय अभियान क्षेत्र में')}
+              </p>
             </div>
 
             {/* 2. Upcoming Drives */}
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Upcoming Drives</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {tr('Upcoming Drives', 'आगामी मोहिमा', 'आगामी अभियान')}
+                </span>
                 <Calendar className="w-4 h-4 text-blue-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-slate-900">
                 {kpis ? kpis.upcomingDrives : 'Data unavailable'}
               </div>
-              <p className="text-[11px] text-blue-700 font-medium mt-1">आगामी निर्धारित शिविर</p>
+              <p className="text-[11px] text-blue-700 font-medium mt-1">
+                {tr('Scheduled camps', 'नियोजित शिबिरे', 'आगामी निर्धारित शिविर')}
+              </p>
             </div>
 
             {/* 3. Target Animals */}
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Target Animals</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {tr('Target Animals', 'लक्षित जनावरे', 'लक्षित पशु')}
+                </span>
                 <Users className="w-4 h-4 text-slate-400" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-slate-900">
                 {kpis ? kpis.targetAnimals.toLocaleString() : 'Data unavailable'}
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-1">कुल लक्षित पशु संख्या</p>
+              <p className="text-[11px] text-slate-500 font-medium mt-1">
+                {tr('Total district target', 'एकूण जिल्हा लक्ष्य', 'कुल लक्षित पशु संख्या')}
+              </p>
             </div>
 
             {/* 4. Vaccinated */}
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Vaccinated</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {tr('Vaccinated', 'लसीकरण पूर्ण', 'टीकाकरण पूर्ण')}
+                </span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-emerald-700">
@@ -543,7 +585,7 @@ export default function OfficerVaccinationDashboard() {
               </div>
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="text-[11px] font-bold text-emerald-700">
-                  {kpis ? `${kpis.coveragePct}% कवरेज` : ''}
+                  {kpis ? `${kpis.coveragePct}% ${tr('Coverage', 'कव्हरेज', 'कवरेज')}` : ''}
                 </span>
               </div>
             </div>
@@ -551,25 +593,33 @@ export default function OfficerVaccinationDashboard() {
             {/* 5. Pending Vaccinations */}
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Pending</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {tr('Pending', 'प्रलंबित', 'शेष / लंबित')}
+                </span>
                 <Clock className="w-4 h-4 text-amber-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-amber-700">
                 {kpis ? kpis.pendingVaccinations.toLocaleString() : 'Data unavailable'}
               </div>
-              <p className="text-[11px] text-amber-800 font-medium mt-1">शेष प्रतिरक्षण लक्ष्य</p>
+              <p className="text-[11px] text-amber-800 font-medium mt-1">
+                {tr('Remaining animals', 'उर्वरित जनावरे', 'शेष प्रतिरक्षण लक्ष्य')}
+              </p>
             </div>
 
             {/* 6. High-Risk Areas */}
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">High-Risk Areas</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  {tr('High-Risk Areas', 'उच्च-जोखिम क्षेत्रे', 'उच्च-जोखिम क्षेत्र')}
+                </span>
                 <ShieldAlert className="w-4 h-4 text-red-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-red-600">
                 {kpis ? (kpis.highRiskAreas ? kpis.highRiskAreas.length : 0) : 'Data unavailable'}
               </div>
-              <p className="text-[11px] text-red-700 font-medium mt-1">प्रकोप व कम कवरेज क्षेत्र</p>
+              <p className="text-[11px] text-red-700 font-medium mt-1">
+                {tr('Outbreaks & low coverage', 'उद्रेक व कमी कव्हरेज', 'प्रकोप व कम कवरेज क्षेत्र')}
+              </p>
             </div>
           </div>
         </section>
@@ -582,11 +632,17 @@ export default function OfficerVaccinationDashboard() {
               <div className="bg-gradient-to-br from-emerald-800 to-emerald-950 text-white rounded-2xl p-5 shadow-sm border border-emerald-700/60 flex flex-col justify-between">
                 <div>
                   <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    District Routine Plan
+                    {tr('District Routine Plan', 'जिल्हा नियमित योजना', 'जिला नियमित योजना')}
                   </span>
-                  <h3 className="text-lg font-black mt-2">सामूहिक टीकाकरण अभियान (Mass Campaign)</h3>
+                  <h3 className="text-lg font-black mt-2 text-white !text-white" style={{ color: '#ffffff' }}>
+                    {tr('Mass Vaccination Campaign', 'सामूहिक लसीकरण मोहीम', 'सामूहिक टीकाकरण अभियान')}
+                  </h3>
                   <p className="text-xs text-emerald-100/80 mt-1 leading-relaxed">
-                    ब्लॉक एवं ग्राम स्तर पर पूर्व-मानसून अथवा नियमित सुरक्षात्मक टीकाकरण अभियान की योजना बनाएं।
+                    {tr(
+                      'Schedule pre-monsoon and routine protective vaccination drives across blocks and villages.',
+                      'तालुका व ग्राम स्तरावर पावसाळापूर्व व नियमित संरक्षणात्मक लसीकरण मोहिमांचे नियोजन करा.',
+                      'ब्लॉक एवं ग्राम स्तर पर पूर्व-मानसून अथवा नियमित सुरक्षात्मक टीकाकरण अभियान की योजना बनाएं।'
+                    )}
                   </p>
                 </div>
                 <button
@@ -595,7 +651,7 @@ export default function OfficerVaccinationDashboard() {
                   className="mt-4 px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs rounded-xl transition inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <PlusCircle className="w-4 h-4" />
-                  <span>अभियान तैयार करें (Plan Drive)</span>
+                  <span>{tr('Plan Campaign', 'मोहीम आखा', 'अभियान तैयार करें')}</span>
                 </button>
               </div>
 
@@ -603,15 +659,21 @@ export default function OfficerVaccinationDashboard() {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-red-500/20 text-red-300 border border-red-400/30">
-                      Emergency Outbreak Buffer
+                      {tr('Emergency Outbreak Buffer', 'तातडीचा उद्रेक प्रतिबंधक कक्ष', 'आपातकालीन प्रकोप बफर')}
                     </span>
                     <span className="text-xs font-bold text-red-300 bg-red-950/80 px-2 py-0.5 rounded">
-                      {outbreaks.length} Active Cases
+                      {outbreaks.length} {tr('Active Cases', 'सक्रिय प्रकरणे', 'सक्रिय मामले')}
                     </span>
                   </div>
-                  <h3 className="text-lg font-black mt-2">रिंग टीकाकरण टास्कफोर्स (Ring Vaccination)</h3>
+                  <h3 className="text-lg font-black mt-2 text-white !text-white" style={{ color: '#ffffff' }}>
+                    {tr('Ring Vaccination Taskforce', 'रिंग लसीकरण कृती दल', 'रिंग टीकाकरण टास्कफोर्स')}
+                  </h3>
                   <p className="text-xs text-red-100/80 mt-1 leading-relaxed">
-                    सत्यापित रोग प्रकोप के केंद्र से 1–10 किमी परिधि में तत्काल रिंग टीकाकरण अभियान आरंभ करें।
+                    {tr(
+                      'Establish immediate containment vaccination in 1–10 km buffer perimeter around verified disease epicenters.',
+                      'सत्यापित रोग उद्रेक केंद्राभोवती १-१० किमी परिघात तातडीने रिंग लसीकरण मोहीम सुरू करा.',
+                      'सत्यापित रोग प्रकोप के केंद्र से 1–10 किमी परिधि में तत्काल रिंग टीकाकरण अभियान आरंभ करें।'
+                    )}
                   </p>
                 </div>
                 <button
@@ -620,7 +682,7 @@ export default function OfficerVaccinationDashboard() {
                   className="mt-4 px-4 py-2 bg-red-500 hover:bg-red-400 text-white font-black text-xs rounded-xl transition inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <Radio className="w-4 h-4" />
-                  <span>प्रकोप रिंग अभियान (Trigger Ring)</span>
+                  <span>{tr('Trigger Ring Buffer', 'रिंग मोहीम सुरू करा', 'प्रकोप रिंग अभियान')}</span>
                 </button>
               </div>
 
@@ -628,15 +690,21 @@ export default function OfficerVaccinationDashboard() {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-400/30">
-                      Field Deployment
+                      {tr('Field Deployment', 'क्षेत्रीय पथक नियुक्ती', 'फील्ड तैनाती')}
                     </span>
                     <span className="text-xs font-bold text-blue-300 bg-blue-950/80 px-2 py-0.5 rounded">
-                      {staff.length} Staff Available
+                      {staff.length} {tr('Staff Available', 'उपलब्ध कर्मचारी', 'उपलब्ध कर्मचारी')}
                     </span>
                   </div>
-                  <h3 className="text-lg font-black mt-2">दल तैनाती व आवंटन (Team Assignment)</h3>
+                  <h3 className="text-lg font-black mt-2 text-white !text-white" style={{ color: '#ffffff' }}>
+                    {tr('Team Assignment & Logistics', 'पथक नियुक्ती व वाटप', 'दल तैनाती व आवंटन')}
+                  </h3>
                   <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                    पशुचिकित्सा अधिकारियों व क्षेत्रीय कार्यकर्ताओं की उपलब्धता सत्यापित कर अभियानों में नियुक्त करें।
+                    {tr(
+                      'Verify availability of Veterinary Officers and field livestock supervisors for drive deployment.',
+                      'पशुवैद्यकीय अधिकारी आणि क्षेत्रीय कर्मचाऱ्यांची उपलब्धता तपासून मोहिमांमध्ये नियुक्त करा.',
+                      'पशुचिकित्सा अधिकारियों व क्षेत्रीय कार्यकर्ताओं की उपलब्धता सत्यापित कर अभियानों में नियुक्त करें।'
+                    )}
                   </p>
                 </div>
                 <button
@@ -645,7 +713,7 @@ export default function OfficerVaccinationDashboard() {
                   className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl transition inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <Users className="w-4 h-4" />
-                  <span>दल नियुक्त करें (Deploy Staff)</span>
+                  <span>{tr('Deploy Staff', 'पथक नियुक्त करा', 'दल नियुक्त करें')}</span>
                 </button>
               </div>
             </div>
@@ -657,15 +725,19 @@ export default function OfficerVaccinationDashboard() {
                   <div className="flex items-center gap-2">
                     <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
                     <h3 className="text-sm sm:text-base font-black text-slate-900">
-                      प्राथमिकता एवं उच्च-जोखिम अलर्ट (Priority & High-Risk Areas • {kpis.highRiskAreas.length})
+                      {tr('Priority & High-Risk Areas', 'प्राधान्य व उच्च-जोखिम क्षेत्रे', 'प्राथमिकता एवं उच्च-जोखिम अलर्ट')} • {kpis.highRiskAreas.length}
                     </h3>
                   </div>
                   <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
-                    Action Required
+                    {tr('Action Required', 'तातडीची कारवाई', 'कार्रवाई आवश्यक')}
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mb-4">
-                  वास्तविक रोग प्रकोप एवं 50% से कम टीकाकरण कवरेज वाले क्षेत्रों की पहचान। तत्काल हस्तक्षेप आवश्यक है।
+                  {tr(
+                    'Identification of verified outbreak zones and villages with under 50% coverage requiring immediate intervention.',
+                    'सत्यापित रोग उद्रेक क्षेत्रे आणि ५०% पेक्षा कमी कव्हरेज असलेल्या गावांची ओळख. तातडीचा हस्तक्षेप आवश्यक.',
+                    'वास्तविक रोग प्रकोप एवं 50% से कम टीकाकरण कवरेज वाले क्षेत्रों की पहचान। तत्काल हस्तक्षेप आवश्यक है।'
+                  )}
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -695,7 +767,7 @@ export default function OfficerVaccinationDashboard() {
                             }}
                             className="text-xs font-bold text-red-700 hover:text-red-900 inline-flex items-center gap-1 cursor-pointer"
                           >
-                            <span>रिंग योजना</span>
+                            <span>{tr('Plan Ring', 'रिंग योजना', 'रिंग योजना')}</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         ) : (
@@ -704,7 +776,7 @@ export default function OfficerVaccinationDashboard() {
                             onClick={() => setActiveTab('teams')}
                             className="text-xs font-bold text-slate-700 hover:text-slate-900 inline-flex items-center gap-1 cursor-pointer"
                           >
-                            <span>दल भेजें</span>
+                            <span>{tr('Deploy Team', 'पथक पाठवा', 'दल भेजें')}</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         )}
@@ -720,16 +792,22 @@ export default function OfficerVaccinationDashboard() {
               <div className="p-4 sm:p-5 border-b border-stone-200 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    सक्रिय एवं आगामी अभियान (Active & Scheduled Campaigns)
+                    {tr('Active & Scheduled Campaigns', 'सक्रिय व नियोजित मोहिमा', 'सक्रिय एवं आगामी अभियान')}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">जिला नागपुर के सभी अधिकृत टीकाकरण केंद्र एवं शिविर</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {tr(
+                      `All authorized vaccination centres and camps across ${officerDistrict}`,
+                      `${officerDistrict} जिल्ह्यातील सर्व अधिकृत लसीकरण केंद्र व शिबिरे`,
+                      `जिला ${officerDistrict} के सभी अधिकृत टीकाकरण केंद्र एवं शिविर`
+                    )}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab('campaigns')}
                   className="text-xs font-bold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1 cursor-pointer"
                 >
-                  <span>सभी देखें ({drives.length})</span>
+                  <span>{tr('View All', 'सर्व पहा', 'सभी देखें')} ({drives.length})</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -738,14 +816,14 @@ export default function OfficerVaccinationDashboard() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-stone-50 border-b border-stone-200 text-slate-600 font-bold">
-                      <th className="py-3 px-4">अभियान ID / नाम</th>
-                      <th className="py-3 px-4">रोग व टीका</th>
-                      <th className="py-3 px-4">स्थान (Block • Village)</th>
-                      <th className="py-3 px-4">लक्षित / पूर्ण</th>
-                      <th className="py-3 px-4">कवरेज</th>
-                      <th className="py-3 px-4">नियुक्त अधिकारी</th>
-                      <th className="py-3 px-4">स्थिति</th>
-                      <th className="py-3 px-4 text-right">कार्रवाई</th>
+                      <th className="py-3 px-4">{tr('Campaign ID / Name', 'मोहीम आयडी / नाव', 'अभियान ID / नाम')}</th>
+                      <th className="py-3 px-4">{tr('Disease & Vaccine', 'रोग व लस', 'रोग व टीका')}</th>
+                      <th className="py-3 px-4">{tr('Location (Block • Village)', 'स्थान (तालुका • गाव)', 'स्थान (ब्लॉक • गाँव)')}</th>
+                      <th className="py-3 px-4">{tr('Target / Done', 'लक्षित / पूर्ण', 'लक्षित / पूर्ण')}</th>
+                      <th className="py-3 px-4">{tr('Coverage', 'कव्हरेज', 'कवरेज')}</th>
+                      <th className="py-3 px-4">{tr('Assigned Officer', 'नियुक्त अधिकारी', 'नियुक्त अधिकारी')}</th>
+                      <th className="py-3 px-4">{tr('Status', 'स्थिती', 'स्थिति')}</th>
+                      <th className="py-3 px-4 text-right">{tr('Action', 'कार्रवाई', 'कार्रवाई')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
@@ -788,7 +866,7 @@ export default function OfficerVaccinationDashboard() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-slate-700 font-medium">
-                            {d.assignedOfficer || 'Not Assigned'}
+                            {d.assignedOfficer || tr('Not Assigned', 'नियुक्त नाही', 'नियुक्त नहीं')}
                           </td>
                           <td className="py-3 px-4">
                             <span
@@ -809,7 +887,7 @@ export default function OfficerVaccinationDashboard() {
                               onClick={() => setSelectedDriveForDetail(d)}
                               className="px-2.5 py-1 text-xs font-bold text-slate-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition cursor-pointer"
                             >
-                              विवरण (View)
+                              {tr('View Details', 'तपशील', 'विवरण')}
                             </button>
                           </td>
                         </tr>
@@ -831,7 +909,7 @@ export default function OfficerVaccinationDashboard() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="टीका, ब्लॉक, गाँव अथवा अभियान ID खोजें..."
+                  placeholder={tr('Search by vaccine, block, village, or campaign ID...', 'लस, तालुका, गाव किंवा मोहीम आयडी शोधा...', 'टीका, ब्लॉक, गाँव अथवा अभियान ID खोजें...')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 rounded-xl border border-stone-200 text-xs focus:outline-emerald-600 focus:bg-white bg-stone-50"
@@ -844,10 +922,10 @@ export default function OfficerVaccinationDashboard() {
                   onChange={e => setStatusFilter(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-700"
                 >
-                  <option value="ALL">सभी स्थितियाँ (All Status)</option>
-                  <option value="UPCOMING">Upcoming / Scheduled</option>
-                  <option value="ACTIVE">Ongoing / Active</option>
-                  <option value="COMPLETED">Completed</option>
+                  <option value="ALL">{tr('All Statuses', 'सर्व स्थिती', 'सभी स्थितियाँ')}</option>
+                  <option value="UPCOMING">{tr('Upcoming / Scheduled', 'आगामी / नियोजित', 'आगामी / निर्धारित')}</option>
+                  <option value="ACTIVE">{tr('Ongoing / Active', 'सक्रिय', 'सक्रिय')}</option>
+                  <option value="COMPLETED">{tr('Completed', 'पूर्ण झालेले', 'पूर्ण')}</option>
                 </select>
 
                 <select
@@ -855,7 +933,7 @@ export default function OfficerVaccinationDashboard() {
                   onChange={e => setBlockFilter(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-700"
                 >
-                  <option value="ALL">सभी ब्लॉक (All Blocks)</option>
+                  <option value="ALL">{tr('All Blocks', 'सर्व तालुके', 'सभी ब्लॉक')}</option>
                   {availableBlocks.map(b => (
                     <option key={b} value={b}>{b}</option>
                   ))}
@@ -886,7 +964,7 @@ export default function OfficerVaccinationDashboard() {
                         <div className="flex items-center gap-1.5">
                           {isRing && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700 border border-red-200">
-                              RING BUFFER
+                              {tr('RING BUFFER', 'रिंग बफर', 'रिंग बफर')}
                             </span>
                           )}
                           <span
@@ -913,18 +991,18 @@ export default function OfficerVaccinationDashboard() {
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{d.campDate ? new Date(d.campDate).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</span>
+                          <span>{d.campDate ? new Date(d.campDate).toLocaleDateString(currentLang === 'en' ? 'en-IN' : currentLang === 'mr' ? 'mr-IN' : 'hi-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Stethoscope className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">अधिकारी: {d.assignedOfficer || 'Not Assigned'}</span>
+                          <span className="truncate">{tr('Officer:', 'अधिकारी:', 'अधिकारी:')} {d.assignedOfficer || tr('Not Assigned', 'नियुक्त नाही', 'नियुक्त नहीं')}</span>
                         </div>
                       </div>
 
                       {/* Progress Bar */}
                       <div className="mt-4 pt-3 border-t border-stone-100">
                         <div className="flex justify-between items-center text-xs mb-1.5">
-                          <span className="text-slate-500 font-medium">प्रगति (Coverage)</span>
+                          <span className="text-slate-500 font-medium">{tr('Coverage', 'प्रगती', 'प्रगति')}</span>
                           <span className="font-extrabold text-slate-900">{pct}% ({covered}/{target})</span>
                         </div>
                         <div className="w-full bg-stone-100 rounded-full h-2 overflow-hidden">
@@ -936,8 +1014,8 @@ export default function OfficerVaccinationDashboard() {
                           />
                         </div>
                         <div className="flex justify-between text-[11px] text-slate-500 mt-1">
-                          <span>लक्षित: {target}</span>
-                          <span className="text-amber-700 font-bold">शेष: {pending}</span>
+                          <span>{tr('Target:', 'लक्षित:', 'लक्षित:')} {target}</span>
+                          <span className="text-amber-700 font-bold">{tr('Pending:', 'शिल्लक:', 'शेष:')} {pending}</span>
                         </div>
                       </div>
                     </div>
@@ -949,7 +1027,7 @@ export default function OfficerVaccinationDashboard() {
                         onClick={() => setSelectedDriveForDetail(d)}
                         className="px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold transition cursor-pointer flex-1"
                       >
-                        विवरण
+                        {tr('Details', 'तपशील', 'विवरण')}
                       </button>
 
                       {d.status !== 'Completed' && (
@@ -958,7 +1036,7 @@ export default function OfficerVaccinationDashboard() {
                           onClick={() => setRecordDoseDrive(d)}
                           className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition cursor-pointer"
                         >
-                          + डोज़ दर्ज
+                          + {tr('Record Dose', 'डोस नोंदवा', 'डोज़ दर्ज')}
                         </button>
                       )}
 
@@ -966,7 +1044,7 @@ export default function OfficerVaccinationDashboard() {
                         type="button"
                         onClick={() => setAssignModalDrive(d)}
                         className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition cursor-pointer"
-                        title="Assign Team"
+                        title={tr('Assign Team', 'पथक नियुक्त करा', 'दल नियुक्त करें')}
                       >
                         <Users className="w-3.5 h-3.5" />
                       </button>
@@ -983,13 +1061,17 @@ export default function OfficerVaccinationDashboard() {
           <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-stone-200 p-6 sm:p-8 shadow-sm">
             <div className="border-b border-stone-200 pb-4 mb-6">
               <span className="text-xs font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                Official Programme Planning
+                {tr('Official Programme Planning', 'शासकीय मोहीम नियोजन', 'आधिकारिक अभियान नियोजन')}
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
-                नया सामूहिक टीकाकरण अभियान तैयार करें (Schedule Campaign)
+                {tr('Schedule New Vaccination Campaign', 'नवीन सामूहिक लसीकरण मोहीम आखा', 'नया सामूहिक टीकाकरण अभियान तैयार करें')}
               </h2>
               <p className="text-xs text-slate-600 mt-1">
-                यह रिकॉर्ड सीधे सुपाबेस (Supabase) डेटाबेस में आधिकारिक अभियान के रूप में सुरक्षित होगा।
+                {tr(
+                  'This record will be saved directly into Supabase as an official government drive.',
+                  'ही नोंद थेट सुपाबेस डेटाबेसमध्ये अधिकृत शासकीय मोहीम म्हणून जतन केली जाईल.',
+                  'यह रिकॉर्ड सीधे सुपाबेस (Supabase) डेटाबेस में आधिकारिक अभियान के रूप में सुरक्षित होगा।'
+                )}
               </p>
             </div>
 
@@ -998,7 +1080,7 @@ export default function OfficerVaccinationDashboard() {
                 {/* Standard Vaccine Preset */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    टीका प्रकार (Vaccine Standard) *
+                    {tr('Vaccine Standard *', 'लस प्रकार *', 'टीका प्रकार *')}
                   </label>
                   <select
                     value={campaignForm.vaccine}
@@ -1027,7 +1109,7 @@ export default function OfficerVaccinationDashboard() {
                 {/* Vaccine Full Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    टीका पूरा नाम (Official Full Name) *
+                    {tr('Official Full Name *', 'लसीचे पूर्ण नाव *', 'टीका पूरा नाम *')}
                   </label>
                   <input
                     type="text"
@@ -1041,7 +1123,7 @@ export default function OfficerVaccinationDashboard() {
                 {/* Disease */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    रोग (Target Disease) *
+                    {tr('Target Disease *', 'लक्ष्य रोग *', 'लक्षित रोग *')}
                   </label>
                   <input
                     type="text"
@@ -1055,23 +1137,23 @@ export default function OfficerVaccinationDashboard() {
                 {/* Target Animal Species */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    लक्षित पशु प्रजाति (Target Species) *
+                    {tr('Target Species *', 'लक्षित पशू प्रजाती *', 'लक्षित पशु प्रजाति *')}
                   </label>
                   <select
                     value={campaignForm.targetSpecies}
                     onChange={e => setCampaignForm({ ...campaignForm, targetSpecies: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-800"
                   >
-                    <option value="Cattle & Buffalo">गाय एवं भैंस (Cattle & Buffalo)</option>
-                    <option value="Goat & Sheep">बकरी एवं भेड़ (Goat & Sheep)</option>
-                    <option value="All Livestock">समस्त पशुधन (All Livestock)</option>
+                    <option value="Cattle & Buffalo">{tr('Cattle & Buffalo', 'गाय व म्हैस', 'गाय एवं भैंस')}</option>
+                    <option value="Goat & Sheep">{tr('Goat & Sheep', 'शेळी व मेंढी', 'बकरी एवं भेड़')}</option>
+                    <option value="All Livestock">{tr('All Livestock', 'सर्व पशुधन', 'समस्त पशुधन')}</option>
                   </select>
                 </div>
 
                 {/* District (Locked to Officer jurisdiction) */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    जिला (District)
+                    {tr('District', 'जिल्हा', 'जिला')}
                   </label>
                   <input
                     type="text"
@@ -1084,11 +1166,11 @@ export default function OfficerVaccinationDashboard() {
                 {/* Block */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    तालुका / ब्लॉक (Block) *
+                    {tr('Block / Taluka *', 'तालुका / ब्लॉक *', 'तालुका / ब्लॉक *')}
                   </label>
                   <input
                     type="text"
-                    placeholder="उदा. Saoner, Kamptee, Hingna"
+                    placeholder={tr('e.g. Saoner, Kamptee, Hingna', 'उदा. सावनेर, कामठी, हिंगणा', 'उदा. Saoner, Kamptee, Hingna')}
                     value={campaignForm.block}
                     onChange={e => setCampaignForm({ ...campaignForm, block: e.target.value })}
                     required
@@ -1099,11 +1181,11 @@ export default function OfficerVaccinationDashboard() {
                 {/* Village */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    गाँव / क्षेत्र (Village / Target Area) *
+                    {tr('Village / Target Area *', 'गाव / कार्यक्षेत्र *', 'गाँव / क्षेत्र *')}
                   </label>
                   <input
                     type="text"
-                    placeholder="उदा. Kelod, Yerkheda"
+                    placeholder={tr('e.g. Kelod, Yerkheda', 'उदा. केळोद, येरखेडा', 'उदा. Kelod, Yerkheda')}
                     value={campaignForm.village}
                     onChange={e => setCampaignForm({ ...campaignForm, village: e.target.value })}
                     required
@@ -1114,11 +1196,11 @@ export default function OfficerVaccinationDashboard() {
                 {/* Venue */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    शिविर स्थल (Venue / Dispensary)
+                    {tr('Dispensary / Venue', 'दवाखाना / शिबिर स्थळ', 'शिविर स्थल')}
                   </label>
                   <input
                     type="text"
-                    placeholder="उदा. Primary Veterinary Dispensary"
+                    placeholder={tr('e.g. Primary Veterinary Dispensary', 'उदा. प्राथमिक पशुवैद्यकीय दवाखाना', 'उदा. प्राथमिक पशु चिकित्सालय')}
                     value={campaignForm.venue}
                     onChange={e => setCampaignForm({ ...campaignForm, venue: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs text-slate-800"
@@ -1128,7 +1210,7 @@ export default function OfficerVaccinationDashboard() {
                 {/* Target Population */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    लक्षित पशु संख्या (Target Population) *
+                    {tr('Target Animal Count *', 'लक्षित पशू संख्या *', 'लक्षित पशु संख्या *')}
                   </label>
                   <input
                     type="number"
@@ -1143,23 +1225,23 @@ export default function OfficerVaccinationDashboard() {
                 {/* Priority */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    प्राथमिकता (Priority Level)
+                    {tr('Priority Level', 'प्राधान्य स्तर', 'प्राथमिकता')}
                   </label>
                   <select
                     value={campaignForm.priority}
                     onChange={e => setCampaignForm({ ...campaignForm, priority: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-800"
                   >
-                    <option value="Normal">Normal (नियमित)</option>
-                    <option value="High">High (उच्च जोखिम)</option>
-                    <option value="Urgent">Urgent Outbreak (आपातकालीन)</option>
+                    <option value="Normal">{tr('Normal (Routine)', 'सामान्य (नियमित)', 'सामान्य (नियमित)')}</option>
+                    <option value="High">{tr('High Risk', 'उच्च प्राधान्य', 'उच्च जोखिम')}</option>
+                    <option value="Urgent">{tr('Urgent Outbreak', 'तातडीचा प्रादुर्भाव', 'आपातकालीन प्रकोप')}</option>
                   </select>
                 </div>
 
                 {/* Start Date */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    आरंभ तिथि (Start Date) *
+                    {tr('Start Date *', 'सुरुवात तारीख *', 'आरंभ तिथि *')}
                   </label>
                   <input
                     type="date"
@@ -1173,7 +1255,7 @@ export default function OfficerVaccinationDashboard() {
                 {/* End Date */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    समाप्ति तिथि (End Date)
+                    {tr('End Date', 'समाप्ती तारीख', 'समाप्ति तिथि')}
                   </label>
                   <input
                     type="date"
@@ -1187,11 +1269,11 @@ export default function OfficerVaccinationDashboard() {
               {/* Notes */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  अभियान निर्देश व टिप्पणियां (Operational Directives / Notes)
+                  {tr('Operational Directives / Notes', 'मोहीम सूचना व नोंदी', 'अभियान निर्देश व टिप्पणियां')}
                 </label>
                 <textarea
                   rows="3"
-                  placeholder="शीत-श्रृंखला (Cold Chain) निर्देश, सिरिंज एवं लॉजिस्टिक्स विवरण..."
+                  placeholder={tr('Cold chain protocol, syringes, and logistics instructions...', 'कोल्ड चेन सूचना, सिरिंज व लॉजिस्टिक तपशील...', 'शीत-श्रृंखला (Cold Chain) निर्देश, सिरिंज एवं लॉजिस्टिक्स विवरण...')}
                   value={campaignForm.notes}
                   onChange={e => setCampaignForm({ ...campaignForm, notes: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs text-slate-800"
@@ -1204,7 +1286,7 @@ export default function OfficerVaccinationDashboard() {
                   onClick={() => setActiveTab('campaigns')}
                   className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-700 text-xs font-bold transition"
                 >
-                  रद्द करें (Cancel)
+                  {tr('Cancel', 'रद्द करा', 'रद्द करें')}
                 </button>
                 <button
                   type="submit"
@@ -1214,12 +1296,12 @@ export default function OfficerVaccinationDashboard() {
                   {submittingCreate ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>सुरक्षित हो रहा है...</span>
+                      <span>{tr('Saving...', 'जतन होत आहे...', 'सुरक्षित हो रहा है...')}</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>अभियान सुरक्षित करें (Schedule Campaign)</span>
+                      <span>{tr('Schedule Campaign', 'मोहीम निश्चित करा', 'अभियान सुरक्षित करें')}</span>
                     </>
                   )}
                 </button>
@@ -1236,17 +1318,25 @@ export default function OfficerVaccinationDashboard() {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping" />
                   <span className="text-[11px] font-black uppercase tracking-wider text-red-300">
-                    Epidemic Containment Buffer Protocol
+                    {tr('Epidemic Containment Buffer Protocol', 'उद्रेक प्रतिबंधक बफर प्रोटोकॉल', 'प्रकोप रोकथाम बफर प्रोटोकॉल')}
                   </span>
                 </div>
-                <h2 className="text-xl font-black mt-1">रोग प्रकोप आधारित रिंग टीकाकरण (Ring Vaccination)</h2>
+                <h2 className="text-xl font-black mt-1 text-white" style={{ color: '#ffffff' }}>
+                  {tr('Outbreak-Driven Ring Vaccination', 'रोग उद्रेक आधारित रिंग लसीकरण', 'रोग प्रकोप आधारित रिंग टीकाकरण')}
+                </h2>
                 <p className="text-xs text-red-200/90 mt-1 max-w-2xl leading-relaxed">
-                  सत्यापित प्रकोप केंद्र के चारों ओर प्रतिरक्षण बफर स्थापित कर संक्रामक रोगों (LSD, FMD, PPR) के फैलाव को पूर्णतः रोकें।
+                  {tr(
+                    'Establish an immunization perimeter buffer around confirmed disease epicenters to halt transmission (LSD, FMD, PPR).',
+                    'संसर्ग रोखण्यासाठी (LSD, FMD, PPR) पुष्टी झालेल्या उद्रेक केंद्राभोवती लसीकरण बफर तयार करा.',
+                    'सत्यापित प्रकोप केंद्र के चारों ओर प्रतिरक्षण बफर स्थापित कर संक्रामक रोगों (LSD, FMD, PPR) के फैलाव को पूर्णतः रोकें।'
+                  )}
                 </p>
               </div>
               <div className="text-right shrink-0">
                 <span className="text-2xl font-black text-white">{outbreaks.length}</span>
-                <span className="block text-[11px] text-red-300">सक्रिय प्रकोप (Active Outbreaks)</span>
+                <span className="block text-[11px] text-red-300">
+                  {tr('Active Outbreaks', 'सक्रिय उद्रेक', 'सक्रिय प्रकोप')}
+                </span>
               </div>
             </div>
 
@@ -1254,10 +1344,14 @@ export default function OfficerVaccinationDashboard() {
             <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs">
               <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center font-bold">1</span>
-                <span>सक्रिय प्रकोप मामला चुनें (Select Confirmed Outbreak Case)</span>
+                <span>{tr('1. Select Confirmed Outbreak Case', '१. पुष्टी झालेले उद्रेक प्रकरण निवडा', '1. सक्रिय प्रकोप मामला चुनें')}</span>
               </h3>
               <p className="text-xs text-slate-500 mb-4">
-                नीचे सुपाबेस में दर्ज सक्रिय रोग प्रकोप मामलों की सूची है। रिंग अभियान हेतु मामले का चयन करें:
+                {tr(
+                  'List of active outbreak cases in Supabase. Select a case to initialize ring containment:',
+                  'सुपाबेस मधील सक्रिय उद्रेक प्रकरणांची यादी. रिंग मोहिमेसाठी प्रकरण निवडा:',
+                  'नीचे सुपाबेस में दर्ज सक्रिय रोग प्रकोप मामलों की सूची है। रिंग अभियान हेतु मामले का चयन करें:'
+                )}
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1290,14 +1384,16 @@ export default function OfficerVaccinationDashboard() {
                       </div>
 
                       <div className="mt-3 pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-                        <span className="text-[11px] text-slate-500">{c.species} ({c.affectedCount} affected)</span>
+                        <span className="text-[11px] text-slate-500">
+                          {c.species} ({c.affectedCount} {tr('affected', 'बाधित', 'प्रभावित')})
+                        </span>
                         {hasDrive ? (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            रिंग ड्राइव सक्रिय
+                            {tr('Ring Active', 'रिंग मोहीम सक्रिय', 'रिंग ड्राइव सक्रिय')}
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold text-red-700">
-                            रिंग लंबित (Pending)
+                            {tr('Ring Pending', 'रिंग प्रलंबित', 'रिंग लंबित')}
                           </span>
                         )}
                       </div>
@@ -1312,10 +1408,10 @@ export default function OfficerVaccinationDashboard() {
               <div className="bg-white rounded-2xl border border-red-200 p-6 shadow-sm animate-in fade-in duration-200">
                 <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-bold">2</span>
-                  <span>रिंग परिधि व दल विन्यास (Configure Ring Radius & Veterinary Team)</span>
+                  <span>{tr('2. Configure Ring Radius & Veterinary Team', '२. रिंग परिघ व पशुवैद्यकीय पथक निश्चित करा', '2. रिंग परिधि व दल विन्यास')}</span>
                 </h3>
                 <p className="text-xs text-slate-600 mb-5">
-                  मामला: <strong>{selectedOutbreakCase.caseId} ({selectedOutbreakCase.disease})</strong> • स्थान: <strong>{selectedOutbreakCase.village}, {selectedOutbreakCase.block}</strong>
+                  {tr('Case:', 'प्रकरण:', 'मामला:')} <strong>{selectedOutbreakCase.caseId} ({selectedOutbreakCase.disease})</strong> • {tr('Location:', 'स्थान:', 'स्थान:')} <strong>{selectedOutbreakCase.village}, {selectedOutbreakCase.block}</strong>
                 </p>
 
                 <form onSubmit={handleCreateRingCampaign} className="space-y-4">
@@ -1323,7 +1419,7 @@ export default function OfficerVaccinationDashboard() {
                     {/* Ring Radius Selector */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        सुरक्षा परिधि दायरा (Supported Radius) *
+                        {tr('Supported Protection Radius *', 'संरक्षण परिघ दायरा *', 'सुरक्षा परिधि दायरा *')}
                       </label>
                       <select
                         value={ringRadiusKm}
@@ -1331,16 +1427,18 @@ export default function OfficerVaccinationDashboard() {
                         className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-800"
                       >
                         {SUPPORTED_RADII.map(r => (
-                          <option key={r} value={r}>{r} किलोमीटर परिधि (Radius)</option>
+                          <option key={r} value={r}>{r} {tr('km Radius', 'किमी परिघ', 'किमी परिधि')}</option>
                         ))}
                       </select>
-                      <p className="text-[11px] text-slate-500 mt-1">डेटाबेस समर्थित सीमा: 0.5 – 50.0 km</p>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        {tr('Supported range: 0.5 – 50.0 km', 'समर्थित मर्यादा: ०.५ – ५०.० किमी', 'डेटाबेस समर्थित सीमा: 0.5 – 50.0 km')}
+                      </p>
                     </div>
 
                     {/* Ring Target Population */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        अनुमानित परिधि लक्ष्य (Ring Target Count) *
+                        {tr('Estimated Ring Target Count *', 'अंदाजे लक्षित जनावरे *', 'अनुमानित परिधि लक्ष्य *')}
                       </label>
                       <input
                         type="number"
@@ -1355,14 +1453,14 @@ export default function OfficerVaccinationDashboard() {
                     {/* Assign Response Vet */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        प्रभारी पशुचिकित्सक (Assign Vet)
+                        {tr('Lead Veterinarian', 'प्रमुख पशुवैद्यक', 'प्रभारी पशुचिकित्सक')}
                       </label>
                       <select
                         value={ringAssignedStaffId}
                         onChange={e => setRingAssignedStaffId(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-800"
                       >
-                        <option value="">-- उपलब्ध पशुचिकित्सक चुनें --</option>
+                        <option value="">{tr('-- Select Available Veterinarian --', '-- उपलब्ध पशुवैद्यक निवडा --', '-- उपलब्ध पशुचिकित्सक चुनें --')}</option>
                         {staff.filter(s => s.role === 'veterinarian' && s.isAvailable).map(s => (
                           <option key={s.id} value={s.id}>{s.name} ({s.block || s.district})</option>
                         ))}
@@ -1372,11 +1470,11 @@ export default function OfficerVaccinationDashboard() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      आउटपोस्ट / केंद्र स्थल (Outpost Venue)
+                      {tr('Ring Outpost Venue', 'रिंग आउटपोस्ट स्थळ', 'आउटपोस्ट / केंद्र स्थल')}
                     </label>
                     <input
                       type="text"
-                      placeholder={`Emergency Ring Outpost - ${selectedOutbreakCase.village}`}
+                      placeholder={`${tr('Emergency Ring Outpost', 'तातडीचे रिंग आउटपोस्ट', 'आपातकालीन रिंग केंद्र')} - ${selectedOutbreakCase.village}`}
                       value={ringVenue}
                       onChange={e => setRingVenue(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs text-slate-800"
@@ -1389,7 +1487,7 @@ export default function OfficerVaccinationDashboard() {
                       onClick={() => setSelectedOutbreakCase(null)}
                       className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-700 text-xs font-bold transition"
                     >
-                      रद्द करें
+                      {tr('Cancel', 'रद्द करा', 'रद्द करें')}
                     </button>
                     <button
                       type="submit"
@@ -1399,12 +1497,12 @@ export default function OfficerVaccinationDashboard() {
                       {submittingRing ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>रिंग अभियान सुरक्षित हो रहा है...</span>
+                          <span>{tr('Saving Ring Drive...', 'रिंग मोहीम जतन होत आहे...', 'रिंग अभियान सुरक्षित हो रहा है...')}</span>
                         </>
                       ) : (
                         <>
                           <Radio className="w-4 h-4" />
-                          <span>रिंग टीकाकरण अभियान स्थापित करें (Schedule Ring Drive)</span>
+                          <span>{tr('Schedule Ring Drive', 'रिंग मोहीम सुरू करा', 'रिंग टीकाकरण अभियान स्थापित करें')}</span>
                         </>
                       )}
                     </button>
@@ -1421,14 +1519,18 @@ export default function OfficerVaccinationDashboard() {
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm sm:text-base font-black text-slate-900">
-                  सक्रिय प्रकोप एवं टीकाकरण जीआईएस नक्शा (GIS Telemetry Map)
+                  {tr('Active Outbreak & Vaccination GIS Map', 'सक्रिय उद्रेक व लसीकरण जीआयएस नकाशा', 'सक्रिय प्रकोप एवं टीकाकरण जीआईएस नक्शा')}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  सुपाबेस में दर्ज वास्तविक जीपीएस निर्देशांकों (GPS Coordinates) पर आधारित दृश्यता
+                  {tr(
+                    'Live geospatial intelligence based on verified GPS coordinates in Supabase',
+                    'सुपाबेस मधील अधिकृत जीपीएस निर्देशांकांवर आधारित भौगोलिक माहिती',
+                    'सुपाबेस में दर्ज वास्तविक जीपीएस निर्देशांकों पर आधारित दृश्यता'
+                  )}
                 </p>
               </div>
               <span className="text-xs font-bold text-slate-700 bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
-                {outbreaks.length} Outbreak Epicenters Mapped
+                {outbreaks.length} {tr('Outbreak Epicenters Mapped', 'उद्रेक केंद्र नकाशावर दर्शविले', 'प्रकोप केंद्र मैप किए गए')}
               </span>
             </div>
 
@@ -1450,24 +1552,30 @@ export default function OfficerVaccinationDashboard() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-base font-black text-slate-900">
-                    तालुका एवं ग्राम स्तरीय कवरेज विश्लेषण (Block & Village Coverage)
+                    {tr('Block & Village Coverage Analytics', 'तालुका व ग्रामस्तरीय कव्हरेज विश्लेषण', 'तालुका एवं ग्राम स्तरीय कवरेज विश्लेषण')}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    वास्तविक टीकाकरण रिकॉर्ड्स से संगणित प्रामाणिक प्रगति
+                    {tr(
+                      'Official vaccination coverage computed from database records',
+                      'डेटाबेस नोंदींवरून संगणित केलेली प्रामाणिक प्रगती',
+                      'वास्तविक टीकाकरण रिकॉर्ड्स से संगणित प्रामाणिक प्रगति'
+                    )}
                   </p>
                 </div>
                 <div className="text-right">
                   <span className="text-2xl font-black text-emerald-700">
                     {coverageData?.overall?.coveragePct || kpis?.coveragePct || 0}%
                   </span>
-                  <span className="block text-[11px] text-slate-500">समग्र जिला कवरेज (Overall District)</span>
+                  <span className="block text-[11px] text-slate-500">
+                    {tr('Overall District Coverage', 'एकूण जिल्हा कव्हरेज', 'समग्र जिला कवरेज')}
+                  </span>
                 </div>
               </div>
 
               {/* Block level breakdown */}
               <div className="space-y-3">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">
-                  ब्लॉक स्तरीय विश्लेषण (Block Breakdown)
+                  {tr('Block Level Breakdown', 'तालुकानिहाय विश्लेषण', 'ब्लॉक स्तरीय विश्लेषण')}
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {(coverageData?.blockCoverage || []).map((b, idx) => (
@@ -1496,7 +1604,7 @@ export default function OfficerVaccinationDashboard() {
                 <div className="mt-6 pt-5 border-t border-stone-200">
                   <h4 className="text-xs font-black uppercase tracking-wider text-red-700 mb-3 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 text-red-600" />
-                    <span>कम कवरेज वाले क्षेत्र — त्वरित कार्रवाई आवश्यक (Low-Coverage Action Directives)</span>
+                    <span>{tr('Low-Coverage Action Directives', 'कमी कव्हरेज क्षेत्रे — तातडीची कारवाई आवश्यक', 'कम कवरेज वाले क्षेत्र — त्वरित कार्रवाई आवश्यक')}</span>
                   </h4>
                   <div className="space-y-2">
                     {coverageData.priorityAreas.map((p, idx) => (
@@ -1521,7 +1629,7 @@ export default function OfficerVaccinationDashboard() {
                           }}
                           className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] shrink-0 cursor-pointer"
                         >
-                          अभियान बनाएं
+                          {tr('Create Drive', 'मोहीम आखा', 'अभियान बनाएं')}
                         </button>
                       </div>
                     ))}
@@ -1538,14 +1646,18 @@ export default function OfficerVaccinationDashboard() {
             <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-xs flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  पशुचिकित्सक एवं क्षेत्रीय कार्यकर्ता रोस्टर (Staff Directory)
+                  {tr('Veterinary & Field Staff Directory', 'पशुवैद्यक व क्षेत्रीय कर्मचारी रोस्टर', 'पशुचिकित्सक एवं क्षेत्रीय कार्यकर्ता रोस्टर')}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  सुपाबेस में पंजीकृत अधिकृत कर्मी एवं उनकी उपलब्धता स्थिति (Real-time Availability)
+                  {tr(
+                    'Verified personnel registered in Supabase and real-time availability',
+                    'सुपाबेस मधील अधिकृत कर्मचारी व त्यांची उपलब्धता स्थिती',
+                    'सुपाबेस में पंजीकृत अधिकृत कर्मी एवं उनकी उपलब्धता स्थिति'
+                  )}
                 </p>
               </div>
               <span className="text-xs font-bold text-slate-700 bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
-                {staff.length} Verified Staff in {officerDistrict}
+                {staff.length} {tr('Verified Staff in', 'अधिकृत कर्मचारी -', 'अधिकृत कर्मी -')} {officerDistrict}
               </span>
             </div>
 
@@ -1591,7 +1703,7 @@ export default function OfficerVaccinationDashboard() {
 
                   <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
                     <span className="text-[11px] text-slate-500">
-                      {s.isAvailable ? 'तैनाती हेतु उपलब्ध' : 'अनुपलब्ध (On Leave / Busy)'}
+                      {s.isAvailable ? tr('Available for Deployment', 'तैनातीसाठी उपलब्ध', 'तैनाती हेतु उपलब्ध') : tr('Unavailable (On Leave / Busy)', 'अनुपलब्ध (रजेवर / व्यस्त)', 'अनुपलब्ध (छुट्टी / व्यस्त)')}
                     </span>
                     <button
                       type="button"
@@ -1602,7 +1714,7 @@ export default function OfficerVaccinationDashboard() {
                       }}
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                     >
-                      अभियान सौंपें (Assign)
+                      {tr('Assign Drive', 'मोहीम सोपवा', 'अभियान सौंपें')}
                     </button>
                   </div>
                 </div>
@@ -1635,23 +1747,23 @@ export default function OfficerVaccinationDashboard() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-100">
-                <span className="text-slate-500 block">स्थिति (Status)</span>
+                <span className="text-slate-500 block">{tr('Status', 'स्थिती', 'स्थिति')}</span>
                 <strong className="text-slate-900 font-black">{selectedDriveForDetail.status}</strong>
               </div>
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-100">
-                <span className="text-slate-500 block">लक्षित (Target)</span>
+                <span className="text-slate-500 block">{tr('Target', 'लक्षित', 'लक्षित')}</span>
                 <strong className="text-slate-900 font-black">
                   {(selectedDriveForDetail.targetCount || selectedDriveForDetail.capacity || 0).toLocaleString()}
                 </strong>
               </div>
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-100">
-                <span className="text-slate-500 block">पूर्ण (Covered)</span>
+                <span className="text-slate-500 block">{tr('Covered', 'पूर्ण', 'पूर्ण')}</span>
                 <strong className="text-emerald-700 font-black">
                   {(selectedDriveForDetail.coveredCount || 0).toLocaleString()}
                 </strong>
               </div>
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-100">
-                <span className="text-slate-500 block">कवरेज (Coverage)</span>
+                <span className="text-slate-500 block">{tr('Coverage', 'कव्हरेज', 'कवरेज')}</span>
                 <strong className="text-slate-900 font-black">
                   {selectedDriveForDetail.coveragePercentage || 0}%
                 </strong>
@@ -1661,21 +1773,23 @@ export default function OfficerVaccinationDashboard() {
             <div className="space-y-2 text-xs text-slate-700">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>स्थान: <strong>{selectedDriveForDetail.block}</strong> • {selectedDriveForDetail.village || selectedDriveForDetail.venue} ({selectedDriveForDetail.district})</span>
+                <span>{tr('Location:', 'स्थान:', 'स्थान:')} <strong>{selectedDriveForDetail.block}</strong> • {selectedDriveForDetail.village || selectedDriveForDetail.venue} ({selectedDriveForDetail.district})</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>आरंभ तिथि: {selectedDriveForDetail.campDate || selectedDriveForDetail.startDate || 'N/A'}</span>
+                <span>{tr('Start Date:', 'आरंभ तारीख:', 'आरंभ तिथि:')} {selectedDriveForDetail.campDate || selectedDriveForDetail.startDate || 'N/A'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Stethoscope className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>नियुक्त अधिकारी: <strong>{selectedDriveForDetail.assignedOfficer || 'Not Assigned'}</strong></span>
+                <span>{tr('Assigned Officer:', 'नियुक्त अधिकारी:', 'नियुक्त अधिकारी:')} <strong>{selectedDriveForDetail.assignedOfficer || tr('Not Assigned', 'नियुक्त नाही', 'नियुक्त नहीं')}</strong></span>
               </div>
             </div>
 
             {selectedDriveForDetail.notes && (
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 text-xs">
-                <span className="font-bold text-slate-700 block mb-1">निर्देश व ऑडिट इतिहास (Directives & History):</span>
+                <span className="font-bold text-slate-700 block mb-1">
+                  {tr('Directives & History:', 'सूचना व इतिहास:', 'निर्देश व ऑडिट इतिहास:')}
+                </span>
                 <p className="text-slate-600 whitespace-pre-wrap">{selectedDriveForDetail.notes}</p>
               </div>
             )}
@@ -1689,7 +1803,7 @@ export default function OfficerVaccinationDashboard() {
                     onClick={() => handleStatusTransition(selectedDriveForDetail.id || selectedDriveForDetail._id, 'Active')}
                     className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
                   >
-                    अभियान आरंभ करें (Start Campaign)
+                    {tr('Start Campaign', 'मोहीम सुरू करा', 'अभियान आरंभ करें')}
                   </button>
                 ) : null}
 
@@ -1699,7 +1813,7 @@ export default function OfficerVaccinationDashboard() {
                     onClick={() => handleStatusTransition(selectedDriveForDetail.id || selectedDriveForDetail._id, 'Completed')}
                     className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
                   >
-                    अभियान पूर्ण व बंद करें (Close Campaign)
+                    {tr('Close & Complete Campaign', 'मोहीम पूर्ण व बंद करा', 'अभियान पूर्ण व बंद करें')}
                   </button>
                 ) : null}
               </div>
@@ -1709,7 +1823,7 @@ export default function OfficerVaccinationDashboard() {
                 onClick={() => setSelectedDriveForDetail(null)}
                 className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-slate-700 font-bold text-xs rounded-xl transition"
               >
-                बंद करें (Close)
+                {tr('Close', 'बंद करा', 'बंद करें')}
               </button>
             </div>
           </div>
@@ -1722,7 +1836,7 @@ export default function OfficerVaccinationDashboard() {
           <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 shadow-modal p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-stone-200 pb-3">
               <h3 className="text-base font-black text-slate-900">
-                अभियान में दल नियुक्त करें (Assign Team)
+                {tr('Assign Team to Campaign', 'मोहिमेत पथक नियुक्त करा', 'अभियान में दल नियुक्त करें')}
               </h3>
               <button type="button" onClick={() => setAssignModalDrive(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
@@ -1730,12 +1844,12 @@ export default function OfficerVaccinationDashboard() {
             </div>
 
             <p className="text-xs text-slate-600">
-              अभियान: <strong>{assignModalDrive.vaccine}</strong> ({assignModalDrive.campId || assignModalDrive.village})
+              {tr('Campaign:', 'मोहीम:', 'अभियान:')} <strong>{assignModalDrive.vaccine}</strong> ({assignModalDrive.campId || assignModalDrive.village})
             </p>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                अभियान चुनें (Select Campaign)
+                {tr('Select Campaign', 'मोहीम निवडा', 'अभियान चुनें')}
               </label>
               <select
                 value={assignModalDrive.id || assignModalDrive._id}
@@ -1755,14 +1869,14 @@ export default function OfficerVaccinationDashboard() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                कर्मी का चयन करें (Select Available Staff) *
+                {tr('Select Available Staff *', 'उपलब्ध कर्मचारी निवडा *', 'कर्मी का चयन करें *')}
               </label>
               <select
                 value={selectedStaffToAssign}
                 onChange={e => setSelectedStaffToAssign(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold bg-white text-slate-800"
               >
-                <option value="">-- उपलब्ध कर्मी चुनें --</option>
+                <option value="">{tr('-- Select Available Staff --', '-- उपलब्ध कर्मचारी निवडा --', '-- उपलब्ध कर्मी चुनें --')}</option>
                 {staff.filter(s => s.isAvailable).map(s => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.roleLabel} • {s.block || s.district})
@@ -1773,7 +1887,7 @@ export default function OfficerVaccinationDashboard() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                भूमिका (Designated Role in Campaign)
+                {tr('Designated Role in Campaign', 'मोहिमेतील पद / भूमिका', 'भूमिका')}
               </label>
               <input
                 type="text"
@@ -1789,7 +1903,7 @@ export default function OfficerVaccinationDashboard() {
                 onClick={() => setAssignModalDrive(null)}
                 className="px-4 py-2 rounded-xl bg-stone-100 text-slate-700 text-xs font-bold hover:bg-stone-200 transition"
               >
-                रद्द करें
+                {tr('Cancel', 'रद्द करा', 'रद्द करें')}
               </button>
               <button
                 type="button"
@@ -1797,7 +1911,7 @@ export default function OfficerVaccinationDashboard() {
                 disabled={submittingAssign || !selectedStaffToAssign}
                 className="px-5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-black transition disabled:opacity-50 cursor-pointer"
               >
-                {submittingAssign ? 'नियुक्त हो रहा है...' : 'नियुक्त करें (Confirm Assignment)'}
+                {submittingAssign ? tr('Assigning...', 'नियुक्ती होत आहे...', 'नियुक्त हो रहा है...') : tr('Confirm Assignment', 'नियुक्ती निश्चित करा', 'नियुक्त करें')}
               </button>
             </div>
           </div>
@@ -1810,7 +1924,7 @@ export default function OfficerVaccinationDashboard() {
           <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 shadow-modal p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-stone-200 pb-3">
               <h3 className="text-base font-black text-slate-900">
-                टीकाकरण डोज़ दर्ज करें (Record Administered Doses)
+                {tr('Record Administered Doses', 'दिलेल्या लसींच्या डोसची नोंद करा', 'टीकाकरण डोज़ दर्ज करें')}
               </h3>
               <button type="button" onClick={() => setRecordDoseDrive(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
@@ -1818,12 +1932,12 @@ export default function OfficerVaccinationDashboard() {
             </div>
 
             <p className="text-xs text-slate-600">
-              अभियान: <strong>{recordDoseDrive.vaccine}</strong> • ब्लॉक: <strong>{recordDoseDrive.block}</strong>
+              {tr('Campaign:', 'मोहीम:', 'अभियान:')} <strong>{recordDoseDrive.vaccine}</strong> • {tr('Block:', 'तालुका:', 'ब्लॉक:')} <strong>{recordDoseDrive.block}</strong>
             </p>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                दी गई खुराक संख्या (Doses Administered) *
+                {tr('Doses Administered *', 'दिलेले डोस *', 'दी गई खुराक संख्या *')}
               </label>
               <input
                 type="number"
@@ -1837,7 +1951,7 @@ export default function OfficerVaccinationDashboard() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                टीका बैच संख्या (Vaccine Batch Number)
+                {tr('Vaccine Batch Number', 'लस बॅच क्रमांक', 'टीका बैच संख्या')}
               </label>
               <input
                 type="text"
@@ -1849,7 +1963,7 @@ export default function OfficerVaccinationDashboard() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                टीकाकर्ता का नाम (Administering Staff)
+                {tr('Administering Staff Name', 'लसीकरण करणाऱ्या कर्मचाऱ्याचे नाव', 'टीकाकर्ता का नाम')}
               </label>
               <input
                 type="text"
@@ -1865,7 +1979,7 @@ export default function OfficerVaccinationDashboard() {
                 onClick={() => setRecordDoseDrive(null)}
                 className="px-4 py-2 rounded-xl bg-stone-100 text-slate-700 text-xs font-bold hover:bg-stone-200 transition"
               >
-                रद्द करें
+                {tr('Cancel', 'रद्द करा', 'रद्द करें')}
               </button>
               <button
                 type="button"
@@ -1873,7 +1987,7 @@ export default function OfficerVaccinationDashboard() {
                 disabled={submittingDose}
                 className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black transition disabled:opacity-50 cursor-pointer"
               >
-                {submittingDose ? 'रिकॉर्ड हो रहा है...' : 'सुरक्षित करें (Save Doses)'}
+                {submittingDose ? tr('Saving...', 'नोंद होत आहे...', 'रिकॉर्ड हो रहा है...') : tr('Save Doses', 'डोस नोंदवा', 'सुरक्षित करें')}
               </button>
             </div>
           </div>

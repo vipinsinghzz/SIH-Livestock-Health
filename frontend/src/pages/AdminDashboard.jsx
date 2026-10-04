@@ -89,7 +89,11 @@ const DEFAULT_SUMMARY = {
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const isEnglish = i18n.language?.startsWith('en');
+  const currentLang = (i18n.language || user?.preferredLanguage || 'en').split('-')[0].toLowerCase();
+  const isMr = currentLang === 'mr';
+  const isHi = currentLang === 'hi';
+  const isEn = !isMr && !isHi;
+  const tr = (en, mr, hi) => (isMr ? (mr || en) : isHi ? (hi || mr || en) : en);
 
   const [summary, setSummary] = useState(DEFAULT_SUMMARY);
   const [trends, setTrends] = useState([]);
@@ -141,7 +145,9 @@ export default function AdminDashboard() {
           <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
           <LivestockSaathiEmblem size={40} className="drop-shadow-xs animate-pulse" />
         </div>
-        <p className="text-xs text-slate-500 font-medium">डैशबोर्ड लोड हो रहा है...</p>
+        <p className="text-xs text-slate-500 font-medium">
+          {tr('Loading surveillance command dashboard...', 'साथी रोग पाळत कमांड डॅशबोर्ड लोड होत आहे...', 'रोग निगरानी कमांड डैशबोर्ड लोड हो रहा है...')}
+        </p>
       </div>
     );
   }
@@ -152,8 +158,23 @@ export default function AdminDashboard() {
     count: summary.statusFunnel[key] || 0
   }));
 
-  const officerName = user?.name || (isEnglish ? 'Dr. Vivek Joshi' : 'डॉ. विवेक जोशी');
-  const districtName = user?.district || 'Nagpur';
+  const getCleanOfficerName = () => {
+    const raw = user?.name || '';
+    if (raw.includes('(')) {
+      const match = raw.match(/^(.*?)\s*\((.*?)\)$/);
+      if (match) {
+        return isEn ? match[1].trim() : match[2].trim();
+      }
+    }
+    if (user?.role === 'officer') {
+      return tr('Dr. Vivek Joshi', 'डॉ. विवेक जोशी', 'डॉ. विवेक जोशी');
+    }
+    return raw || tr('Dr. Vivek Joshi', 'डॉ. विवेक जोशी', 'डॉ. विवेक जोशी');
+  };
+
+  const officerName = getCleanOfficerName();
+  const districtName = isEn ? 'Nagpur' : isMr ? 'नागपूर' : 'नागपुर';
+  const stateName = isEn ? 'Maharashtra' : isMr ? 'महाराष्ट्र' : 'महाराष्ट्र';
 
   return (
     <div className="app-page dashboard-page admin-dashboard space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-12">
@@ -165,18 +186,22 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-                {isEnglish
-                  ? 'Epidemiological Surveillance Command Center'
-                  : 'रोग निगरानी एवं नियंत्रण केंद्र (Epidemiological Surveillance)'}
+                {tr(
+                  'Epidemiological Surveillance Command Center',
+                  'साथी रोग पाळत व नियंत्रण केंद्र',
+                  'रोग निगरानी एवं नियंत्रण केंद्र'
+                )}
               </h1>
               <span className="bg-purple-100 text-purple-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
-                ADMIN
+                {tr('OFFICER COMMAND', 'अधिकारी कमान', 'अधिकारी कमान')}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {isEnglish
-                ? `District Officer: ${officerName} • District: ${districtName} (Maharashtra)`
-                : `जिला पशुपालन अधिकारी: ${officerName} • जिला: ${districtName} (महाराष्ट्र)`}
+              {tr(
+                `District Officer: ${officerName} • District: ${districtName} (${stateName})`,
+                `जिल्हा पशुसंवर्धन अधिकारी: ${officerName} • जिल्हा: ${districtName} (${stateName})`,
+                `जिला पशुपालन अधिकारी: ${officerName} • जिला: ${districtName} (${stateName})`
+              )}
             </p>
           </div>
         </div>
@@ -185,20 +210,20 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-300 shadow-2xs">
             <Filter className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
             <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
-              {isEnglish ? 'Block:' : 'ब्लॉक चुनें:'}
+              {tr('Block:', 'तालुका:', 'ब्लॉक चुनें:')}
             </label>
             <select
               value={selectedBlock}
               onChange={(e) => setSelectedBlock(e.target.value)}
               className="text-xs font-bold text-slate-800 focus:outline-none bg-transparent cursor-pointer"
             >
-              <option value="All">{isEnglish ? 'All Blocks (Nagpur District)' : 'सभी ब्लॉक (नागपुर जिला)'}</option>
-              <option value="Saoner">Saoner (सावनेर • LSD Containment Active)</option>
-              <option value="Kamptee">Kamptee (कामठी)</option>
-              <option value="Hingna">Hingna (हिंगणा)</option>
-              <option value="Ramtek">Ramtek (रामटेक)</option>
-              <option value="Kalmeshwar">Kalmeshwar (कलमेश्वर)</option>
-              <option value="Umred">Umred (उमरेड)</option>
+              <option value="All">{tr('All Blocks (Nagpur District)', 'सर्व तालुके (नागपूर जिल्हा)', 'सभी ब्लॉक (नागपुर जिला)')}</option>
+              <option value="Saoner">{tr('Saoner (LSD Containment Active)', 'सावनेर (लम्पी प्रतिबंधक कक्ष सक्रिय)', 'सावनेर (लंपी रोकथाम सक्रिय)')}</option>
+              <option value="Kamptee">{tr('Kamptee', 'कामठी', 'कामठी')}</option>
+              <option value="Hingna">{tr('Hingna', 'हिंगणा', 'हिंगणा')}</option>
+              <option value="Ramtek">{tr('Ramtek', 'रामटेक', 'रामटेक')}</option>
+              <option value="Kalmeshwar">{tr('Kalmeshwar', 'कलमेश्वर', 'कलमेश्वर')}</option>
+              <option value="Umred">{tr('Umred', 'उमरेड', 'उमरेड')}</option>
             </select>
           </div>
 
@@ -206,58 +231,58 @@ export default function AdminDashboard() {
             onClick={() => fetchData(selectedBlock)}
             disabled={refreshing}
             className="p-2 bg-white hover:bg-stone-50 border border-slate-300 rounded-xl text-slate-600 hover:text-emerald-700 transition cursor-pointer shadow-2xs"
-            title="रिफ्रेश करें (Refresh)"
+            title={tr('Refresh Telemetry', 'डेटा रिफ्रेश करा', 'रिफ्रेश करें')}
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-emerald-600' : ''}`} />
           </button>
         </div>
-      </div>
+    </div>
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {isEnglish ? 'Total Reports' : 'कुल मामले (Total)'}
+            {tr('Total Reports', 'एकूण अहवाल', 'कुल मामले')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
             {summary?.totalReports ?? 0}
           </div>
-          <span className="text-[10px] text-slate-500">{isEnglish ? 'Logged cases' : 'दर्ज रोग रिपोर्ट'}</span>
+          <span className="text-[10px] text-slate-500">{tr('Logged cases', 'नोंदणीकृत प्रकरणे', 'दर्ज रोग रिपोर्ट')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {isEnglish ? 'Active Cases' : 'सक्रिय मामले'}
+            {tr('Active Cases', 'सक्रिय प्रकरणे', 'सक्रिय मामले')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-blue-600 mt-1">
             {summary?.activeCases ?? 0}
           </div>
-          <span className="text-[10px] text-slate-500">{isEnglish ? 'Under investigation' : 'निगरानी अधीन'}</span>
+          <span className="text-[10px] text-slate-500">{tr('Under investigation', 'तपासणी सुरू', 'निगरानी अधीन')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {isEnglish ? 'Mortalities' : 'पशु मृत्यु (Deaths)'}
+            {tr('Mortalities', 'पशु मृत्यू', 'पशु मृत्यु')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-red-600 mt-1">
             {summary?.totalMortality ?? 0}
           </div>
-          <span className="text-[10px] text-red-600 font-semibold">{isEnglish ? 'Reported deaths' : 'मृत्यु दर्ज'}</span>
+          <span className="text-[10px] text-red-600 font-semibold">{tr('Reported deaths', 'नोंदवलेले मृत्यू', 'मृत्यु दर्ज')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {isEnglish ? 'High / Critical' : 'गंभीर जोखिम'}
+            {tr('High / Critical', 'गंभीर / अति-जोखिम', 'गंभीर जोखिम')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-orange-600 mt-1">
             {(summary?.triageMetrics?.criticalCount || 0) + (summary?.triageMetrics?.highCount || 0)}
           </div>
-          <span className="text-[10px] text-slate-500">{isEnglish ? 'Triage elevated' : 'उच्च सतर्कता'}</span>
+          <span className="text-[10px] text-slate-500">{tr('Triage elevated', 'उच्च सतर्कता', 'उच्च सतर्कता')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {isEnglish ? 'Outbreaks' : 'सक्रिय प्रकोप (Outbreak)'}
+            {tr('Outbreaks', 'सक्रिय उद्रेक', 'सक्रिय प्रकोप')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-red-700 mt-1 flex items-center gap-1">
             {summary?.triageMetrics?.outbreakCount || 0}
@@ -265,17 +290,17 @@ export default function AdminDashboard() {
               <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
             )}
           </div>
-          <span className="text-[10px] text-red-700 font-bold">{isEnglish ? 'Cluster Match' : 'क्लस्टर सक्रिय'}</span>
+          <span className="text-[10px] text-red-700 font-bold">{tr('Cluster Active', 'क्लस्टर सक्रिय', 'क्लस्टर सक्रिय')}</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {isEnglish ? 'Vaccination' : 'टीकाकरण %'}
+            {tr('Vaccination', 'लसीकरण %', 'टीकाकरण %')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-emerald-600 mt-1">
             {summary?.vaccination?.coveragePct ?? 70}%
           </div>
-          <span className="text-[10px] text-slate-500">{isEnglish ? 'District coverage' : 'जिला लक्ष्य कवरेज'}</span>
+          <span className="text-[10px] text-slate-500">{tr('District coverage', 'जिल्हा कव्हरेज', 'जिला लक्ष्य कवरेज')}</span>
         </div>
       </div>
 
@@ -283,31 +308,31 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-xs">
           <div>
-            <span className="font-bold text-emerald-900 block">पशु चिकित्सा क्षमता (Vet Capacity)</span>
-            <span className="text-slate-600">22 सक्रिय डिस्पेंसरी • 14 मोबाइल वैन (1962)</span>
+            <span className="font-bold text-emerald-900 block">{tr('Veterinary Capacity', 'पशुवैद्यकीय क्षमता', 'पशु चिकित्सा क्षमता')}</span>
+            <span className="text-slate-600">{tr('22 Active Dispensaries • 14 Mobile Vans (1962)', '२२ सक्रिय दवाखाने • १४ फिरते पथके (१९६२)', '22 सक्रिय डिस्पेंसरी • 14 मोबाइल वैन (1962)')}</span>
           </div>
           <span className="bg-emerald-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
-            92% चालू
+            {tr('92% Operational', '९२% कार्यान्वित', '92% चालू')}
           </span>
         </div>
 
         <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex items-center justify-between text-xs">
           <div>
-            <span className="font-bold text-blue-900 block">प्रयोगशाला स्थिति (Lab Diagnostic)</span>
-            <span className="text-slate-600">औसत आरटी-पीसीआर टर्नअराउंड: 36 घंटे</span>
+            <span className="font-bold text-blue-900 block">{tr('Lab Diagnostic Status', 'प्रयोगशाळा निदान स्थिती', 'प्रयोगशाला स्थिति')}</span>
+            <span className="text-slate-600">{tr('Avg RT-PCR turnaround: 36 hrs', 'सरासरी RT-PCR वेळ: ३६ तास', 'औसत आरटी-पीसीआर टर्नअराउंड: 36 घंटे')}</span>
           </div>
           <span className="bg-blue-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
-            सक्रिय
+            {tr('Operational', 'सक्रिय', 'सक्रिय')}
           </span>
         </div>
 
         <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 flex items-center justify-between text-xs">
           <div>
-            <span className="font-bold text-purple-900 block">राष्ट्रीय पशुधन नियंत्रण (NADCP)</span>
-            <span className="text-slate-600">FMD चक्र 4: 12,400 गाय/भैंस प्रतिरक्षित</span>
+            <span className="font-bold text-purple-900 block">{tr('National Disease Control (NADCP)', 'राष्ट्रीय पशुरोग नियंत्रण कार्यक्रम', 'राष्ट्रीय पशुधन नियंत्रण (NADCP)')}</span>
+            <span className="text-slate-600">{tr('FMD Cycle 4: 12,400 cattle immunized', 'FMD फेरी ४: १२,४०० जनावरांचे लसीकरण', 'FMD चक्र 4: 12,400 गाय/भैंस प्रतिरक्षित')}</span>
           </div>
           <span className="bg-purple-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
-            चरण 2
+            {tr('Phase 2', 'टप्पा २', 'चरण 2')}
           </span>
         </div>
       </div>
@@ -317,12 +342,14 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-emerald-600" />
-            {isEnglish
-              ? 'Geospatial Outbreak & Risk Heatmap'
-              : 'भू-स्थानिक प्रकोप एवं हॉटस्पॉट मानचित्र (GIS Heatmap)'}
+            {tr(
+              'Geospatial Outbreak & Risk Heatmap',
+              'भू-स्थानिक उद्रेक व जोखीम नकाशा',
+              'भू-स्थानिक प्रकोप एवं हॉटस्पॉट मानचित्र'
+            )}
           </h2>
           <span className="text-xs text-slate-500 font-medium">
-            {reports.length} {isEnglish ? 'cases plotted' : 'मामले मैप पर प्रदर्शित'}
+            {reports.length} {tr('cases plotted', 'प्रकरणे नकाशावर', 'मामले मैप पर प्रदर्शित')}
           </span>
         </div>
         <LeafletMap reports={reports || []} height="480px" />
@@ -336,12 +363,14 @@ export default function AdminDashboard() {
             <div>
               <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
-                {isEnglish ? 'Epidemiological 30-Day Curve' : '30-दिवसीय महामारी रुझान (Epidemic Curve)'}
+                {tr('Epidemiological 30-Day Curve', '३०-दिवसीय महामारी वक्र', '30-दिवसीय महामारी रुझान')}
               </h3>
               <p className="text-xs text-slate-500">
-                {isEnglish
-                  ? 'Daily reported cases, critical flags, and mortalities'
-                  : 'दैनिक दर्ज मामले, गंभीर लक्षण एवं मृत्यु सांख्यिकी'}
+                {tr(
+                  'Daily reported cases, critical flags, and mortalities',
+                  'दैनिक नोंदणीकृत प्रकरणे, गंभीर लक्षणे व मृत्यू सांख्यिकी',
+                  'दैनिक दर्ज मामले, गंभीर लक्षण एवं मृत्यु सांख्यिकी'
+                )}
               </p>
             </div>
           </div>
@@ -374,7 +403,7 @@ export default function AdminDashboard() {
                 <Area
                   type="monotone"
                   dataKey="cases"
-                  name={isEnglish ? 'Total Cases' : 'कुल मामले'}
+                  name={tr('Total Cases', 'एकूण प्रकरणे', 'कुल मामले')}
                   stroke="#10b981"
                   strokeWidth={2}
                   fillOpacity={1}
@@ -383,7 +412,7 @@ export default function AdminDashboard() {
                 <Area
                   type="monotone"
                   dataKey="criticalCases"
-                  name={isEnglish ? 'Critical Risk' : 'गंभीर मामले'}
+                  name={tr('Critical Risk', 'गंभीर जोखीम', 'गंभीर मामले')}
                   stroke="#ef4444"
                   strokeWidth={2}
                   fillOpacity={1}
@@ -392,7 +421,7 @@ export default function AdminDashboard() {
                 <Area
                   type="monotone"
                   dataKey="mortalities"
-                  name={isEnglish ? 'Deaths' : 'मृत्यु'}
+                  name={tr('Deaths', 'मृत्यू', 'मृत्यु')}
                   stroke="#8b5cf6"
                   strokeWidth={2}
                   fill="#8b5cf6"
@@ -407,10 +436,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-2xs space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-sm font-extrabold text-slate-900">
-              {isEnglish ? 'Top Suspected Diseases' : 'शीर्ष संदिग्ध रोग (AI Triage)'}
+              {tr('Top Suspected Diseases (AI Triage)', 'प्रमुख संशयित आजार (AI ट्रायज)', 'शीर्ष संदिग्ध रोग (AI ट्रायज)')}
             </h3>
             <p className="text-xs text-slate-500">
-              {isEnglish ? 'Disease candidate frequency' : 'एआई ट्राइएज द्वारा पहचाने गए मुख्य रोग'}
+              {tr('Disease candidate frequency', 'एआय द्वारे ओळखलेले संभाव्य आजार', 'एआई ट्राइएज द्वारा पहचाने गए मुख्य रोग')}
             </p>
           </div>
 
@@ -423,7 +452,7 @@ export default function AdminDashboard() {
                       {item.name}
                     </span>
                     <span className="text-slate-600 font-mono">
-                      {item.cases} {isEnglish ? 'cases' : 'मामले'} ({item.avgConfidencePct}%)
+                      {item.cases} {tr('cases', 'प्रकरणे', 'मामले')} ({item.avgConfidencePct}%)
                     </span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -448,10 +477,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-2xs space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-sm font-extrabold text-slate-900">
-              {isEnglish ? 'Case Escalation Funnel' : 'केस नियंत्रण प्रगति (Case Funnel)'}
+              {tr('Case Escalation Funnel', 'प्रकरण नियंत्रण प्रगती', 'केस नियंत्रण प्रगति')}
             </h3>
             <p className="text-xs text-slate-500">
-              {isEnglish ? 'Clinical progression from report to containment' : 'पंजीकरण से रोकथाम तक की स्थिति'}
+              {tr('Clinical progression from report to containment', 'नोंदणी ते प्रतिबंधापर्यंतची स्थिती', 'पंजीकरण से रोकथाम तक की स्थिति')}
             </p>
           </div>
 
@@ -469,7 +498,7 @@ export default function AdminDashboard() {
                     fontSize: '11px'
                   }}
                 />
-                <Bar dataKey="count" name={isEnglish ? 'Cases' : 'मामले'} fill="#3b82f6" radius={[6, 6, 0, 0]}>
+                <Bar dataKey="count" name={tr('Cases', 'प्रकरणे', 'मामले')} fill="#3b82f6" radius={[6, 6, 0, 0]}>
                   {funnelData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -483,10 +512,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-2xl border border-stone-200/80 p-5 shadow-2xs space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-sm font-extrabold text-slate-900">
-              {isEnglish ? 'Sub-District Burden' : 'ब्लॉक-वार रोग भार (Block Distribution)'}
+              {tr('Sub-District Burden', 'तालुका-निहाय आजार भार', 'ब्लॉक-वार रोग भार')}
             </h3>
             <p className="text-xs text-slate-500">
-              {isEnglish ? 'Case volume and mortalities by block' : 'ब्लॉक स्तर पर दर्ज कुल मामले व मृत्यु संख्या'}
+              {tr('Case volume and mortalities by block', 'तालुका स्तरावर नोंदवलेले आजार व मृत्यू', 'ब्लॉक स्तर पर दर्ज कुल मामले व मृत्यु संख्या')}
             </p>
           </div>
 
@@ -497,18 +526,20 @@ export default function AdminDashboard() {
                 className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
               >
                 <div>
-                  <div className="font-extrabold text-slate-900">{b._id || 'District'} Block</div>
+                  <div className="font-extrabold text-slate-900">
+                    {b._id || 'District'} {tr('Block', 'तालुका', 'ब्लॉक')}
+                  </div>
                   <div className="text-[11px] text-slate-500">
                     {b.deaths > 0 ? (
-                      <span className="text-red-600 font-bold">{b.deaths} मृत्यु दर्ज</span>
+                      <span className="text-red-600 font-bold">{b.deaths} {tr('deaths reported', 'मृत्यू नोंदवले', 'मृत्यु दर्ज')}</span>
                     ) : (
-                      'शून्य मृत्यु (Zero Mortalities)'
+                      tr('Zero Mortalities', 'शून्य मृत्यू', 'शून्य मृत्यु')
                     )}
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="text-base font-black text-slate-900 font-mono">{b.count}</span>
-                  <div className="text-[10px] text-slate-400">{isEnglish ? 'cases' : 'मामले'}</div>
+                  <div className="text-[10px] text-slate-400">{tr('cases', 'प्रकरणे', 'मामले')}</div>
                 </div>
               </div>
             ))}

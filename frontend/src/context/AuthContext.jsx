@@ -164,19 +164,126 @@ export const AuthProvider = ({ children }) => {
   const loginAsPersona = async (personaKey) => {
     const credentials = {
       farmer: { email: 'farmer@pashurakshak.in', password: 'Farmer@123' },
+      farmer_suresh: { email: 'farmer@pashurakshak.in', password: 'Farmer@123' },
       farmer_ramesh: { email: 'farmer@pashurakshak.in', password: 'Farmer@123' },
       farmer_santosh: { email: 'santosh@pashurakshak.in', password: 'Farmer@123' },
       farmer_sunita: { email: 'sunita@pashurakshak.in', password: 'Farmer@123' },
       field_worker: { email: 'vet@pashurakshak.in', password: 'Vet@123' },
       veterinarian: { email: 'vet@pashurakshak.in', password: 'Vet@123' },
+      vet: { email: 'vet@pashurakshak.in', password: 'Vet@123' },
       field_worker_2: { email: 'vet2@pashurakshak.in', password: 'Vet@123' },
       vet2: { email: 'vet2@pashurakshak.in', password: 'Vet@123' },
       officer: { email: 'officer@pashurakshak.in', password: 'Admin@123' },
       admin: { email: 'admin@pashurakshak.in', password: 'Admin@123' }
     };
 
-    const creds = credentials[personaKey] || credentials.farmer;
-    return await login(creds.email, creds.password);
+    const creds = credentials[personaKey] || credentials.farmer_suresh || credentials.farmer;
+
+    try {
+      return await login(creds.email, creds.password);
+    } catch (networkOrServerErr) {
+      console.warn('[AuthContext] Backend login failed, applying resilient instant demo session:', networkOrServerErr.message);
+
+      // Deterministic offline fallback profiles matching authentic Nagpur personas
+      const DEMO_FALLBACK_PROFILES = {
+        farmer_suresh: {
+          _id: '00000000-0000-0000-0000-000000000001',
+          id: '00000000-0000-0000-0000-000000000001',
+          name: 'Suresh Patil (सुरेश पाटील)',
+          email: 'farmer@pashurakshak.in',
+          role: 'farmer',
+          phone: '+919822011223',
+          village: 'Saoner Rural',
+          block: 'Saoner',
+          district: 'Nagpur',
+          state: 'Maharashtra',
+          preferredLanguage: 'hi'
+        },
+        farmer_ramesh: {
+          _id: '00000000-0000-0000-0000-000000000001',
+          id: '00000000-0000-0000-0000-000000000001',
+          name: 'Suresh Patil (सुरेश पाटील)',
+          email: 'farmer@pashurakshak.in',
+          role: 'farmer',
+          phone: '+919822011223',
+          village: 'Saoner Rural',
+          block: 'Saoner',
+          district: 'Nagpur',
+          state: 'Maharashtra',
+          preferredLanguage: 'hi'
+        },
+        farmer_sunita: {
+          _id: '00000000-0000-0000-0000-000000000005',
+          id: '00000000-0000-0000-0000-000000000005',
+          name: 'Sunita Meshram (सुनिता मेश्राम)',
+          email: 'sunita@pashurakshak.in',
+          role: 'farmer',
+          phone: '+919822055667',
+          village: 'Yerkheda',
+          block: 'Kamptee',
+          district: 'Nagpur',
+          state: 'Maharashtra',
+          preferredLanguage: 'mr'
+        },
+        field_worker: {
+          _id: '00000000-0000-0000-0000-000000000002',
+          id: '00000000-0000-0000-0000-000000000002',
+          name: 'Dr. Amit Deshmukh (डॉ. अमित देशमुख)',
+          email: 'vet@pashurakshak.in',
+          role: 'veterinarian',
+          phone: '+919822022334',
+          village: 'Saoner Town',
+          block: 'Saoner',
+          district: 'Nagpur',
+          state: 'Maharashtra',
+          registrationNo: 'MAH-VET-2022-4819',
+          department: 'Department of Animal Husbandry, Govt. of Maharashtra, Saoner Polyclinic',
+          preferredLanguage: 'en'
+        },
+        veterinarian: {
+          _id: '00000000-0000-0000-0000-000000000002',
+          id: '00000000-0000-0000-0000-000000000002',
+          name: 'Dr. Amit Deshmukh (डॉ. अमित देशमुख)',
+          email: 'vet@pashurakshak.in',
+          role: 'veterinarian',
+          phone: '+919822022334',
+          village: 'Saoner Town',
+          block: 'Saoner',
+          district: 'Nagpur',
+          state: 'Maharashtra',
+          registrationNo: 'MAH-VET-2022-4819',
+          department: 'Department of Animal Husbandry, Govt. of Maharashtra, Saoner Polyclinic',
+          preferredLanguage: 'en'
+        },
+        officer: {
+          _id: '00000000-0000-0000-0000-000000000003',
+          id: '00000000-0000-0000-0000-000000000003',
+          name: 'Dr. Vivek Joshi',
+          nameMr: 'डॉ. विवेक जोशी',
+          nameHi: 'डॉ. विवेक जोशी',
+          email: 'officer@pashurakshak.in',
+          role: 'officer',
+          phone: '+919822033445',
+          village: 'Civil Lines',
+          block: 'Nagpur Urban',
+          district: 'Nagpur',
+          state: 'Maharashtra',
+          registrationNo: 'MAH-OFF-2018-0912',
+          department: 'District Animal Husbandry Office, Nagpur',
+          preferredLanguage: 'en'
+        }
+      };
+
+      const fallbackProfile = DEMO_FALLBACK_PROFILES[personaKey] || DEMO_FALLBACK_PROFILES.farmer_suresh;
+      const demoToken = `demo_jwt_token_${fallbackProfile.id}_${Date.now()}`;
+
+      setToken(demoToken);
+      setUser(fallbackProfile);
+      localStorage.setItem('pashurakshak_token', demoToken);
+      localStorage.setItem('pashurakshak_user', JSON.stringify(fallbackProfile));
+
+      return fallbackProfile;
+    }
   };
 
   return (
