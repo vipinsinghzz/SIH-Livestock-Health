@@ -1,7 +1,6 @@
 const supabaseDb = require('../services/supabaseDb');
 const Report = require('../models/Report');
 const TriageResult = require('../models/TriageResult');
-const VaccinationDrive = require('../models/VaccinationDrive');
 const LabReferral = require('../models/LabReferral');
 
 // @desc    Get aggregated dashboard summary statistics
@@ -101,24 +100,23 @@ exports.getSummary = async (req, res, next) => {
       { $sort: { count: -1 } }
     ]);
 
-    // Vaccination Coverage
-    const vaccFilter = {};
-    if (district && district !== 'All') vaccFilter.district = new RegExp(district, 'i');
-    if (block && block !== 'All') vaccFilter.block = new RegExp(block, 'i');
-
-    const vaccAgg = await VaccinationDrive.aggregate([
-      { $match: vaccFilter },
-      {
-        $group: {
-          _id: null,
-          totalTarget: { $sum: '$targetCount' },
-          totalCovered: { $sum: '$coveredCount' }
-        }
+    // Vaccination Coverage via Supabase PostgreSQL Repository
+    let totalTarget = 0;
+    let totalCovered = 0;
+    try {
+      const drives = await supabaseDb.vaccinationDrives.find({
+        district: district && district !== 'All' ? district : undefined,
+        block: block && block !== 'All' ? block : undefined
+      });
+      for (const d of drives || []) {
+        totalTarget += parseInt(d.targetCount || d.capacity || 0, 10);
+        totalCovered += parseInt(d.coveredCount || 0, 10);
       }
-    ]);
-    const totalTarget = vaccAgg[0]?.totalTarget || 1;
-    const totalCovered = vaccAgg[0]?.totalCovered || 0;
-    const vaccinationCoveragePct = Math.min(100, Math.round((totalCovered / totalTarget) * 100));
+    } catch (ve) {
+      console.warn('[DashboardController] Supabase vaccination calculation notice:', ve.message);
+    }
+    const safeTarget = Math.max(totalTarget, 1);
+    const vaccinationCoveragePct = totalTarget > 0 ? Math.min(100, Math.round((totalCovered / safeTarget) * 100)) : 0;
 
     // Lab referrals pipeline counts
     const labStats = await LabReferral.aggregate([

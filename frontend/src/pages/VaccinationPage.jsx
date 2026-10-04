@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import OfficerVaccinationDashboard from '../components/OfficerVaccination/OfficerVaccinationDashboard';
 import api from '../services/api';
 import animalService from '../services/animalService';
 import veterinaryService from '../services/veterinaryService';
@@ -44,6 +45,12 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 export default function VaccinationPage() {
   const { user } = useAuth();
+
+  // If user is an officer (or admin viewing program management), render dedicated Officer Vaccination Module
+  if (user?.role === 'officer' || user?.role === 'admin') {
+    return <OfficerVaccinationDashboard />;
+  }
+
   const { t, i18n } = useTranslation();
 
   const isEnglish = i18n.language?.startsWith('en');
