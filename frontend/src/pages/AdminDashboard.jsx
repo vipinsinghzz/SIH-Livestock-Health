@@ -313,7 +313,7 @@ export default function AdminDashboard() {
     </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
             {tr('Total Reports', 'एकूण अहवाल', 'कुल मामले')}
@@ -365,49 +365,6 @@ export default function AdminDashboard() {
             )}
           </div>
           <span className="text-[10px] text-red-700 font-bold">{tr('Cluster Active', 'क्लस्टर सक्रिय', 'क्लस्टर सक्रिय')}</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-stone-200/80 shadow-2xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-            {tr('Vaccination', 'लसीकरण %', 'टीकाकरण %')}
-          </span>
-          <div className="text-lg sm:text-xl font-black text-slate-600 mt-2 truncate" title="Data unavailable">
-            {tr('Unavailable', 'उपलब्ध नाही', 'उपलब्ध नहीं')}
-          </div>
-          <span className="text-[10px] text-slate-400">{tr('District registry', 'जिल्हा नोंदणी', 'जिला रिकॉर्ड')}</span>
-        </div>
-      </div>
-
-      {/* District Veterinary Capacity & Diagnostic Status Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-xs">
-          <div>
-            <span className="font-bold text-emerald-900 block">{tr('Veterinary Capacity', 'पशुवैद्यकीय क्षमता', 'पशु चिकित्सा क्षमता')}</span>
-            <span className="text-slate-600">{tr('Dispensary & Mobile Van Telemetry', 'दवाखाने व फिरते पथक माहिती', 'डिस्पेंसरी एवं मोबाइल वैन टेलीमेट्री')}</span>
-          </div>
-          <span className="bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-lg text-xs border border-slate-200">
-            {tr('Data unavailable', 'माहिती उपलब्ध नाही', 'डेटा उपलब्ध नहीं')}
-          </span>
-        </div>
-
-        <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex items-center justify-between text-xs">
-          <div>
-            <span className="font-bold text-blue-900 block">{tr('Lab Diagnostic Network', 'प्रयोगशाळा निदान नेटवर्क', 'प्रयोगशाला निदान नेटवर्क')}</span>
-            <span className="text-slate-600">{tr('Regional Disease Diagnostic Lab (RDDL)', 'प्रादेशिक निदान प्रयोगशाळा (RDDL)', 'क्षेत्रीय निदान प्रयोगशाला (RDDL)')}</span>
-          </div>
-          <span className="bg-blue-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
-            {tr('Operational', 'सक्रिय', 'सक्रिय')}
-          </span>
-        </div>
-
-        <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 flex items-center justify-between text-xs">
-          <div>
-            <span className="font-bold text-purple-900 block">{tr('National Disease Control (NADCP)', 'राष्ट्रीय पशुरोग नियंत्रण कार्यक्रम', 'राष्ट्रीय पशुधन नियंत्रण (NADCP)')}</span>
-            <span className="text-slate-600">{tr('Vaccination Campaign Records', 'लसीकरण मोहीम नोंदणी', 'टीकाकरण अभियान रिकॉर्ड')}</span>
-          </div>
-          <span className="bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-lg text-xs border border-slate-200">
-            {tr('Data unavailable', 'माहिती उपलब्ध नाही', 'डेटा उपलब्ध नहीं')}
-          </span>
         </div>
       </div>
 
