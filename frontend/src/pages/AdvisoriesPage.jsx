@@ -185,13 +185,33 @@ export default function AdvisoriesPage() {
         <div className="space-y-4">
           {advisories.map((adv) => {
             const isEnglish = i18n.language?.startsWith('en');
-            const title = isEnglish ? adv.title?.en || adv.title?.hi : adv.title?.hi || adv.title?.en;
-            const message = isEnglish ? adv.message?.en || adv.message?.hi : adv.message?.hi || adv.message?.en;
+            const isMarathi = i18n.language?.startsWith('mr');
+
+            const title =
+              (typeof adv.title === 'string' ? adv.title : null) ||
+              (isEnglish ? adv.titleEn || adv.title_en || adv.title?.en : null) ||
+              (isMarathi ? adv.titleMr || adv.title_mr || adv.title?.mr || adv.titleHi || adv.title_hi || adv.title?.hi : null) ||
+              adv.titleHi || adv.title_hi || adv.title?.hi ||
+              adv.titleEn || adv.title_en || adv.title?.en ||
+              adv.headline ||
+              adv.disease ||
+              t('advisories.default_title', 'आधिकारिक परामर्श (Advisory Notice)');
+
+            const message =
+              (typeof adv.message === 'string' ? adv.message : null) ||
+              (isEnglish ? adv.messageEn || adv.message_en || adv.message?.en : null) ||
+              (isMarathi ? adv.messageMr || adv.message_mr || adv.message?.mr || adv.messageHi || adv.message_hi || adv.message?.hi : null) ||
+              adv.messageHi || adv.message_hi || adv.message?.hi ||
+              adv.messageEn || adv.message_en || adv.message?.en ||
+              adv.description ||
+              adv.summary ||
+              '';
+
             const isPlaying = playingId === adv._id;
 
             return (
               <div
-                key={adv._id}
+                key={adv._id || adv.id}
                 className="p-5 sm:p-6 rounded-3xl bg-white border border-stone-200 shadow-xs space-y-3 hover:border-emerald-300 hover:shadow-sm transition"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-3">
@@ -203,7 +223,7 @@ export default function AdvisoriesPage() {
                       <h3 className="text-base font-extrabold text-slate-900">{title}</h3>
                       <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-emerald-600" /> {adv.targetBlock} ({adv.targetDistrict || 'Nagpur'})
+                          <MapPin className="w-3 h-3 text-emerald-600" /> {adv.targetBlock || 'All Blocks'} ({adv.targetDistrict || 'Nagpur'})
                         </span>
                         <span>•</span>
                         <span>{new Date(adv.createdAt).toLocaleDateString(i18n.language || 'en')}</span>

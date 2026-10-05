@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -38,54 +38,6 @@ import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
 
 const COLORS = ['#10b981', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
 
-// Safe default fallback summary in case backend data is loading or offline (Nagpur District)
-const DEFAULT_SUMMARY = {
-  totalReports: 15,
-  activeCases: 8,
-  containedCases: 4,
-  totalMortality: 2,
-  totalAffected: 42,
-  triageMetrics: {
-    criticalCount: 4,
-    highCount: 6,
-    moderateCount: 4,
-    lowCount: 1,
-    outbreakCount: 2
-  },
-  diseaseBreakdown: [
-    { name: 'Lumpy Skin Disease (LSD)', cases: 6, avgConfidencePct: 93 },
-    { name: 'Contagious Ecthyma (Orf)', cases: 3, avgConfidencePct: 91 },
-    { name: 'Peste des Petits Ruminants (PPR)', cases: 2, avgConfidencePct: 88 },
-    { name: 'Foot and Mouth Disease (FMD)', cases: 2, avgConfidencePct: 90 },
-    { name: 'Haemorrhagic Septicaemia (HS)', cases: 2, avgConfidencePct: 94 }
-  ],
-  statusFunnel: {
-    Reported: 2,
-    Triaged: 3,
-    'Field Verified': 3,
-    Escalated: 3,
-    Contained: 3,
-    Closed: 1
-  },
-  blockDistribution: [
-    { _id: 'Saoner', count: 6, deaths: 1 },
-    { _id: 'Kamptee', count: 3, deaths: 0 },
-    { _id: 'Hingna', count: 2, deaths: 0 },
-    { _id: 'Ramtek', count: 2, deaths: 1 },
-    { _id: 'Kalmeshwar', count: 2, deaths: 0 }
-  ],
-  vaccination: {
-    totalTarget: 25000,
-    totalCovered: 18450,
-    coveragePct: 74
-  },
-  labPipeline: {
-    'Result Confirmed': 2,
-    Received: 1,
-    'In Transit': 2
-  }
-};
-
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
@@ -95,7 +47,6 @@ export default function AdminDashboard() {
   const isEn = !isMr && !isHi;
   const tr = (en, mr, hi) => (isMr ? (mr || en) : isHi ? (hi || mr || en) : en);
 
-  const [summary, setSummary] = useState(DEFAULT_SUMMARY);
   const [trends, setTrends] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,17 +60,12 @@ export default function AdminDashboard() {
       const blockQuery = isFiltered ? `?block=${encodeURIComponent(block)}` : '';
       const reportsQuery = isFiltered ? `?block=${encodeURIComponent(block)}&limit=100` : '?limit=100';
 
-      const [sumRes, trendRes, repRes] = await Promise.allSettled([
-        api.get(`/dashboard/summary${blockQuery}`),
+      const [trendRes, repRes] = await Promise.allSettled([
         api.get(`/dashboard/trends${blockQuery}`),
         api.get(`/reports${reportsQuery}`)
       ]);
 
-      if (sumRes.status === 'fulfilled' && sumRes.value.data?.data) {
-        setSummary(sumRes.value.data.data);
-      }
-
-      if (trendRes.status === 'fulfilled' && trendRes.value.data?.data) {
+      if (trendRes.status === 'fulfilled' && Array.isArray(trendRes.value.data?.data)) {
         setTrends(trendRes.value.data.data);
       }
 
@@ -138,25 +84,153 @@ export default function AdminDashboard() {
     fetchData(selectedBlock);
   }, [selectedBlock]);
 
-  if (loading && !summary) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <div className="relative w-16 h-16 flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin" />
-          <LivestockSaathiEmblem size={40} className="drop-shadow-xs animate-pulse" />
-        </div>
-        <p className="text-xs text-slate-500 font-medium">
-          {tr('Loading surveillance command dashboard...', 'साथी रोग पाळत कमांड डॅशबोर्ड लोड होत आहे...', 'रोग निगरानी कमांड डैशबोर्ड लोड हो रहा है...')}
-        </p>
-      </div>
-    );
-  }
+  // Compute live real summary metrics strictly from loaded database reports
+  const realSummary = useMemo(() => {
+    if (!reports || reports.length === 0) {
+      return {
+        totalReports: 0,
+        activeCases: 0,
+        containedCases: 0,
+        totalMortality: 0,
+        triageMetrics: { criticalCount: 0, highCount: 0, outbreakCount: 0 },
+        diseaseBreakdown: [],
+        statusFunnel: {},
+        blockDistribution: []
+      };
+    }
+
+    const totalReports = reports.length;
+    let totalMortality = 0;
+    let criticalCount = 0;
+    let highCount = 0;
+    let outbreakCount = 0;
+    let activeCases = 0;
+    const funnel = {
+      Reported: 0,
+      Triaged: 0,
+      'Field Verified': 0,
+      Escalated: 0,
+      Contained: 0,
+      Closed: 0
+    };
+    const diseaseMap = {};
+    const blockMap = {};
+
+    reports.forEach((r) => {
+      const deaths = Number(r.mortalityCount || 0);
+      totalMortality += deaths;
+
+      const risk = r.triageResult?.riskLevel || r.riskLevel || r.urgency;
+      if (risk === 'Critical') criticalCount++;
+      else if (risk === 'High') highCount++;
+      if (r.triageResult?.outbreakFlag) outbreakCount++;
+
+      const st = r.status || 'Reported';
+      if (['Reported', 'Triaged', 'Field Verified', 'Escalated', 'Investigating', 'Confirmed'].includes(st)) {
+        activeCases++;
+      }
+      if (funnel[st] !== undefined) {
+        funnel[st]++;
+      } else {
+        funnel[st] = 1;
+      }
+
+      // Disease breakdown
+      const rawDisease = r.triageResult?.suspectedDiseases?.[0]?.name || r.suspectedDisease || r.disease || r.species || 'General';
+      const cleanDisease = rawDisease.replace(/\s*\([^)]*\)/g, '').trim();
+      const confScore = r.triageResult?.suspectedDiseases?.[0]?.confidenceScore || r.triageResult?.visualScore;
+      const confPct = typeof confScore === 'number' && confScore > 0 ? Math.round(confScore * 100) : null;
+
+      if (!diseaseMap[cleanDisease]) {
+        diseaseMap[cleanDisease] = { name: cleanDisease, cases: 0, totalConf: 0, confCount: 0 };
+      }
+      diseaseMap[cleanDisease].cases += 1;
+      if (confPct) {
+        diseaseMap[cleanDisease].totalConf += confPct;
+        diseaseMap[cleanDisease].confCount += 1;
+      }
+
+      // Block distribution
+      const blk = r.block || r.location?.block || 'Other';
+      if (!blockMap[blk]) {
+        blockMap[blk] = { _id: blk, count: 0, deaths: 0 };
+      }
+      blockMap[blk].count += 1;
+      blockMap[blk].deaths += deaths;
+    });
+
+    const diseaseBreakdown = Object.values(diseaseMap)
+      .sort((a, b) => b.cases - a.cases)
+      .slice(0, 5)
+      .map((d) => ({
+        name: d.name,
+        cases: d.cases,
+        avgConfidencePct: d.confCount > 0 ? Math.round(d.totalConf / d.confCount) : null
+      }));
+
+    const blockDistribution = Object.values(blockMap).sort((a, b) => b.count - a.count);
+
+    return {
+      totalReports,
+      activeCases,
+      totalMortality,
+      triageMetrics: { criticalCount, highCount, outbreakCount },
+      diseaseBreakdown,
+      statusFunnel: funnel,
+      blockDistribution
+    };
+  }, [reports]);
+
+  // Compute 30-Day epidemiological temporal curve from real data
+  const computedTrends = useMemo(() => {
+    if (Array.isArray(trends) && trends.some((t) => (t.cases || 0) > 0 || (t.criticalCases || 0) > 0 || (t.mortalities || 0) > 0)) {
+      return trends;
+    }
+
+    if (!reports || reports.length === 0) {
+      return [];
+    }
+
+    const dateMap = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().slice(0, 10);
+      dateMap[dateKey] = {
+        date: dateKey,
+        displayDate: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
+        cases: 0,
+        criticalCases: 0,
+        mortalities: 0
+      };
+    }
+
+    let hasAnyData = false;
+    reports.forEach((r) => {
+      if (!r.createdAt) return;
+      const dateKey = new Date(r.createdAt).toISOString().slice(0, 10);
+      if (dateMap[dateKey]) {
+        dateMap[dateKey].cases += 1;
+        dateMap[dateKey].mortalities += Number(r.mortalityCount || 0);
+        const risk = r.triageResult?.riskLevel || r.riskLevel || r.urgency;
+        if (risk === 'Critical' || risk === 'High' || r.status === 'Escalated') {
+          dateMap[dateKey].criticalCases += 1;
+        }
+        hasAnyData = true;
+      }
+    });
+
+    return hasAnyData ? Object.values(dateMap) : [];
+  }, [trends, reports]);
 
   // Format status funnel data for chart
-  const funnelData = Object.keys(summary?.statusFunnel || {}).map((key) => ({
-    status: key,
-    count: summary.statusFunnel[key] || 0
-  }));
+  const funnelData = useMemo(() => {
+    const raw = realSummary?.statusFunnel || {};
+    return Object.keys(raw).map((key) => ({
+      status: key,
+      count: raw[key] || 0
+    }));
+  }, [realSummary]);
 
   const getCleanOfficerName = () => {
     const raw = user?.name || '';
@@ -245,7 +319,7 @@ export default function AdminDashboard() {
             {tr('Total Reports', 'एकूण अहवाल', 'कुल मामले')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
-            {summary?.totalReports ?? 0}
+            {realSummary.totalReports}
           </div>
           <span className="text-[10px] text-slate-500">{tr('Logged cases', 'नोंदणीकृत प्रकरणे', 'दर्ज रोग रिपोर्ट')}</span>
         </div>
@@ -255,7 +329,7 @@ export default function AdminDashboard() {
             {tr('Active Cases', 'सक्रिय प्रकरणे', 'सक्रिय मामले')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-blue-600 mt-1">
-            {summary?.activeCases ?? 0}
+            {realSummary.activeCases}
           </div>
           <span className="text-[10px] text-slate-500">{tr('Under investigation', 'तपासणी सुरू', 'निगरानी अधीन')}</span>
         </div>
@@ -265,7 +339,7 @@ export default function AdminDashboard() {
             {tr('Mortalities', 'पशु मृत्यू', 'पशु मृत्यु')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-red-600 mt-1">
-            {summary?.totalMortality ?? 0}
+            {realSummary.totalMortality}
           </div>
           <span className="text-[10px] text-red-600 font-semibold">{tr('Reported deaths', 'नोंदवलेले मृत्यू', 'मृत्यु दर्ज')}</span>
         </div>
@@ -275,7 +349,7 @@ export default function AdminDashboard() {
             {tr('High / Critical', 'गंभीर / अति-जोखिम', 'गंभीर जोखिम')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-orange-600 mt-1">
-            {(summary?.triageMetrics?.criticalCount || 0) + (summary?.triageMetrics?.highCount || 0)}
+            {(realSummary.triageMetrics?.criticalCount || 0) + (realSummary.triageMetrics?.highCount || 0)}
           </div>
           <span className="text-[10px] text-slate-500">{tr('Triage elevated', 'उच्च सतर्कता', 'उच्च सतर्कता')}</span>
         </div>
@@ -285,8 +359,8 @@ export default function AdminDashboard() {
             {tr('Outbreaks', 'सक्रिय उद्रेक', 'सक्रिय प्रकोप')}
           </span>
           <div className="text-2xl sm:text-3xl font-black text-red-700 mt-1 flex items-center gap-1">
-            {summary?.triageMetrics?.outbreakCount || 0}
-            {summary?.triageMetrics?.outbreakCount > 0 && (
+            {realSummary.triageMetrics?.outbreakCount || 0}
+            {(realSummary.triageMetrics?.outbreakCount || 0) > 0 && (
               <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
             )}
           </div>
@@ -297,10 +371,10 @@ export default function AdminDashboard() {
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
             {tr('Vaccination', 'लसीकरण %', 'टीकाकरण %')}
           </span>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 mt-1">
-            {summary?.vaccination?.coveragePct ?? 70}%
+          <div className="text-lg sm:text-xl font-black text-slate-600 mt-2 truncate" title="Data unavailable">
+            {tr('Unavailable', 'उपलब्ध नाही', 'उपलब्ध नहीं')}
           </div>
-          <span className="text-[10px] text-slate-500">{tr('District coverage', 'जिल्हा कव्हरेज', 'जिला लक्ष्य कवरेज')}</span>
+          <span className="text-[10px] text-slate-400">{tr('District registry', 'जिल्हा नोंदणी', 'जिला रिकॉर्ड')}</span>
         </div>
       </div>
 
@@ -309,17 +383,17 @@ export default function AdminDashboard() {
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between text-xs">
           <div>
             <span className="font-bold text-emerald-900 block">{tr('Veterinary Capacity', 'पशुवैद्यकीय क्षमता', 'पशु चिकित्सा क्षमता')}</span>
-            <span className="text-slate-600">{tr('22 Active Dispensaries • 14 Mobile Vans (1962)', '२२ सक्रिय दवाखाने • १४ फिरते पथके (१९६२)', '22 सक्रिय डिस्पेंसरी • 14 मोबाइल वैन (1962)')}</span>
+            <span className="text-slate-600">{tr('Dispensary & Mobile Van Telemetry', 'दवाखाने व फिरते पथक माहिती', 'डिस्पेंसरी एवं मोबाइल वैन टेलीमेट्री')}</span>
           </div>
-          <span className="bg-emerald-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
-            {tr('92% Operational', '९२% कार्यान्वित', '92% चालू')}
+          <span className="bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-lg text-xs border border-slate-200">
+            {tr('Data unavailable', 'माहिती उपलब्ध नाही', 'डेटा उपलब्ध नहीं')}
           </span>
         </div>
 
         <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex items-center justify-between text-xs">
           <div>
-            <span className="font-bold text-blue-900 block">{tr('Lab Diagnostic Status', 'प्रयोगशाळा निदान स्थिती', 'प्रयोगशाला स्थिति')}</span>
-            <span className="text-slate-600">{tr('Avg RT-PCR turnaround: 36 hrs', 'सरासरी RT-PCR वेळ: ३६ तास', 'औसत आरटी-पीसीआर टर्नअराउंड: 36 घंटे')}</span>
+            <span className="font-bold text-blue-900 block">{tr('Lab Diagnostic Network', 'प्रयोगशाळा निदान नेटवर्क', 'प्रयोगशाला निदान नेटवर्क')}</span>
+            <span className="text-slate-600">{tr('Regional Disease Diagnostic Lab (RDDL)', 'प्रादेशिक निदान प्रयोगशाळा (RDDL)', 'क्षेत्रीय निदान प्रयोगशाला (RDDL)')}</span>
           </div>
           <span className="bg-blue-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
             {tr('Operational', 'सक्रिय', 'सक्रिय')}
@@ -329,10 +403,10 @@ export default function AdminDashboard() {
         <div className="bg-purple-50/70 border border-purple-200 rounded-2xl p-4 flex items-center justify-between text-xs">
           <div>
             <span className="font-bold text-purple-900 block">{tr('National Disease Control (NADCP)', 'राष्ट्रीय पशुरोग नियंत्रण कार्यक्रम', 'राष्ट्रीय पशुधन नियंत्रण (NADCP)')}</span>
-            <span className="text-slate-600">{tr('FMD Cycle 4: 12,400 cattle immunized', 'FMD फेरी ४: १२,४०० जनावरांचे लसीकरण', 'FMD चक्र 4: 12,400 गाय/भैंस प्रतिरक्षित')}</span>
+            <span className="text-slate-600">{tr('Vaccination Campaign Records', 'लसीकरण मोहीम नोंदणी', 'टीकाकरण अभियान रिकॉर्ड')}</span>
           </div>
-          <span className="bg-purple-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-xs">
-            {tr('Phase 2', 'टप्पा २', 'चरण 2')}
+          <span className="bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-lg text-xs border border-slate-200">
+            {tr('Data unavailable', 'माहिती उपलब्ध नाही', 'डेटा उपलब्ध नहीं')}
           </span>
         </div>
       </div>
@@ -376,59 +450,71 @@ export default function AdminDashboard() {
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends || []}>
-                <defs>
-                  <linearGradient id="colorCases" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderRadius: '0.75rem',
-                    color: '#fff',
-                    fontSize: '11px'
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px' }} />
-                <Area
-                  type="monotone"
-                  dataKey="cases"
-                  name={tr('Total Cases', 'एकूण प्रकरणे', 'कुल मामले')}
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorCases)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="criticalCases"
-                  name={tr('Critical Risk', 'गंभीर जोखीम', 'गंभीर मामले')}
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorCritical)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="mortalities"
-                  name={tr('Deaths', 'मृत्यू', 'मृत्यु')}
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  fill="#8b5cf6"
-                  fillOpacity={0.2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {computedTrends.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={computedTrends}>
+                  <defs>
+                    <linearGradient id="colorCases" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      borderRadius: '0.75rem',
+                      color: '#fff',
+                      fontSize: '11px'
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Area
+                    type="monotone"
+                    dataKey="cases"
+                    name={tr('Total Cases', 'एकूण प्रकरणे', 'कुल मामले')}
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorCases)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="criticalCases"
+                    name={tr('Critical Risk', 'गंभीर जोखीम', 'गंभीर मामले')}
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorCritical)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="mortalities"
+                    name={tr('Deaths', 'मृत्यू', 'मृत्यु')}
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fill="#8b5cf6"
+                    fillOpacity={0.2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-stone-50/60 rounded-xl border border-dashed border-stone-200">
+                <TrendingUp className="w-8 h-8 text-slate-300 mb-2" />
+                <p className="text-xs font-bold text-slate-700">
+                  {tr('No Epidemiological Curve Data in 30-Day Window', '३० दिवसांच्या कालावधीत महामारी कल उपलब्ध नाही', '30-दिवसीय अवधि में कोई महामारी रुझान डेटा दर्ज नहीं')}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1 max-w-sm">
+                  {tr('No verified disease incidents recorded in this jurisdiction for the past 30 days.', 'मागील ३० दिवसांत या कार्यक्षेत्रात कोणतीही घटना नोंदवली गेलेली नाही.', 'पिछले 30 दिनों में इस अधिकार क्षेत्र में कोई घटना दर्ज नहीं की गई है।')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -439,34 +525,42 @@ export default function AdminDashboard() {
               {tr('Top Suspected Diseases (AI Triage)', 'प्रमुख संशयित आजार (AI ट्रायज)', 'शीर्ष संदिग्ध रोग (AI ट्रायज)')}
             </h3>
             <p className="text-xs text-slate-500">
-              {tr('Disease candidate frequency', 'एआय द्वारे ओळखलेले संभाव्य आजार', 'एआई ट्राइएज द्वारा पहचाने गए मुख्य रोग')}
+              {tr('Disease candidate frequency from verified reports', 'सत्यापित अहवालांमधून संभाव्य आजार वारंवारता', 'सत्यापित रिपोर्ट से संभावित रोग आवृत्ति')}
             </p>
           </div>
 
           <div className="h-64 flex flex-col justify-between">
-            <div className="space-y-3 overflow-y-auto pr-1">
-              {(summary?.diseaseBreakdown || []).map((item, idx) => (
-                <div key={idx} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs font-semibold">
-                    <span className="text-slate-800 truncate max-w-[170px]" title={item.name}>
-                      {item.name}
-                    </span>
-                    <span className="text-slate-600 font-mono">
-                      {item.cases} {tr('cases', 'प्रकरणे', 'मामले')} ({item.avgConfidencePct}%)
-                    </span>
+            {realSummary.diseaseBreakdown.length > 0 ? (
+              <div className="space-y-3 overflow-y-auto pr-1">
+                {realSummary.diseaseBreakdown.map((item, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-slate-800 truncate max-w-[170px]" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span className="text-slate-600 font-mono text-[11px]">
+                        {item.cases} {tr('cases', 'प्रकरणे', 'मामले')}
+                        {typeof item.avgConfidencePct === 'number' && ` (${item.avgConfidencePct}%)`}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-2 rounded-full transition-all duration-500"
+                        style={{
+                          backgroundColor: COLORS[idx % COLORS.length],
+                          width: `${Math.min(100, (item.cases / (realSummary.totalReports || 1)) * 100)}%`
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-2 rounded-full transition-all duration-500"
-                      style={{
-                        backgroundColor: COLORS[idx % COLORS.length],
-                        width: `${Math.min(100, (item.cases / (summary?.totalReports || 1)) * 100)}%`
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4 text-xs text-slate-400">
+                <ShieldAlert className="w-6 h-6 text-slate-300 mb-1" />
+                <span>{tr('No disease records logged', 'कोणतीही नोंद उपलब्ध नाही', 'कोई रोग रिकॉर्ड दर्ज नहीं')}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -485,26 +579,33 @@ export default function AdminDashboard() {
           </div>
 
           <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="status" tick={{ fontSize: 9 }} />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderRadius: '0.75rem',
-                    color: '#fff',
-                    fontSize: '11px'
-                  }}
-                />
-                <Bar dataKey="count" name={tr('Cases', 'प्रकरणे', 'मामले')} fill="#3b82f6" radius={[6, 6, 0, 0]}>
-                  {funnelData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {realSummary.totalReports > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={funnelData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="status" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      borderRadius: '0.75rem',
+                      color: '#fff',
+                      fontSize: '11px'
+                    }}
+                  />
+                  <Bar dataKey="count" name={tr('Cases', 'प्रकरणे', 'मामले')} fill="#3b82f6" radius={[6, 6, 0, 0]}>
+                    {funnelData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4 text-xs text-slate-400">
+                <Activity className="w-6 h-6 text-slate-300 mb-1" />
+                <span>{tr('Funnel data unavailable', 'माहिती उपलब्ध नाही', 'डेटा उपलब्ध नहीं')}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -520,29 +621,35 @@ export default function AdminDashboard() {
           </div>
 
           <div className="space-y-3">
-            {(summary?.blockDistribution || []).map((b, idx) => (
-              <div
-                key={idx}
-                className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
-              >
-                <div>
-                  <div className="font-extrabold text-slate-900">
-                    {b._id || 'District'} {tr('Block', 'तालुका', 'ब्लॉक')}
+            {realSummary.blockDistribution.length > 0 ? (
+              realSummary.blockDistribution.map((b, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <div className="font-extrabold text-slate-900">
+                      {b._id || 'District'} {tr('Block', 'तालुका', 'ब्लॉक')}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {b.deaths > 0 ? (
+                        <span className="text-red-600 font-bold">{b.deaths} {tr('deaths reported', 'मृत्यू नोंदवले', 'मृत्यु दर्ज')}</span>
+                      ) : (
+                        tr('Zero Mortalities', 'शून्य मृत्यू', 'शून्य मृत्यु')
+                      )}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    {b.deaths > 0 ? (
-                      <span className="text-red-600 font-bold">{b.deaths} {tr('deaths reported', 'मृत्यू नोंदवले', 'मृत्यु दर्ज')}</span>
-                    ) : (
-                      tr('Zero Mortalities', 'शून्य मृत्यू', 'शून्य मृत्यु')
-                    )}
+                  <div className="text-right">
+                    <span className="text-base font-black text-slate-900 font-mono">{b.count}</span>
+                    <div className="text-[10px] text-slate-400">{tr('cases', 'प्रकरणे', 'मामले')}</div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-base font-black text-slate-900 font-mono">{b.count}</span>
-                  <div className="text-[10px] text-slate-400">{tr('cases', 'प्रकरणे', 'मामले')}</div>
-                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-400">
+                {tr('No sub-district cases logged', 'कोणतीही तालुका नोंद उपलब्ध नाही', 'कोई ब्लॉक रिकॉर्ड दर्ज नहीं')}
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
