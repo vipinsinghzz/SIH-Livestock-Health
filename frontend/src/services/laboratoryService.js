@@ -251,8 +251,8 @@ export const laboratoryService = {
                  s.sampleType === r.sampleType
           ) || GENUINE_SYNTHETIC_LAB_SAMPLES[idx % GENUINE_SYNTHETIC_LAB_SAMPLES.length];
 
-          const reportObj = r.reportId || r.report || {};
-          const animalObj = reportObj.animalId || {};
+          const reportObj = (r.report && typeof r.report === 'object') ? r.report : ((r.reportId && typeof r.reportId === 'object') ? r.reportId : {});
+          const animalObj = (reportObj.animal && typeof reportObj.animal === 'object') ? reportObj.animal : ((reportObj.animalId && typeof reportObj.animalId === 'object') ? reportObj.animalId : {});
           const resultSum = r.resultSummary || {};
 
           return {
