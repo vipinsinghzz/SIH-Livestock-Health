@@ -39,11 +39,15 @@ import {
   RefreshCw,
   Compass,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  Search,
+  FileText,
+  Building2
 } from 'lucide-react';
 import caseService from '../services/caseService';
 import ReportsList from './ReportsList';
 import { LivestockSaathiEmblem } from '../components/LivestockSaathiLogo';
+import ZoonoticSurveillancePanel from '../components/ZoonoticSurveillancePanel';
 
 export default function FieldWorkerDashboard({ initialModule }) {
   const navigate = useNavigate();
@@ -93,6 +97,13 @@ export default function FieldWorkerDashboard({ initialModule }) {
   const [labSamples, setLabSamples] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedReportForLab, setSelectedReportForLab] = useState(null);
+
+  // Diagnostic Lab Referral Tracker (Module 6) State
+  const [labFilter, setLabFilter] = useState('all');
+  const [labSearch, setLabSearch] = useState('');
+  const [labUrgencyFilter, setLabUrgencyFilter] = useState('all');
+  const [selectedLabSampleForModal, setSelectedLabSampleForModal] = useState(null);
+  const [advancingLabId, setAdvancingLabId] = useState(null);
 
   // PS-128 Referral Cases & Dynamic Outbreak Map State
   const [referralCases, setReferralCases] = useState([]);
@@ -203,13 +214,53 @@ export default function FieldWorkerDashboard({ initialModule }) {
       setLoading(true);
       const repRes = await api.get('/reports?limit=15');
       setReports(repRes.data.reports || []);
-      setLabSamples(laboratoryService.getSamples());
+      const samples = await laboratoryService.getSamples();
+      setLabSamples(Array.isArray(samples) ? samples : []);
     } catch (err) {
       console.error('Error loading field vet data:', err);
-      setLabSamples(laboratoryService.getSamples());
+      const samples = await laboratoryService.getSamples();
+      setLabSamples(Array.isArray(samples) ? samples : []);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAdvanceLabStage = async (sampleId) => {
+    try {
+      setAdvancingLabId(sampleId);
+      const updated = await laboratoryService.advanceSampleStage(sampleId);
+      if (updated) {
+        setLabSamples(prev => prev.map(s => s.id === sampleId ? updated : s));
+        if (selectedLabSampleForModal && selectedLabSampleForModal.id === sampleId) {
+          setSelectedLabSampleForModal(updated);
+        }
+        setClaimFeedback({
+          type: 'success',
+          message: isEnglish
+            ? `Sample ${updated.id} advanced to stage: ${updated.status}`
+            : isMarathi
+            ? `नमुना ${updated.id} पुढील टप्प्यावर गेला: ${updated.status}`
+            : `सैंपल ${updated.id} अगले चरण में पहुंच गया: ${updated.status}`
+        });
+      }
+    } catch (err) {
+      console.error('Error advancing lab stage:', err);
+    } finally {
+      setAdvancingLabId(null);
+    }
+  };
+
+  const handleResetLabDemo = () => {
+    const fresh = laboratoryService.resetDemoSamples();
+    setLabSamples(fresh);
+    setClaimFeedback({
+      type: 'success',
+      message: isEnglish
+        ? 'Diagnostic demo pipeline reset to 8 verified synthetic sample records.'
+        : isMarathi
+        ? 'निदान नमुना पाइपलाइन ८ प्रात्यक्षिक नोंदींवर रीसेट केली.'
+        : 'डायग्नोस्टिक डेमो पाइपलाइन 8 सत्यापित रिकॉर्ड पर रीसेट हो गई।'
+    });
   };
 
   useEffect(() => {
@@ -1624,36 +1675,516 @@ export default function FieldWorkerDashboard({ initialModule }) {
       {/* MODULE 5: ZOONOTIC RISK SURVEILLANCE PANEL                               */}
       {/* ========================================================================= */}
       {activeView === 'zoonotic' && (
-        <div className="space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-3xl p-5 text-xs text-red-900 leading-relaxed flex items-start gap-3">
-            <Biohazard className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
-            <div>
-              <strong className="font-black text-sm block text-red-950 mb-0.5">
-                {t('vet_portal.zoonotic_title')}
-              </strong>
-              {t('vet_portal.zoonotic_desc')}
-            </div>
-          </div>
-        </div>
+        <ZoonoticSurveillancePanel
+          isEnglish={isEnglish}
+          isMarathi={isMarathi}
+          userDistrict={userDistrict}
+          userBlock={userBlock}
+          referralCases={referralCases}
+          onOpenContainmentModal={() => {
+            setTargetCaseForZoneOrRing(null);
+            setShowContainmentModal(true);
+          }}
+          onOpenRingVaccinationModal={() => {
+            setTargetCaseForZoneOrRing(null);
+            setShowRingVaccinationModal(true);
+          }}
+        />
       )}
 
       {/* ========================================================================= */}
       {/* MODULE 6: DIAGNOSTIC LABORATORY WORKFLOW                                 */}
       {/* ========================================================================= */}
-      {activeView === 'laboratory' && (
-        <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                {t('vet_portal.lab_tracker_title')}
-              </h2>
-              <p className="text-sm text-slate-600 font-medium">
-                {t('vet_portal.lab_tracker_sub')}
-              </p>
+      {activeView === 'laboratory' && (() => {
+        const rawSamples = Array.isArray(labSamples) ? labSamples : [];
+        const inTransitCount = rawSamples.filter(s => s.status === 'In Transit').length;
+        const testingCount = rawSamples.filter(s => s.status === 'Testing' || s.status === 'Result Pending').length;
+        const confirmedCount = rawSamples.filter(s => s.status === 'Result Available' || s.status === 'Result Confirmed').length;
+        const pendingCount = rawSamples.filter(s => s.status === 'Pending' || s.status === 'Collected').length;
+        const receivedCount = rawSamples.filter(s => s.status === 'Received').length;
+
+        const filteredSamples = rawSamples.filter(sample => {
+          // Status
+          if (labFilter !== 'all') {
+            if (labFilter === 'Pending' && sample.status !== 'Pending' && sample.status !== 'Collected') return false;
+            if (labFilter === 'In Transit' && sample.status !== 'In Transit') return false;
+            if (labFilter === 'Received' && sample.status !== 'Received') return false;
+            if (labFilter === 'Testing' && sample.status !== 'Testing' && sample.status !== 'Result Pending') return false;
+            if (labFilter === 'Result Available' && sample.status !== 'Result Available' && sample.status !== 'Result Confirmed') return false;
+          }
+          // Urgency
+          if (labUrgencyFilter !== 'all') {
+            if (sample.urgency !== labUrgencyFilter) return false;
+          }
+          // Search
+          if (labSearch.trim()) {
+            const q = labSearch.toLowerCase();
+            const match =
+              (sample.id || '').toLowerCase().includes(q) ||
+              (sample.accessionNo || '').toLowerCase().includes(q) ||
+              (sample.animalTag || '').toLowerCase().includes(q) ||
+              (sample.animalName || '').toLowerCase().includes(q) ||
+              (sample.suspectedDisease || '').toLowerCase().includes(q) ||
+              (sample.referralLab || '').toLowerCase().includes(q) ||
+              (sample.village || '').toLowerCase().includes(q) ||
+              (sample.sampleType || '').toLowerCase().includes(q);
+            if (!match) return false;
+          }
+          return true;
+        });
+
+        const getCustodyIndex = (status) => {
+          if (status === 'Pending' || status === 'Collected') return 0;
+          if (status === 'In Transit') return 1;
+          if (status === 'Received') return 2;
+          if (status === 'Testing' || status === 'Result Pending') return 3;
+          if (status === 'Result Available' || status === 'Result Confirmed') return 4;
+          return 0;
+        };
+
+        const CUSTODY_STEPS = [
+          { key: 'Collected', label: isEnglish ? '1. Collected' : isMarathi ? '१. संकलित' : '1. संकलित' },
+          { key: 'In Transit', label: isEnglish ? '2. In Transit' : isMarathi ? '२. वाहतूक' : '2. परिवहन' },
+          { key: 'Received', label: isEnglish ? '3. Received' : isMarathi ? '३. प्राप्त' : '3. प्राप्त' },
+          { key: 'Testing', label: isEnglish ? '4. Testing' : isMarathi ? '४. चाचणी सुरू' : '4. परीक्षण जारी' },
+          { key: 'Result Available', label: isEnglish ? '5. Result Confirmed' : isMarathi ? '५. निकाल उपलब्ध' : '5. परिणाम घोषित' },
+        ];
+
+        return (
+          <div className="space-y-6">
+            {/* Header Card */}
+            <div className="bg-white rounded-3xl border border-stone-200 shadow-sm p-6 space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-100 pb-5">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-800 border border-indigo-200">
+                    <FlaskConical className="w-3.5 h-3.5" />
+                    <span>{isEnglish ? 'DDDL & Reference Laboratory Pipeline' : isMarathi ? 'डीडीडीएल व संदर्भ प्रयोगशाळा पाइपलाइन' : 'डीडीडीएल और रेफरेंस प्रयोगशाला पाइपलाइन'}</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+                    <span>{t('vet_portal.lab_tracker_title')}</span>
+                  </h2>
+                  <p className="text-sm text-slate-600 font-medium max-w-3xl leading-relaxed">
+                    {t('vet_portal.lab_tracker_sub')}
+                  </p>
+                  <p className="text-xs text-indigo-700 font-bold flex items-center gap-2 pt-1">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>
+                      {isEnglish
+                        ? `Attending Officer: Dr. Amit Deshmukh (M.V.Sc. Medicine) • Central Diagnostic Hub, ${userDistrict}`
+                        : isMarathi
+                        ? `उपस्थित अधिकारी: डॉ. अमित देशमुख (एम.व्ही.एस्सी.) • मध्यवर्ती प्रयोगशाळा केंद्र, ${userDistrict}`
+                        : `उपस्थित अधिकारी: डॉ. अमित देशमुख (एम.वी.एससी.) • केंद्रीय निदान केंद्र, ${userDistrict}`}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleResetLabDemo}
+                    title="Reset to 8 genuine synthetic sample records for demonstration"
+                    className="px-3.5 py-2.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-slate-700 font-bold text-xs sm:text-sm transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <RefreshCw className="w-4 h-4 text-slate-600" />
+                    <span>{isEnglish ? 'Reset Demo Preset' : isMarathi ? 'डेमो रीसेट' : 'डेमो रीसेट'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReportForLab('NEW_DEMO_REFERRAL')}
+                    className="px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs sm:text-sm transition flex items-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>{isEnglish ? 'Order Lab Referral' : isMarathi ? 'नवा लॅब रेफरल' : 'नया लैब रेफरल'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    {isEnglish ? 'Total Specimen Referrals' : isMarathi ? 'एकूण नमुने' : 'कुल सैंपल रेफरल'}
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+                    {rawSamples.length}
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {isEnglish ? 'Nagpur Jurisdiction Pipeline' : isMarathi ? 'नागपूर कार्यक्षेत्र' : 'नागपुर क्षेत्राधिकार'}
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
+                  <span className="text-xs font-bold text-amber-800 uppercase tracking-wide">
+                    {isEnglish ? 'In Cold-Chain Transit' : isMarathi ? 'कोल्ड-चेन वाहतूक' : 'कोल्ड-चेन परिवहन'}
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-amber-700 mt-1">
+                    {inTransitCount}
+                  </div>
+                  <span className="text-xs text-amber-700 font-medium">
+                    ❄️ 2–8°C Monitored Coolers
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200">
+                  <span className="text-xs font-bold text-indigo-800 uppercase tracking-wide">
+                    {isEnglish ? 'Molecular Testing (PCR)' : isMarathi ? 'आण्विक चाचणी (PCR)' : 'आणविक परीक्षण (PCR)'}
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-indigo-700 mt-1">
+                    {testingCount}
+                  </div>
+                  <span className="text-xs text-indigo-700 font-medium">
+                    Real-Time Thermocycling
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+                  <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
+                    {isEnglish ? 'Results Confirmed' : isMarathi ? 'निकालांची पुष्टी' : 'पुष्ट परिणाम'}
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1">
+                    {confirmedCount}
+                  </div>
+                  <span className="text-xs text-emerald-700 font-medium">
+                    Pathogens Verified
+                  </span>
+                </div>
+              </div>
+
+              {/* Search & Filters */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  {/* Search box */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={labSearch}
+                      onChange={(e) => setLabSearch(e.target.value)}
+                      placeholder={isEnglish ? 'Search Accession #, Animal, Disease, Lab, Village...' : isMarathi ? 'शोध: नमुना क्रमांक, जनावर, आजार, प्रयोगशाळा...' : 'खोज: सैंपल नंबर, पशु, बीमारी, लैब, गांव...'}
+                      className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    {labSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setLabSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Urgency Filter */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs font-bold text-slate-500 mr-1">
+                      {isEnglish ? 'Urgency:' : isMarathi ? 'प्राधान्य:' : 'प्राथमिकता:'}
+                    </span>
+                    {['all', 'Critical', 'High', 'Moderate'].map((urg) => (
+                      <button
+                        key={urg}
+                        type="button"
+                        onClick={() => setLabUrgencyFilter(urg)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          labUrgencyFilter === urg
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-stone-100 text-slate-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        {urg === 'all' ? (isEnglish ? 'All' : 'सर्व') : urg}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status Stage Tabs */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-stone-100">
+                  {[
+                    { key: 'all', label: isEnglish ? 'All Specimen' : 'सर्व नमुने', count: rawSamples.length },
+                    { key: 'Pending', label: isEnglish ? '1. Collected / Pending' : '१. संकलित', count: pendingCount },
+                    { key: 'In Transit', label: isEnglish ? '2. In Transit' : '२. वाहतूक', count: inTransitCount },
+                    { key: 'Received', label: isEnglish ? '3. Received' : '३. प्राप्त', count: receivedCount },
+                    { key: 'Testing', label: isEnglish ? '4. Testing / PCR' : '४. चाचणी सुरू', count: testingCount },
+                    { key: 'Result Available', label: isEnglish ? '5. Results Confirmed' : '५. निकाल प्राप्त', count: confirmedCount }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setLabFilter(tab.key)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                        labFilter === tab.key
+                          ? 'bg-indigo-700 text-white shadow-xs'
+                          : 'bg-stone-100 text-slate-700 hover:bg-stone-200'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                        labFilter === tab.key ? 'bg-white/20 text-white' : 'bg-stone-200 text-slate-600'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+
+            {/* Specimen Cards List */}
+            {filteredSamples.length === 0 ? (
+              <div className="bg-white rounded-3xl border border-stone-200 p-12 text-center space-y-3">
+                <FlaskConical className="w-12 h-12 text-slate-300 mx-auto" />
+                <h4 className="text-base font-bold text-slate-800">
+                  {isEnglish ? 'No Diagnostic Samples Found' : isMarathi ? 'नमुने आढळले नाहीत' : 'कोई सैंपल नहीं मिला'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {isEnglish
+                    ? 'No specimens match your current filter. Clear search or reset the demo preset to restore standard records.'
+                    : 'निवडलेल्या निकषांनुसार नमुने नाहीत. शोध साफ करा किंवा डेमो प्रीसेट रीसेट करा.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResetLabDemo}
+                  className="px-4 py-2 bg-indigo-700 text-white rounded-xl text-xs font-bold hover:bg-indigo-800 transition cursor-pointer"
+                >
+                  {isEnglish ? 'Restore 8 Synthetic Records' : '८ प्रात्यक्षिक नमुने पुनर्संचयित करा'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredSamples.map((sample) => {
+                  const currentIdx = getCustodyIndex(sample.status);
+                  const isAdvancing = advancingLabId === sample.id;
+
+                  return (
+                    <div
+                      key={sample.id}
+                      className="bg-white rounded-3xl border border-stone-200 shadow-sm hover:shadow-md transition-shadow p-6 space-y-5"
+                    >
+                      {/* Top Bar: Accession, Status, Urgency, Cold Chain */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-mono font-black text-xs sm:text-sm bg-slate-900 text-white px-2.5 py-1 rounded-lg tracking-wider">
+                            {sample.accessionNo || sample.id}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-slate-500">
+                            {sample.id}
+                          </span>
+                          <span className="text-xs text-slate-400">•</span>
+                          <span className="text-xs font-semibold text-slate-600">
+                            {sample.collectionDate}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Cold Chain pill */}
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-50 text-cyan-900 border border-cyan-200">
+                            <span>❄️</span>
+                            <span>{sample.coldChain || '2-8°C Verified'}</span>
+                          </span>
+
+                          {/* Urgency */}
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                            sample.urgency === 'Critical'
+                              ? 'bg-red-100 text-red-800 border border-red-300'
+                              : sample.urgency === 'High'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : 'bg-blue-100 text-blue-900 border border-blue-300'
+                          }`}>
+                            {sample.urgency}
+                          </span>
+
+                          {/* Status Badge */}
+                          <span className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1 ${
+                            sample.status === 'Result Available' || sample.status === 'Result Confirmed'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : sample.status === 'Testing' || sample.status === 'Result Pending'
+                              ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                              : sample.status === 'In Transit'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                              : sample.status === 'Received'
+                              ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                              : 'bg-stone-100 text-slate-700 border border-stone-300'
+                          }`}>
+                            {(sample.status === 'Result Available' || sample.status === 'Result Confirmed') && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            {(sample.status === 'Testing' || sample.status === 'Result Pending') && <FlaskConical className="w-3.5 h-3.5 animate-pulse" />}
+                            {sample.status === 'In Transit' && <Navigation className="w-3.5 h-3.5" />}
+                            {sample.status === 'Received' && <Clock className="w-3.5 h-3.5" />}
+                            <span>{sample.status}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Main Info Columns */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Animal & Field details */}
+                        <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                              {isEnglish ? 'Livestock Patient & Field Scoping' : isMarathi ? 'पशु रुग्ण व क्षेत्र माहिती' : 'पशु रोगी व क्षेत्र विवरण'}
+                            </span>
+                            <span className="text-[11px] font-mono font-bold bg-white px-2 py-0.5 rounded border text-slate-700">
+                              {sample.animalTag || 'TAG-PENDING'}
+                            </span>
+                          </div>
+
+                          <div className="text-sm font-black text-slate-900">
+                            {sample.animalName}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">{isEnglish ? 'Species & Breed' : 'प्रजात व जात'}</span>
+                              <span className="font-semibold text-slate-800">{sample.species} ({sample.breed || 'Indigenous'})</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">{isEnglish ? 'Location' : 'स्थान'}</span>
+                              <span className="font-semibold text-slate-800">{sample.village}, {sample.block}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-slate-600 pt-1 border-t border-stone-200 flex items-center justify-between">
+                            <span className="text-slate-500 text-[11px]">{isEnglish ? 'Field Case ID:' : 'केस आयडी:'} <span className="font-mono font-bold">{sample.caseId}</span></span>
+                            <span className="text-[11px] text-indigo-700 font-semibold">{sample.collectorName}</span>
+                          </div>
+                        </div>
+
+                        {/* Laboratory & Protocol Details */}
+                        <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-indigo-800 uppercase tracking-wide flex items-center gap-1">
+                              <FlaskConical className="w-3.5 h-3.5 text-indigo-700" />
+                              <span>{isEnglish ? 'Laboratory Diagnostic Protocol' : 'प्रयोगशाळा निदान प्रोटोकॉल'}</span>
+                            </span>
+                            <span className="text-[11px] font-bold bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded">
+                              {sample.sampleType}
+                            </span>
+                          </div>
+
+                          <div className="text-sm font-black text-slate-900">
+                            {sample.referralLab}
+                          </div>
+
+                          {sample.labSection && (
+                            <div className="text-xs text-indigo-700 font-medium">
+                              Division: {sample.labSection}
+                            </div>
+                          )}
+
+                          <div className="text-xs text-slate-700 pt-1">
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">{isEnglish ? 'Target Pathogen & Assay Requested' : 'लक्षित रोग व चाचणी'}</span>
+                            <span className="font-bold text-red-700">{sample.suspectedDisease}</span>
+                            <p className="text-[11px] text-slate-600 mt-0.5">{sample.testRequested}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 5-Stage Visual Stepper */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                          <span>{isEnglish ? 'Specimen Chain of Custody Tracker' : 'नमुना साखळी ट्रॅकर'}</span>
+                          <span className="text-[11px] text-indigo-700 font-semibold">
+                            {isEnglish ? `Stage ${currentIdx + 1} of 5` : `टप्पा ${currentIdx + 1}/५`}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                          {CUSTODY_STEPS.map((step, idx) => {
+                            const isPassed = idx < currentIdx;
+                            const isCurrent = idx === currentIdx;
+
+                            return (
+                              <div
+                                key={step.key}
+                                className={`p-2.5 rounded-xl border text-center transition-all ${
+                                  isCurrent
+                                    ? 'bg-indigo-700 text-white border-indigo-700 shadow-md ring-2 ring-indigo-200'
+                                    : isPassed
+                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-semibold'
+                                    : 'bg-stone-50 text-slate-400 border-stone-200'
+                                }`}
+                              >
+                                <div className="text-[10px] font-mono uppercase mb-0.5">
+                                  {isPassed ? '✓ ' + (isEnglish ? 'Passed' : 'पूर्ण') : isCurrent ? '● ' + (isEnglish ? 'Current' : 'सक्रिय') : (isEnglish ? 'Pending' : 'प्रलंबित')}
+                                </div>
+                                <div className="text-xs font-black leading-snug">
+                                  {step.label}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Interim Observations */}
+                      {sample.interimResult && (
+                        <div className="bg-indigo-50/60 border border-indigo-200 rounded-2xl p-3.5 text-xs text-indigo-950 space-y-1">
+                          <span className="font-bold text-[11px] text-indigo-800 uppercase tracking-wide block">
+                            🔬 {isEnglish ? 'Laboratory Bench Observation & PCR Telemetry:' : 'प्रयोगशाळा निरीक्षण व पीसीआर स्थिती:'}
+                          </span>
+                          <p className="leading-relaxed">{sample.interimResult}</p>
+                        </div>
+                      )}
+
+                      {/* Final Confirmed Result & Clinical Action Banner */}
+                      {(sample.status === 'Result Available' || sample.status === 'Result Confirmed') && sample.finalResult && (
+                        <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-4 text-xs text-emerald-950 space-y-2 shadow-xs">
+                          <div className="flex items-center gap-2 text-emerald-800 font-black text-sm">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                            <span>{sample.finalResult}</span>
+                          </div>
+                          {sample.clinicalAdvice && (
+                            <div className="text-slate-700 text-xs bg-white/70 p-3 rounded-xl border border-emerald-200 leading-relaxed">
+                              <span className="font-bold text-emerald-900 block mb-0.5">
+                                📋 {isEnglish ? 'Attending Veterinarian Directive & Biosecurity Advisory:' : 'पशुवैद्यकीय निर्देश व जैवसुरक्षा सल्ला:'}
+                              </span>
+                              {sample.clinicalAdvice}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer Actions */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stone-100">
+                        <div className="text-xs text-slate-500 italic">
+                          {sample.notes || 'Specimen accession active in regional diagnostic network.'}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLabSampleForModal(sample)}
+                            className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>{isEnglish ? 'Accession Slip & Audit' : 'नमुना पावती व तपशील'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isAdvancing}
+                            onClick={() => handleAdvanceLabStage(sample.id)}
+                            className="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            {isAdvancing ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>{isEnglish ? 'Advancing...' : 'बदलत आहे...'}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>{isEnglish ? 'Simulate Next Stage →' : 'पुढील टप्पा सिमुलेट करा →'}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* MODULE 7: CONTAINMENT & RING VACCINATION OPERATIONS CENTER               */}
@@ -2552,6 +3083,165 @@ export default function FieldWorkerDashboard({ initialModule }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ACCESSION SLIP & SPECIMEN AUDIT MODAL                                     */}
+      {/* ========================================================================= */}
+      {selectedLabSampleForModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-stone-200 my-8">
+            {/* Slip Header */}
+            <div className="border-b border-stone-200 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-700 text-white flex items-center justify-center font-bold">
+                    <FlaskConical className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-black text-indigo-800 tracking-wider">
+                      Government of Maharashtra • Animal Husbandry Department
+                    </span>
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                      {isEnglish ? 'Official Diagnostic Specimen Accession Record' : 'अधिकृत प्रयोगशाळा नमुना नोंद पावती'}
+                    </h3>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedLabSampleForModal(null)}
+                  className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 bg-stone-50 p-2.5 rounded-xl border border-stone-200 font-mono text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">ACCESSION BARCODE</span>
+                  <span className="font-black text-slate-900">{selectedLabSampleForModal.accessionNo}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">SPECIMEN ID</span>
+                  <span className="font-bold text-indigo-700">{selectedLabSampleForModal.id}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">CHAIN OF CUSTODY</span>
+                  <span className="font-bold text-emerald-700">{selectedLabSampleForModal.status}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Specimen & Animal Specs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {isEnglish ? 'Patient Livestock Profile' : 'रुग्ण पशु माहिती'}
+                </span>
+                <div className="font-black text-slate-900 text-sm">{selectedLabSampleForModal.animalName}</div>
+                <div className="text-slate-600">
+                  <span className="text-slate-400">Tag ID: </span>
+                  <span className="font-mono font-bold">{selectedLabSampleForModal.animalTag}</span>
+                </div>
+                <div className="text-slate-600">
+                  <span className="text-slate-400">Jurisdiction: </span>
+                  <span className="font-medium">{selectedLabSampleForModal.village}, {selectedLabSampleForModal.block} ({selectedLabSampleForModal.district})</span>
+                </div>
+                <div className="text-slate-600">
+                  <span className="text-slate-400">Attending Doctor: </span>
+                  <span className="font-bold text-slate-800">{selectedLabSampleForModal.collectorName}</span>
+                </div>
+              </div>
+
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {isEnglish ? 'Laboratory Accession Data' : 'प्रयोगशाळा संकलन तपशील'}
+                </span>
+                <div className="font-black text-slate-900 text-sm">{selectedLabSampleForModal.referralLab}</div>
+                <div className="text-indigo-700 font-semibold">{selectedLabSampleForModal.labSection}</div>
+                <div className="text-slate-600">
+                  <span className="text-slate-400">Sample Specimen: </span>
+                  <span className="font-bold text-slate-800">{selectedLabSampleForModal.sampleType}</span>
+                </div>
+                <div className="text-slate-600">
+                  <span className="text-slate-400">Cold Chain Telemetry: </span>
+                  <span className="font-bold text-cyan-800">❄️ {selectedLabSampleForModal.coldChain}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Assay Methodology & Bench Telemetry */}
+            <div className="space-y-3">
+              <div className="bg-indigo-50/70 border border-indigo-200 p-4 rounded-2xl space-y-1.5 text-xs text-indigo-950">
+                <span className="font-bold text-indigo-900 uppercase text-[11px] block">
+                  🧪 {isEnglish ? 'Molecular / Serological Protocol Requested:' : 'आण्विक / सीरोलॉजिकल चाचणी:'}
+                </span>
+                <p className="font-semibold">{selectedLabSampleForModal.testRequested}</p>
+                <p className="text-slate-600 text-[11px] leading-relaxed pt-1">
+                  {selectedLabSampleForModal.interimResult}
+                </p>
+              </div>
+
+              {selectedLabSampleForModal.finalResult && (
+                <div className="bg-emerald-50 border-2 border-emerald-500 p-4 rounded-2xl space-y-2 text-xs text-emerald-950">
+                  <div className="flex items-center gap-2 font-black text-emerald-900 text-sm">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <span>{selectedLabSampleForModal.finalResult}</span>
+                  </div>
+                  {selectedLabSampleForModal.clinicalAdvice && (
+                    <div className="bg-white/80 p-3 rounded-xl border border-emerald-200 leading-relaxed text-slate-700">
+                      <span className="font-bold text-emerald-900 block mb-0.5">
+                        📋 {isEnglish ? 'Biosecurity Order & Treatment Advice:' : 'जैवसुरक्षा आदेश व उपचार सल्ला:'}
+                      </span>
+                      {selectedLabSampleForModal.clinicalAdvice}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>{isEnglish ? 'Print Specimen Slip' : 'पावती प्रिंट करा'}</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAdvanceLabStage(selectedLabSampleForModal.id)}
+                  className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <span>{isEnglish ? 'Simulate Stage Advance →' : 'पुढील टप्पा सिमुलेट करा →'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLabSampleForModal(null)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  {isEnglish ? 'Close' : 'बंद करा'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ORDER LAB REFERRAL MODAL (Mounted for new referrals)                     */}
+      {/* ========================================================================= */}
+      {selectedReportForLab && (
+        <LabReferralModal
+          reportId={selectedReportForLab === 'NEW_DEMO_REFERRAL' ? (reports[0]?.id || reports[0]?._id || 'demo_report') : selectedReportForLab}
+          onClose={() => setSelectedReportForLab(null)}
+          onUpdated={loadData}
+        />
       )}
     </div>
   );
