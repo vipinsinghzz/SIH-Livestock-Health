@@ -3,14 +3,12 @@ backend/
 database/
 deployment/
 docs/
-farmer-app/
 frontend/
 ml/
 newmodel/
 scratch/
 supabase/
 tests/
-vet-portal/
 *.apk
 *.idsig
 *.aab
