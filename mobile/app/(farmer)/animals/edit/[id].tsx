@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors, typography, spacing, radii, shadows } from '../../../../src/theme';
@@ -23,6 +24,31 @@ import { Animal, AnimalGender, AnimalHealthStatus } from '../../../../src/types/
 
 const GENDERS: AnimalGender[] = ['Female', 'Male'];
 const HEALTH_STATUSES: AnimalHealthStatus[] = ['Healthy', 'Needs Attention', 'Critical'];
+
+interface QuickSymptom {
+  id: string;
+  icon: string;
+  name: string;
+  tier: 'Critical' | 'Needs Attention' | 'Healthy';
+}
+
+const QUICK_SYMPTOMS: QuickSymptom[] = [
+  // CRITICAL
+  { id: 'fever', icon: '🌡️', name: 'High Fever', tier: 'Critical' },
+  { id: 'skin_nodules', icon: '🪢', name: 'Skin Nodules / Lumps', tier: 'Critical' },
+  { id: 'salivation', icon: '💧', name: 'Excessive Salivation', tier: 'Critical' },
+
+  // NEEDS ATTENTION
+  { id: 'swelling', icon: '🩹', name: 'Swelling', tier: 'Needs Attention' },
+  { id: 'lethargy', icon: '🥱', name: 'Lethargy & Weakness', tier: 'Needs Attention' },
+  { id: 'off_feed', icon: '🌾', name: 'Loss of Appetite', tier: 'Needs Attention' },
+  { id: 'lameness', icon: '🦶', name: 'Limping / Lameness', tier: 'Needs Attention' },
+  { id: 'cough', icon: '🤧', name: 'Cough / Discharge', tier: 'Needs Attention' },
+  { id: 'milk_drop', icon: '📉', name: 'Sudden Milk Drop', tier: 'Needs Attention' },
+
+  // HEALTHY
+  { id: 'healthy_normal', icon: '✨', name: 'No Symptoms / Active', tier: 'Healthy' },
+];
 
 export default function EditAnimalScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,6 +65,8 @@ export default function EditAnimalScreen() {
   const [gender, setGender] = useState<AnimalGender>('Female');
   const [healthStatus, setHealthStatus] = useState<AnimalHealthStatus>('Healthy');
   const [milkYieldDaily, setMilkYieldDaily] = useState('');
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  const [symptomNotes, setSymptomNotes] = useState('');
 
   const loadAnimalData = useCallback(async () => {
     if (!id) return;
@@ -63,6 +91,62 @@ export default function EditAnimalScreen() {
     loadAnimalData();
   }, [loadAnimalData]);
 
+  const toggleSymptom = (sym: QuickSymptom) => {
+    if (sym.id === 'healthy_normal') {
+      setSelectedSymptoms(['healthy_normal']);
+      setHealthStatus('Healthy');
+      return;
+    }
+
+    let next = selectedSymptoms.filter((id) => id !== 'healthy_normal');
+    if (next.includes(sym.id)) {
+      next = next.filter((id) => id !== sym.id);
+    } else {
+      next = [...next, sym.id];
+    }
+    setSelectedSymptoms(next);
+
+    if (next.length === 0) {
+      setHealthStatus(animal?.healthStatus || 'Healthy');
+      return;
+    }
+
+    const hasCritical = next.some((id) =>
+      QUICK_SYMPTOMS.some((s) => s.id === id && s.tier === 'Critical')
+    );
+    const hasAttention = next.some((id) =>
+      QUICK_SYMPTOMS.some((s) => s.id === id && s.tier === 'Needs Attention')
+    );
+
+    if (hasCritical) {
+      setHealthStatus('Critical');
+    } else if (hasAttention) {
+      setHealthStatus('Needs Attention');
+    } else {
+      setHealthStatus('Healthy');
+    }
+  };
+
+  const handleNotesChange = (text: string) => {
+    setSymptomNotes(text);
+    const lower = text.toLowerCase();
+    const hasCritText = ['fever', 'nodule', 'lump', 'salivat', 'ताप', 'बुखार', 'गांठ', 'लाळ', 'लार'].some((k) =>
+      lower.includes(k)
+    );
+    const hasAttnText = ['swell', 'सूजन', 'सूज', 'weak', 'appetite', 'limp', 'cough', 'milk'].some((k) =>
+      lower.includes(k)
+    );
+    if (hasCritText) {
+      setHealthStatus('Critical');
+    } else if (hasAttnText && healthStatus !== 'Critical') {
+      setHealthStatus('Needs Attention');
+    }
+  };
+
+  const isCriticalEval =
+    healthStatus === 'Critical' ||
+    selectedSymptoms.some((id) => QUICK_SYMPTOMS.some((s) => s.id === id && s.tier === 'Critical'));
+
   const handleUpdate = async () => {
     if (!id) return;
     setErrorMsg(null);
@@ -76,6 +160,15 @@ export default function EditAnimalScreen() {
     setSaving(true);
 
     try {
+      const timelineEvent = (selectedSymptoms.length > 0 || symptomNotes.trim()) ? {
+        type: 'Health Check',
+        title: `Health Status: ${healthStatus}${isCriticalEval ? ' (Veterinary Evaluation Recommended)' : ''}`,
+        date: new Date().toLocaleDateString('en-GB'),
+        notes: symptomNotes.trim() || (isCriticalEval ? 'Recommendation of Veterinary Evaluation advised.' : `Observed: ${selectedSymptoms.join(', ')}`),
+        status: healthStatus,
+        symptoms: selectedSymptoms,
+      } : undefined;
+
       await animalService.updateAnimal(id, {
         name: name.trim() || undefined,
         breed: breed.trim() || undefined,
@@ -83,6 +176,7 @@ export default function EditAnimalScreen() {
         gender,
         healthStatus,
         milkYieldDaily: milkYieldDaily.trim() || undefined,
+        newTimelineEvent: timelineEvent as any,
       });
 
       Alert.alert('Profile Updated', 'Animal details were updated successfully.', [
@@ -183,7 +277,21 @@ export default function EditAnimalScreen() {
 
       {/* Health Status */}
       <View style={styles.formGroup}>
-        <Text style={styles.label}>Current Health Status</Text>
+        <View style={styles.healthStatusHeader}>
+          <Text style={styles.label}>Current Health Status</Text>
+          <Text
+            style={[
+              styles.healthBadge,
+              healthStatus === 'Critical'
+                ? styles.badgeCritical
+                : healthStatus === 'Needs Attention'
+                ? styles.badgeAttention
+                : styles.badgeHealthy,
+            ]}
+          >
+            ● {healthStatus}
+          </Text>
+        </View>
         <View style={styles.statusRow}>
           {HEALTH_STATUSES.map((status) => {
             const isSelected = healthStatus === status;
@@ -213,6 +321,121 @@ export default function EditAnimalScreen() {
           })}
         </View>
       </View>
+
+      {/* Symptoms Categorizer (Healthy, Needs Attention, Critical) */}
+      <View style={styles.formGroup}>
+        <View style={styles.symptomsHeader}>
+          <Text style={styles.label}>Observed Symptoms (Auto-Categorizes)</Text>
+          {selectedSymptoms.length > 0 && (
+            <TouchableOpacity onPress={() => setSelectedSymptoms([])}>
+              <Text style={styles.clearBtnText}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Tier 1: CRITICAL Symptoms */}
+        <View style={styles.tierBoxCritical}>
+          <Text style={styles.tierLabelCritical}>🚨 CRITICAL SYMPTOMS (Requires Vet Evaluation)</Text>
+          <View style={styles.chipsWrap}>
+            {QUICK_SYMPTOMS.filter((s) => s.tier === 'Critical').map((sym) => {
+              const active = selectedSymptoms.includes(sym.id);
+              return (
+                <TouchableOpacity
+                  key={sym.id}
+                  style={[styles.symChip, styles.symChipCritical, active && styles.symChipCriticalActive]}
+                  onPress={() => toggleSymptom(sym)}
+                >
+                  <Text style={[styles.symChipText, active && styles.symChipTextActive]}>
+                    {sym.icon} {sym.name} {active ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Tier 2: NEEDS ATTENTION Symptoms */}
+        <View style={styles.tierBoxAttention}>
+          <Text style={styles.tierLabelAttention}>⚠️ NEEDS ATTENTION SYMPTOMS</Text>
+          <View style={styles.chipsWrap}>
+            {QUICK_SYMPTOMS.filter((s) => s.tier === 'Needs Attention').map((sym) => {
+              const active = selectedSymptoms.includes(sym.id);
+              return (
+                <TouchableOpacity
+                  key={sym.id}
+                  style={[styles.symChip, styles.symChipAttention, active && styles.symChipAttentionActive]}
+                  onPress={() => toggleSymptom(sym)}
+                >
+                  <Text style={[styles.symChipText, active && styles.symChipTextActive]}>
+                    {sym.icon} {sym.name} {active ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Tier 3: HEALTHY */}
+        <View style={styles.tierBoxHealthy}>
+          <Text style={styles.tierLabelHealthy}>✅ HEALTHY / ACTIVE</Text>
+          <View style={styles.chipsWrap}>
+            {QUICK_SYMPTOMS.filter((s) => s.tier === 'Healthy').map((sym) => {
+              const active = selectedSymptoms.includes(sym.id);
+              return (
+                <TouchableOpacity
+                  key={sym.id}
+                  style={[styles.symChip, styles.symChipHealthy, active && styles.symChipHealthyActive]}
+                  onPress={() => toggleSymptom(sym)}
+                >
+                  <Text style={[styles.symChipText, active && styles.symChipTextActive]}>
+                    {sym.icon} {sym.name} {active ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      {/* Clinical Notes & Observations */}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Clinical Observation Notes</Text>
+        <TextInput
+          style={styles.input}
+          value={symptomNotes}
+          onChangeText={handleNotesChange}
+          placeholder="e.g. Swelling observed on leg, mild cough"
+          placeholderTextColor={colors.light.textMuted}
+        />
+      </View>
+
+      {/* Recommendation of Veterinary Evaluation Banner */}
+      {isCriticalEval && (
+        <View style={styles.vetRecCard}>
+          <View style={styles.vetRecHeader}>
+            <Text style={styles.vetRecBadge}>⚠️ CRITICAL ALERT</Text>
+            <Text style={styles.vetRecTitle}>Recommendation of Veterinary Evaluation</Text>
+            <Text style={styles.vetRecSubtitle}>पशुवैद्यकीय तपासणीची शिफारस • पशुचिकित्सक मूल्यांकन</Text>
+          </View>
+          <Text style={styles.vetRecDesc}>
+            One or more critical signs (High Fever, Skin Nodules/Lumps, or Excessive Salivation) were reported. Even if combined with mild signs, immediate evaluation by a qualified veterinarian is strongly recommended to protect animal health.
+          </Text>
+          <View style={styles.vetRecActions}>
+            <TouchableOpacity
+              style={styles.vetRecCallBtn}
+              onPress={() => Linking.openURL('tel:1962')}
+            >
+              <Text style={styles.vetRecCallBtnText}>📞 Call 1962 Helpline</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.vetRecFindBtn}
+              onPress={() => router.push('/(farmer)/veterinary-help' as any)}
+            >
+              <Text style={styles.vetRecFindBtnText}>👨‍⚕️ Available Vets</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Daily Milk Yield */}
       <View style={styles.formGroup}>
@@ -346,8 +569,191 @@ const styles = StyleSheet.create({
   },
   statusChipText: {
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-    color: colors.light.textSecondary,
+    fontWeight: typography.weights.bold,
+    color: colors.light.textPrimary,
+  },
+  healthStatusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  healthBadge: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radii.sm,
+  },
+  badgeCritical: {
+    backgroundColor: '#fee2e2',
+    color: '#b91c1c',
+  },
+  badgeAttention: {
+    backgroundColor: '#fef3c7',
+    color: '#b45309',
+  },
+  badgeHealthy: {
+    backgroundColor: '#dcfce7',
+    color: '#15803d',
+  },
+  symptomsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  clearBtnText: {
+    fontSize: typography.sizes.xs,
+    color: colors.light.textMuted,
+    textDecorationLine: 'underline',
+  },
+  tierBoxCritical: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    borderRadius: radii.sm,
+    padding: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  tierLabelCritical: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#991b1b',
+    marginBottom: 4,
+  },
+  tierBoxAttention: {
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: radii.sm,
+    padding: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  tierLabelAttention: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  tierBoxHealthy: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: radii.sm,
+    padding: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  tierLabelHealthy: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#166534',
+    marginBottom: 4,
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  symChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+  },
+  symChipCritical: {
+    borderColor: '#fca5a5',
+  },
+  symChipCriticalActive: {
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
+  },
+  symChipAttention: {
+    borderColor: '#fcd34d',
+  },
+  symChipAttentionActive: {
+    backgroundColor: '#d97706',
+    borderColor: '#d97706',
+  },
+  symChipHealthy: {
+    borderColor: '#86efac',
+  },
+  symChipHealthyActive: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  symChipText: {
+    fontSize: 11,
+    color: colors.light.textPrimary,
+    fontWeight: typography.weights.medium,
+  },
+  symChipTextActive: {
+    color: '#ffffff',
+    fontWeight: typography.weights.bold,
+  },
+  vetRecCard: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1.5,
+    borderColor: '#ef4444',
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  vetRecHeader: {
+    marginBottom: spacing.xs,
+  },
+  vetRecBadge: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: '#dc2626',
+    marginBottom: 2,
+  },
+  vetRecTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#7f1d1d',
+  },
+  vetRecSubtitle: {
+    fontSize: 11,
+    color: '#991b1b',
+    marginTop: 1,
+  },
+  vetRecDesc: {
+    fontSize: 11,
+    color: '#991b1b',
+    lineHeight: 16,
+    marginBottom: spacing.sm,
+  },
+  vetRecActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  vetRecCallBtn: {
+    flex: 1,
+    backgroundColor: '#dc2626',
+    paddingVertical: spacing.xs,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+  },
+  vetRecCallBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+  },
+  vetRecFindBtn: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    paddingVertical: spacing.xs,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+  },
+  vetRecFindBtnText: {
+    color: '#7f1d1d',
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
   },
   chipSelected: {
     backgroundColor: colors.light.primary,

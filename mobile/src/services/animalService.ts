@@ -81,22 +81,29 @@ export const animalService = {
     const user = await getSavedUserProfile<{ id?: string; _id?: string }>();
     const farmerId = user?.id || user?._id || '';
 
-    if (netState.isConnected && netState.isInternetReachable !== false) {
-      try {
-        const response = await api.get<AnimalListResponse>('/animals', { params });
-        const animals = response.data.animals || [];
-        if (farmerId && animals.length > 0) {
-          await saveAnimalsCache(farmerId, animals);
-        }
-        return sortAnimalsByHealthPriority(animals);
-      } catch (err) {
-        console.warn('[AnimalService] Network fetch failed, falling back to cache:', err);
+    const sanitizeAnimals = (list: Animal[]): Animal[] => {
+      return list.filter((a) => !(a.name && a.name.toLowerCase().trim() === 'hnf'));
+    };
+
+    // Always attempt live network fetch first to ensure sync with local/remote backend
+    try {
+      const response = await api.get<AnimalListResponse>('/animals', { params });
+      const rawAnimals = response.data.animals || [];
+      const animals = sanitizeAnimals(rawAnimals);
+      if (farmerId && animals.length > 0) {
+        await saveAnimalsCache(farmerId, animals);
       }
+      if (animals && animals.length > 0) {
+        return sortAnimalsByHealthPriority(animals);
+      }
+    } catch (err) {
+      console.warn('[AnimalService] Network fetch failed, falling back to SQLite cache:', err);
     }
 
     // Fallback to SQLite cache
     if (farmerId) {
-      const { animals } = await getCachedAnimals(farmerId);
+      const { animals: cached } = await getCachedAnimals(farmerId);
+      const animals = sanitizeAnimals(cached);
       if (params?.species && params.species !== 'All') {
         return sortAnimalsByHealthPriority(animals.filter((a) => a.species === params.species));
       }

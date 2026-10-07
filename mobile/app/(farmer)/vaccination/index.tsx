@@ -794,7 +794,7 @@ export default function FarmerVaccinationScreen() {
 
               <TouchableOpacity
                 style={styles.quickActionSecondaryBtn}
-                onPress={() => setShowVetModal(true)}
+                onPress={() => router.push('/(farmer)/map' as any)}
                 activeOpacity={0.8}
               >
                 <Image
@@ -803,7 +803,7 @@ export default function FarmerVaccinationScreen() {
                   resizeMode="contain"
                 />
                 <Text style={styles.quickActionSecondaryText}>
-                  {isEnglish ? 'Call Vet Officer' : isMarathi ? 'पशुवैद्यक संपर्क' : 'पशु चिकित्सक'}
+                  {isEnglish ? 'Nearby Vets' : isMarathi ? 'जवळचे डॉक्टर' : 'नज़दीकी डॉक्टर'}
                 </Text>
               </TouchableOpacity>
 
@@ -1769,6 +1769,31 @@ export default function FarmerVaccinationScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Direct Link to Full Nearby Veterinarians Directory */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#0F5132',
+                paddingVertical: 13,
+                paddingHorizontal: 16,
+                borderRadius: 14,
+                alignItems: 'center',
+                marginHorizontal: 16,
+                marginTop: 14,
+                marginBottom: 6,
+                flexDirection: 'row',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                setShowVetModal(false);
+                router.push('/(farmer)/map' as any);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>
+                {isEnglish ? '📍 View Top 10 Nearest Veterinarians' : isMarathi ? '📍 जवळचे १० पशुवैद्यक पहा' : '📍 निकटतम १० पशु चिकित्सक देखें'}
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.modalDismissBtn}

@@ -9,10 +9,23 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://sih-livestock-health-production.up.railway.app/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://obgcmrgjulmgumdroixq.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_JA0FFLO2mmxQ1Xiu7hdfzw_Fjnu6wvY"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://sih-livestock-health-production.up.railway.app/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://obgcmrgjulmgumdroixq.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_JA0FFLO2mmxQ1Xiu7hdfzw_Fjnu6wvY"
+      }
     }
   },
   "submit": {

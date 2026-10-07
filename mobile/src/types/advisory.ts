@@ -219,3 +219,29 @@ export function getAdvisorySeverityTheme(severity?: string): AdvisorySeverityThe
       };
   }
 }
+
+export interface DynamicAdvisoryRecommendation {
+  disease: string;
+  priority?: 'CRITICAL' | 'HIGH' | 'NORMAL' | string;
+  urgency?: string;
+  protocol?: string;
+  action?: string;
+  actions?: string[];
+  rationale?: string;
+}
+
+export interface DynamicEpidemiologicalAdvisory {
+  success: boolean;
+  district: string;
+  summary: {
+    activeCasesCount: number;
+    totalAnimalsAffected?: number;
+    affectedAnimalsCount?: number;
+    activeZonesCount?: number;
+    activeContainmentZones?: number;
+    topDiseases?: Array<{ name: string; count?: number; caseCount?: number }>;
+  };
+  topDiseases?: Array<{ name: string; count?: number; caseCount?: number }>;
+  recommendations: DynamicAdvisoryRecommendation[];
+  generatedAt: string;
+}

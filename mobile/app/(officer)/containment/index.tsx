@@ -78,7 +78,8 @@ export default function OfficerContainmentScreen() {
   }>();
   const { user } = useAuth();
   const { isEnglish } = useAppLanguage();
-  const district = user?.district;
+  const rawDistrict = user?.district || 'Nagpur';
+  const district = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
   // State
   const [zones, setZones] = useState<ContainmentZone[]>([]);
@@ -134,13 +135,6 @@ export default function OfficerContainmentScreen() {
   }, [searchParams.disease, searchParams.focusLat, searchParams.focusLng, searchParams.mode]);
 
   const loadZones = useCallback(async () => {
-    if (!district) {
-      setError(isEnglish ? 'District jurisdiction is not configured on this account.' : 'ज़िला कार्यक्षेत्र कॉन्फ़िगर नहीं है।');
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
     try {
       setError(null);
       const res = await containmentService.getContainmentZones({ district });

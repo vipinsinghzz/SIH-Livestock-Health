@@ -30,7 +30,12 @@ import {
   CheckCheck,
   RefreshCw,
   Bell,
-  Info
+  Info,
+  PhoneCall,
+  AlertOctagon,
+  Stethoscope,
+  ShieldAlert,
+  Trash2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -48,21 +53,127 @@ import {
   getBreedDisplayName
 } from '../constants/livestockData';
 import { getImageUrl } from '../config/apiConfig';
+import AiRecommendationModal from './AiRecommendationModal';
+import { getAnimalAiScan, storeAnimalAiScan } from '../utils/aiScanStorage';
 
 
-const QUICK_SYMPTOMS = [
-  { id: 'fever', icon: '🌡️', en: 'High Fever', hi: 'तेज बुखार', mr: 'तीव्र ताप', severity: 'Needs Attention' },
+export const QUICK_SYMPTOMS = [
+  // CRITICAL
+  { id: 'fever', icon: '🌡️', en: 'High Fever', hi: 'तेज बुखार', mr: 'तीव्र ताप', severity: 'Critical' },
   { id: 'skin_nodules', icon: '🪢', en: 'Skin Nodules / Lumps', hi: 'त्वचा पर गांठें / लम्प्स', mr: 'त्वचेवर गाठी', severity: 'Critical' },
-  { id: 'off_feed', icon: '🌾', en: 'Loss of Appetite', hi: 'चारा न खाना', mr: 'चारा न खाणे', severity: 'Needs Attention' },
+  { id: 'salivation', icon: '💧', en: 'Excessive Salivation', hi: 'मुंह से अधिक लार', mr: 'तोंडातून लाळ गळणे', severity: 'Critical' },
+
+  // NEEDS ATTENTION
+  { id: 'swelling', icon: '🩹', en: 'Swelling', hi: 'सूजन (Swelling)', mr: 'सूज (Swelling)', severity: 'Needs Attention' },
   { id: 'lethargy', icon: '🥱', en: 'Lethargy & Weakness', hi: 'सुस्ती व कमजोरी', mr: 'सुस्तपणा व अशक्तपणा', severity: 'Needs Attention' },
-  { id: 'salivation', icon: '💧', en: 'Excessive Salivation', hi: 'मुंह से अधिक लार', mr: 'तोंडातून लाळ गळणे', severity: 'Needs Attention' },
+  { id: 'off_feed', icon: '🌾', en: 'Loss of Appetite', hi: 'चारा न खाना', mr: 'चारा न खाणे', severity: 'Needs Attention' },
   { id: 'lameness', icon: '🦶', en: 'Limping / Lameness', hi: 'लंगड़ाना', mr: 'लंगडणे', severity: 'Needs Attention' },
   { id: 'cough', icon: '🤧', en: 'Cough / Discharge', hi: 'खांसी व नाक बहना', mr: 'खोकला व नाक वाहणे', severity: 'Needs Attention' },
   { id: 'milk_drop', icon: '📉', en: 'Sudden Milk Drop', hi: 'दूध में अचानक कमी', mr: 'दुधात अचानक घट', severity: 'Needs Attention' },
+
+  // HEALTHY
   { id: 'healthy_normal', icon: '✨', en: 'No Symptoms / Active', hi: 'कोई लक्षण नहीं / स्वस्थ', mr: 'काही लक्षणे नाहीत / निरोगी', severity: 'Healthy' }
 ];
 
-export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTab = 'health' }) {
+export const evaluateHealthFromSymptoms = (selectedSymptomIds = [], observationText = '') => {
+  const text = (observationText || '').toLowerCase();
+
+  // Critical symptoms: High Fever, Skin Nodules / Lumps, Excessive Salivation
+  const criticalIds = ['fever', 'skin_nodules', 'salivation'];
+  const criticalKeywords = [
+    'high fever', 'fever', 'तेज बुखार', 'बुखार', 'तीव्र ताप', 'ताप',
+    'skin nodule', 'skin nodules', 'nodule', 'nodules', 'lump', 'lumps', 'त्वचा पर गांठ', 'गांठ', 'गांठे', 'गाठी', 'लम्प', 'लंप्स',
+    'excessive salivation', 'salivation', 'saliva', 'drool', 'drooling', 'मुंह से अधिक लार', 'लार', 'तोंडातून लाळ', 'लाळ'
+  ];
+
+  // Needs Attention symptoms: Lethargy & Weakness, Loss of Appetite, Limping / Lameness, Cough / Discharge, Sudden Milk Drop, Swelling
+  const needsAttentionIds = ['swelling', 'lethargy', 'off_feed', 'lameness', 'cough', 'milk_drop'];
+  const needsAttentionKeywords = [
+    'swelling', 'swell', 'swollen', 'edema', 'सूजन', 'सूज',
+    'lethargy', 'weakness', 'weak', 'tired', 'सुस्ती', 'कमजोरी', 'सुस्तपणा', 'अशक्तपणा',
+    'loss of appetite', 'appetite', 'off feed', 'not eating', 'चारा न खाना', 'चारा न खाणे', 'भूख न लगना',
+    'limping', 'lameness', 'limp', 'lame', 'लंगड़ाना', 'लंगडणे', 'लंगडा',
+    'cough', 'discharge', 'runny nose', 'sneezing', 'खांसी', 'खोकला', 'नाक बहना', 'नाक वाहणे',
+    'milk drop', 'sudden milk drop', 'drop in milk', 'less milk', 'दूध में अचानक कमी', 'दुधात घट', 'दूध कम'
+  ];
+
+  // Healthy keywords
+  const healthyIds = ['healthy_normal'];
+  const healthyKeywords = [
+    'healthy', 'active', 'no symptoms', 'normal', 'fit', 'स्वस्थ', 'निरोगी', 'सक्रिय'
+  ];
+
+  const matchedCriticalIds = selectedSymptomIds.filter((id) => criticalIds.includes(id));
+  const matchedCriticalKw = criticalKeywords.filter((kw) => text.includes(kw));
+  const hasCritical = matchedCriticalIds.length > 0 || matchedCriticalKw.length > 0;
+
+  const matchedAttentionIds = selectedSymptomIds.filter((id) => needsAttentionIds.includes(id));
+  const matchedAttentionKw = needsAttentionKeywords.filter((kw) => text.includes(kw));
+  const hasAttention = matchedAttentionIds.length > 0 || matchedAttentionKw.length > 0;
+
+  const hasHealthyId = selectedSymptomIds.includes('healthy_normal');
+  const hasHealthyKw = healthyKeywords.some((kw) => text.includes(kw));
+
+  // If there is ANY combination of symptoms containing AT LEAST ONE critical symptom:
+  // Rule: Categorise as Critical and trigger "Recommendation of Veterinary Evaluation"
+  if (hasCritical) {
+    const detectedNames = [
+      ...matchedCriticalIds.map((id) => QUICK_SYMPTOMS.find((s) => s.id === id)?.en || id),
+      ...matchedCriticalKw.map((kw) => `Keyword "${kw}"`)
+    ];
+    return {
+      status: 'Critical',
+      requiresVetEvaluation: true,
+      hasCritical: true,
+      hasAttention: hasAttention,
+      detectedSymptoms: [...new Set(detectedNames)],
+      reason: 'Critical symptom present — recommendation of veterinary evaluation'
+    };
+  }
+
+  if (hasAttention) {
+    const detectedNames = [
+      ...matchedAttentionIds.map((id) => QUICK_SYMPTOMS.find((s) => s.id === id)?.en || id),
+      ...matchedAttentionKw.map((kw) => `Keyword "${kw}"`)
+    ];
+    return {
+      status: 'Needs Attention',
+      requiresVetEvaluation: false,
+      hasCritical: false,
+      hasAttention: true,
+      detectedSymptoms: [...new Set(detectedNames)],
+      reason: 'Mild/Moderate symptoms detected — monitor closely'
+    };
+  }
+
+  if (hasHealthyId || hasHealthyKw) {
+    return {
+      status: 'Healthy',
+      requiresVetEvaluation: false,
+      hasCritical: false,
+      hasAttention: false,
+      detectedSymptoms: ['Active / No Symptoms'],
+      reason: 'No illness symptoms observed'
+    };
+  }
+
+  return {
+    status: null,
+    requiresVetEvaluation: false,
+    hasCritical: false,
+    hasAttention: false,
+    detectedSymptoms: [],
+    reason: ''
+  };
+};
+
+export default function AnimalDetailModal({
+  animal,
+  onClose,
+  onUpdate,
+  initialTab = 'health',
+  initialOpenAiRecommendations = false
+}) {
     const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const currentLang = getCleanLang(i18n.language);
@@ -75,6 +186,8 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
   const [timeline, setTimeline] = useState(animal?.timeline || []);
   const [activeTab, setActiveTab] = useState(initialTab || 'health');
   const [expandedTimelineIdx, setExpandedTimelineIdx] = useState(null);
+  const [showAiRecommendationDialog, setShowAiRecommendationDialog] = useState(initialOpenAiRecommendations || false);
+  const [selectedAiScanForDialog, setSelectedAiScanForDialog] = useState(null);
 
   // Tab: Health Status Update state
   const [selectedHealthStatus, setSelectedHealthStatus] = useState(animal?.healthStatus || 'Healthy');
@@ -120,8 +233,11 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
       setModalAnimal(animal);
       setTimeline(animal.timeline || []);
       setSelectedHealthStatus(animal.healthStatus || 'Healthy');
+      if (initialOpenAiRecommendations) {
+        setShowAiRecommendationDialog(true);
+      }
     }
-  }, [animal]);
+  }, [animal, initialOpenAiRecommendations]);
 
   if (!modalAnimal) return null;
 
@@ -139,6 +255,24 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
     setTimeout(() => {
       setErrorMessage('');
     }, 4000);
+  };
+
+  const handleDeleteAnimal = async () => {
+    const animalId = modalAnimal._id || modalAnimal.id || modalAnimal.tagId;
+    const confirmMsg = isEnglish
+      ? `Are you sure you want to delete ${modalAnimal.name} (${modalAnimal.tagId})? This action cannot be undone.`
+      : isMarathi
+      ? `खात्री आहे का? तुम्ही ${modalAnimal.name} (${modalAnimal.tagId}) हे जनावर कायमचे हटवू इच्छिता?`
+      : `क्या आप वाकई ${modalAnimal.name} (${modalAnimal.tagId}) को हटाना चाहते हैं?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await animalService.deleteAnimal(animalId);
+      if (onClose) onClose();
+      if (onUpdate) onUpdate();
+    } catch (err) {
+      showError(err.message || 'Failed to delete animal');
+    }
   };
 
   const handleToggleQuickSymptom = (sym) => {
@@ -164,14 +298,16 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
     setSelectedQuickSymptoms(next);
 
     if (next.length === 0) {
-      setSelectedHealthStatus('Healthy');
+      setSelectedHealthStatus(animal?.healthStatus || 'Healthy');
       setHealthObservation('');
       return;
     }
 
-    // Auto-suggest status based on severity
-    const isCritical = next.includes('skin_nodules');
-    setSelectedHealthStatus(isCritical ? 'Critical' : 'Needs Attention');
+    // Auto-categorize based on symptoms
+    const evaluation = evaluateHealthFromSymptoms(next, healthObservation);
+    if (evaluation.status) {
+      setSelectedHealthStatus(evaluation.status);
+    }
 
     const names = next.map((id) => {
       const found = QUICK_SYMPTOMS.find((s) => s.id === id);
@@ -182,6 +318,14 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
     setHealthObservation(prefix + names.join(', '));
   };
 
+  const handleObservationChange = (text) => {
+    setHealthObservation(text);
+    const evaluation = evaluateHealthFromSymptoms(selectedQuickSymptoms, text);
+    if (evaluation.status) {
+      setSelectedHealthStatus(evaluation.status);
+    }
+  };
+
   // 1. Handle Updating Health Status (View Health Tab)
   const handleUpdateHealth = async (e) => {
     e.preventDefault();
@@ -189,18 +333,33 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
 
     setIsSubmittingHealth(true);
     try {
+      const evalResult = evaluateHealthFromSymptoms(selectedQuickSymptoms, healthObservation);
+      const isCriticalOrVetEval = evalResult.requiresVetEvaluation || selectedHealthStatus === 'Critical';
+
       const statusTitle = isEnglish
-        ? `Health Status: ${selectedHealthStatus}`
+        ? `Health Status: ${selectedHealthStatus}${isCriticalOrVetEval ? ' (Recommendation of Veterinary Evaluation)' : ''}`
         : isMarathi
-        ? `आरोग्य स्थिती: ${selectedHealthStatus === 'Healthy' ? 'निरोगी' : selectedHealthStatus === 'Needs Attention' ? 'लक्ष द्या' : 'गंभीर'}`
-        : `स्वास्थ्य स्थिति: ${selectedHealthStatus === 'Healthy' ? 'स्वस्थ' : selectedHealthStatus === 'Needs Attention' ? 'ध्यान दें' : 'गंभीर'}`;
+        ? `आरोग्य स्थिती: ${selectedHealthStatus === 'Healthy' ? 'निरोगी' : selectedHealthStatus === 'Needs Attention' ? 'लक्ष द्या' : 'गंभीर'}${isCriticalOrVetEval ? ' (पशुवैद्यकीय तपासणीची शिफारस)' : ''}`
+        : `स्वास्थ्य स्थिति: ${selectedHealthStatus === 'Healthy' ? 'स्वस्थ' : selectedHealthStatus === 'Needs Attention' ? 'ध्यान दें' : 'गंभीर'}${isCriticalOrVetEval ? ' (पशुचिकित्सक मूल्यांकन की सिफारिश)' : ''}`;
+
+      let formattedNotes = healthObservation.trim();
+      if (isCriticalOrVetEval && !formattedNotes.toLowerCase().includes('veterinary evaluation')) {
+        formattedNotes = formattedNotes
+          ? `${formattedNotes} [Recommendation of Veterinary Evaluation]`
+          : (isEnglish ? 'Recommendation of Veterinary Evaluation advised.' : isMarathi ? 'पशुवैद्यकीय तपासणीची शिफारस करण्यात आली.' : 'पशुचिकित्सक मूल्यांकन की सिफारिश की गई।');
+      }
+      if (!formattedNotes) {
+        formattedNotes = isEnglish ? `Health updated to ${selectedHealthStatus}` : `स्थिति ${selectedHealthStatus} अपडेट की गई`;
+      }
 
       const healthEvent = {
         type: 'Health Check',
         title: statusTitle,
         date: new Date().toLocaleDateString('en-GB'),
         doctor: isEnglish ? 'Registered Veterinarian / Self' : isMarathi ? 'नोंदणीकृत पशुवैद्यक / स्वतः' : 'पंजीकृत डॉक्टर / स्वयं',
-        notes: healthObservation.trim() || (isEnglish ? `Health updated to ${selectedHealthStatus}` : `स्थिति ${selectedHealthStatus} अपडेट की गई`)
+        notes: formattedNotes,
+        status: selectedHealthStatus,
+        symptoms: selectedQuickSymptoms
       };
 
       const updates = {
@@ -225,6 +384,17 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
         if (onUpdate) onUpdate(updated);
       } else if (onUpdate) {
         onUpdate();
+      }
+
+      if (latestAiScan) {
+        const updatedScan = {
+          ...latestAiScan,
+          healthStatus: selectedHealthStatus,
+          userOverridden: true,
+          updatedAt: new Date().toISOString()
+        };
+        storeAnimalAiScan(animalId, updatedScan);
+        if (modalAnimal.tagId) storeAnimalAiScan(modalAnimal.tagId, updatedScan);
       }
 
       setHealthObservation('');
@@ -505,6 +675,7 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
 
   const speciesDisplayName = getSpeciesDisplayName(modalAnimal.species, currentLang);
   const breedDisplayName = getBreedDisplayName(modalAnimal.breed, modalAnimal.species, currentLang);
+  const latestAiScan = getAnimalAiScan(modalAnimal, currentLang);
 
   return (
     <div
@@ -517,13 +688,23 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
       >
         {/* Clean Header */}
         <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-5 sm:p-6 relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-emerald-100 hover:text-white p-2 rounded-full hover:bg-white/10 transition cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleDeleteAnimal}
+              className="text-red-300 hover:text-white p-2 rounded-full hover:bg-red-500/25 transition cursor-pointer"
+              title={isEnglish ? 'Delete this animal' : 'हे जनावर हटवा'}
+            >
+              <Trash2 className="w-5 h-5 text-red-200 hover:text-white" />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-emerald-100 hover:text-white p-2 rounded-full hover:bg-white/10 transition cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-amber-100 border-2 border-white/20 flex items-center justify-center text-3xl sm:text-4xl shadow-md">
@@ -596,6 +777,63 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
           {/* TAB 1: VIEW HEALTH (CLEANED - UNWANTED DUMMY ELEMENTS REMOVED) */}
           {activeTab === 'health' && (
             <div className="space-y-5">
+
+              {/* Prominent AI-Based Recommendations Banner & Dialogue Box Trigger */}
+              {latestAiScan && (
+                <div className="p-4 sm:p-5 bg-gradient-to-br from-emerald-900 via-teal-950 to-emerald-900 text-white rounded-3xl border-2 border-emerald-400 shadow-md space-y-3 relative overflow-hidden animate-in fade-in duration-150">
+                  <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-700/60 pb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                        <Sparkles className="w-5 h-5 text-emerald-300 animate-pulse" />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
+                            {isEnglish ? 'AI Recommendations Available' : isMarathi ? 'AI शिफारसी उपलब्ध' : 'AI सिफारिशें उपलब्ध'}
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-emerald-300">
+                            {latestAiScan.confidence}% {isEnglish ? 'Confidence' : 'सटीकता'}
+                          </span>
+                        </div>
+                        <h4 className="text-lg sm:text-xl font-black text-white mt-0.5">
+                          {latestAiScan.disease}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAiScanForDialog(latestAiScan);
+                        setShowAiRecommendationDialog(true);
+                      }}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-xs rounded-xl transition shadow-sm cursor-pointer whitespace-nowrap active:scale-95 self-start sm:self-auto"
+                    >
+                      <Sparkles className="w-4 h-4 text-emerald-950" />
+                      <span>{isEnglish ? 'Open AI Recommendations Dialog' : isMarathi ? 'AI शिफारसी डायलॉग उघडा' : 'AI सिफारिशें डायलॉग बॉक्स खोलें'}</span>
+                    </button>
+                  </div>
+
+                  {latestAiScan.immediateFirstAid && latestAiScan.immediateFirstAid.length > 0 && (
+                    <div className="space-y-1.5 text-xs text-emerald-100/90 pt-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        {isEnglish ? 'Immediate First-Aid & Care Snapshot:' : isMarathi ? 'तात्काळ प्रथमोपचार व काळजी सारांश:' : 'तत्काल प्राथमिक उपचार सारांश:'}
+                      </span>
+                      <ul className="space-y-1 text-xs leading-relaxed pl-1">
+                        {latestAiScan.immediateFirstAid.slice(0, 2).map((aid, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-emerald-400 font-bold">•</span>
+                            <span>{aid}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Current Status Overview Card */}
               <div className="p-4 sm:p-5 bg-emerald-50/90 rounded-2xl border border-emerald-200 flex items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -643,118 +881,308 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    {isEnglish
-                      ? 'Select Health Status:'
-                      : isMarathi
-                      ? 'नवीन आरोग्य स्थिती निवडा:'
-                      : 'नई स्वास्थ्य स्थिति चुनें:'}
-                  </label>
+                  {(() => {
+                    const currentEvaluation = evaluateHealthFromSymptoms(selectedQuickSymptoms, healthObservation);
+                    const showVetEvaluationRecommendation =
+                      currentEvaluation.requiresVetEvaluation || selectedHealthStatus === 'Critical';
 
-                  {/* 3 Single-Language Status Options */}
-                  <div className="grid grid-cols-3 gap-2.5">
-                    {[
-                      {
-                        val: 'Healthy',
-                        label: isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ',
-                        color: 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-600'
-                      },
-                      {
-                        val: 'Needs Attention',
-                        label: isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें',
-                        color: 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-600'
-                      },
-                      {
-                        val: 'Critical',
-                        label: isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर',
-                        color: 'border-red-500 bg-red-50 text-red-900 ring-2 ring-red-600'
-                      }
-                    ].map((item) => (
-                      <button
-                        type="button"
-                        key={item.val}
-                        onClick={() => setSelectedHealthStatus(item.val)}
-                        className={`py-2.5 px-3 rounded-xl border text-sm font-bold transition text-center cursor-pointer ${
-                          selectedHealthStatus === item.val
-                            ? `${item.color} shadow-xs font-black`
-                            : 'bg-stone-50 border-stone-200 text-slate-700 hover:bg-stone-100'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
+                    return (
+                      <>
+                        {/* Dynamic Status Feedback */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 bg-stone-50 p-2.5 rounded-xl border border-stone-200">
+                          <span className="text-xs font-bold text-slate-700">
+                            {isEnglish ? 'Assigned Category:' : isMarathi ? 'आरोग्य प्रवर्ग:' : 'स्वास्थ्य श्रेणी:'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {currentEvaluation.status && (
+                              <span className="text-[10px] font-bold text-slate-500">
+                                {isEnglish ? 'Auto-detected:' : isMarathi ? 'लक्षणानुसार:' : 'लक्षणानुसार:'}
+                              </span>
+                            )}
+                            <span
+                              className={`text-xs font-black px-3 py-1 rounded-full border ${
+                                selectedHealthStatus === 'Critical'
+                                  ? 'bg-red-50 text-red-700 border-red-300'
+                                  : selectedHealthStatus === 'Needs Attention'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              }`}
+                            >
+                              ● {selectedHealthStatus === 'Healthy'
+                                ? (isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ')
+                                : selectedHealthStatus === 'Needs Attention'
+                                ? (isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें')
+                                : (isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर')}
+                            </span>
+                          </div>
+                        </div>
 
-                  {/* Quick-Tap Symptom Chips (Manual Easy Logging) */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-700">
-                        {isEnglish ? 'Quick Symptoms (Tap to toggle):' : isMarathi ? 'लक्षणे निवडा (टॅप करा):' : 'लक्षण चुनें (आसानी से टैप करें):'}
-                      </label>
-                      {selectedQuickSymptoms.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedQuickSymptoms([]);
-                            setHealthObservation('');
-                          }}
-                          className="text-[11px] text-slate-400 hover:text-slate-600 font-normal cursor-pointer"
-                        >
-                          {isEnglish ? 'Clear' : isMarathi ? 'साफ करा' : 'हटाएं'}
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {QUICK_SYMPTOMS.map((sym) => {
-                        const isSelected = selectedQuickSymptoms.includes(sym.id);
-                        const label = isEnglish ? sym.en : isMarathi ? sym.mr : sym.hi;
-                        return (
-                          <button
-                            type="button"
-                            key={sym.id}
-                            onClick={() => handleToggleQuickSymptom(sym)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                              isSelected
-                                ? sym.id === 'healthy_normal'
-                                  ? 'bg-emerald-600 text-white shadow-xs'
-                                  : sym.severity === 'Critical'
-                                  ? 'bg-red-600 text-white shadow-xs'
-                                  : 'bg-amber-600 text-white shadow-xs'
-                                : 'bg-stone-50 border border-stone-200 text-slate-700 hover:bg-stone-100 hover:border-stone-300'
-                            }`}
-                          >
-                            <span>{sym.icon}</span>
-                            <span>{label}</span>
-                            {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        {/* 3 Status Buttons */}
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {[
+                            {
+                              val: 'Healthy',
+                              label: isEnglish ? 'Healthy' : isMarathi ? 'निरोगी' : 'स्वस्थ',
+                              color: 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-600'
+                            },
+                            {
+                              val: 'Needs Attention',
+                              label: isEnglish ? 'Needs Attention' : isMarathi ? 'लक्ष द्या' : 'ध्यान दें',
+                              color: 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-600'
+                            },
+                            {
+                              val: 'Critical',
+                              label: isEnglish ? 'Critical' : isMarathi ? 'गंभीर' : 'गंभीर',
+                              color: 'border-red-500 bg-red-50 text-red-900 ring-2 ring-red-600'
+                            }
+                          ].map((item) => (
+                            <button
+                              type="button"
+                              key={item.val}
+                              onClick={() => setSelectedHealthStatus(item.val)}
+                              className={`py-2.5 px-3 rounded-xl border text-sm font-bold transition text-center cursor-pointer ${
+                                selectedHealthStatus === item.val
+                                  ? `${item.color} shadow-xs font-black`
+                                  : 'bg-stone-50 border-stone-200 text-slate-700 hover:bg-stone-100'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
 
-                  {/* Clinical Observation Notes */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">
-                      {isEnglish
-                        ? 'Clinical Notes & Observations:'
-                        : isMarathi
-                        ? 'तपासणी नोंदी / लक्षणे:'
-                        : 'जांच टिप्पणी / लक्षण:'}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={
-                        isEnglish
-                          ? 'e.g. Normal body temperature, eating well, active'
-                          : isMarathi
-                          ? 'उदा. सामान्य तापमान, चारा व्यवस्थित खात आहे'
-                          : 'उदा. सामान्य तापमान, चारा ठीक से खा रहा है'
-                      }
-                      value={healthObservation}
-                      onChange={(e) => setHealthObservation(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-300 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none"
-                    />
-                  </div>
+                        {/* Quick-Tap Symptom Chips Organized into the 3 Requested Tiers */}
+                        <div className="space-y-3 pt-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-black text-slate-800">
+                              {isEnglish
+                                ? 'Observed Symptoms (Select or type below to categorize):'
+                                : isMarathi
+                                ? 'निरीक्षण केलेली लक्षणे (निवडा किंवा खाली लिहा):'
+                                : 'देखे गए लक्षण (चुनें या नीचे लिखें):'}
+                            </label>
+                            {selectedQuickSymptoms.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedQuickSymptoms([]);
+                                  setHealthObservation('');
+                                  setSelectedHealthStatus(animal?.healthStatus || 'Healthy');
+                                }}
+                                className="text-[11px] text-slate-400 hover:text-slate-600 font-semibold cursor-pointer underline"
+                              >
+                                {isEnglish ? 'Clear' : isMarathi ? 'साफ करा' : 'हटाएं'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Tier 1: CRITICAL Symptoms */}
+                          <div className="p-3 rounded-2xl bg-red-50/70 border border-red-200 space-y-2">
+                            <div className="flex items-center justify-between text-[11px] font-black text-red-900 uppercase tracking-wide">
+                              <span className="flex items-center gap-1.5">
+                                <AlertOctagon className="w-3.5 h-3.5 text-red-600" />
+                                {isEnglish ? 'Critical Symptoms (Triggers Vet Evaluation)' : isMarathi ? 'गंभीर लक्षणे (पशुवैद्यकीय तपासणी आवश्यक)' : 'गंभीर लक्षण (पशुचिकित्सक जांच अनिवार्य)'}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-200 text-red-900 font-bold">
+                                CRITICAL
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {QUICK_SYMPTOMS.filter((s) => s.severity === 'Critical').map((sym) => {
+                                const isSelected = selectedQuickSymptoms.includes(sym.id);
+                                const label = isEnglish ? sym.en : isMarathi ? sym.mr : sym.hi;
+                                return (
+                                  <button
+                                    type="button"
+                                    key={sym.id}
+                                    onClick={() => handleToggleQuickSymptom(sym)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-red-600 text-white shadow-xs ring-2 ring-red-300'
+                                        : 'bg-white border border-red-200 text-red-900 hover:bg-red-100/70 hover:border-red-300'
+                                    }`}
+                                  >
+                                    <span>{sym.icon}</span>
+                                    <span>{label}</span>
+                                    {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Tier 2: NEEDS ATTENTION Symptoms */}
+                          <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
+                            <div className="flex items-center justify-between text-[11px] font-black text-amber-900 uppercase tracking-wide">
+                              <span className="flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                {isEnglish ? 'Needs Attention Symptoms' : isMarathi ? 'लक्ष देण्यासारखी लक्षणे' : 'ध्यान देने योग्य लक्षण'}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
+                                NEEDS ATTENTION
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {QUICK_SYMPTOMS.filter((s) => s.severity === 'Needs Attention').map((sym) => {
+                                const isSelected = selectedQuickSymptoms.includes(sym.id);
+                                const label = isEnglish ? sym.en : isMarathi ? sym.mr : sym.hi;
+                                return (
+                                  <button
+                                    type="button"
+                                    key={sym.id}
+                                    onClick={() => handleToggleQuickSymptom(sym)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-300'
+                                        : 'bg-white border border-amber-200 text-amber-900 hover:bg-amber-100/70 hover:border-amber-300'
+                                    }`}
+                                  >
+                                    <span>{sym.icon}</span>
+                                    <span>{label}</span>
+                                    {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Tier 3: HEALTHY */}
+                          <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+                            <div className="flex items-center justify-between text-[11px] font-black text-emerald-900 uppercase tracking-wide">
+                              <span className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                {isEnglish ? 'Healthy / Active' : isMarathi ? 'निरोगी / सक्रिय' : 'स्वस्थ / सक्रिय'}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold">
+                                HEALTHY
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {QUICK_SYMPTOMS.filter((s) => s.severity === 'Healthy').map((sym) => {
+                                const isSelected = selectedQuickSymptoms.includes(sym.id);
+                                const label = isEnglish ? sym.en : isMarathi ? sym.mr : sym.hi;
+                                return (
+                                  <button
+                                    type="button"
+                                    key={sym.id}
+                                    onClick={() => handleToggleQuickSymptom(sym)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300'
+                                        : 'bg-white border border-emerald-200 text-emerald-900 hover:bg-emerald-100/70 hover:border-emerald-300'
+                                    }`}
+                                  >
+                                    <span>{sym.icon}</span>
+                                    <span>{label}</span>
+                                    {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Clinical Observation Notes */}
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">
+                            {isEnglish
+                              ? 'Clinical Notes & Observations (Type symptoms e.g. swelling, fever):'
+                              : isMarathi
+                              ? 'तपासणी नोंदी / लक्षणे (उदा. सूज (swelling), ताप लिहू शकता):'
+                              : 'जांच टिप्पणी / लक्षण (जैसे सूजन (swelling), बुखार आदि लिख सकते हैं):'}
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={
+                              isEnglish
+                                ? 'e.g. swelling on left hock, high fever, or active eating well'
+                                : isMarathi
+                                ? 'उदा. पायावर सूज (swelling), तीव्र ताप किंवा चारा व्यवस्थित खात आहे'
+                                : 'उदा. पैर में सूजन (swelling), तेज बुखार या चारा खा रहा है'
+                            }
+                            value={healthObservation}
+                            onChange={(e) => handleObservationChange(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-300 rounded-xl px-4 py-2.5 text-xs text-slate-800 placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+
+                        {/* PROMINENT REQUIREMENT: Recommendation of Veterinary Evaluation */}
+                        {showVetEvaluationRecommendation && (
+                          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-2 border-red-400 shadow-sm space-y-3 animate-in fade-in duration-200">
+                            <div className="flex items-start gap-3">
+                              <div className="w-11 h-11 rounded-2xl bg-red-100 border border-red-300 text-red-700 flex items-center justify-center shrink-0 shadow-inner">
+                                <Stethoscope className="w-6 h-6 text-red-700 animate-pulse" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-red-600 text-white tracking-wider">
+                                    ⚠️ {isEnglish ? 'CRITICAL SYMPTOM ALERT' : isMarathi ? 'गंभीर लक्षण इशारा' : 'गंभीर लक्षण चेतावनी'}
+                                  </span>
+                                  {currentEvaluation.hasAttention && currentEvaluation.hasCritical && (
+                                    <span className="text-[11px] font-bold text-red-800">
+                                      {isEnglish ? 'Symptom combination includes critical signs' : isMarathi ? 'लक्षण मिश्रणात गंभीर लक्षण समाविष्ट आहे' : 'लक्षणों में गंभीर लक्षण शामिल है'}
+                                    </span>
+                                  )}
+                                </div>
+                                <h4 className="text-base sm:text-lg font-black text-red-950 mt-1">
+                                  {isEnglish
+                                    ? 'Recommendation of Veterinary Evaluation'
+                                    : isMarathi
+                                    ? 'पशुवैद्यकीय तपासणीची शिफारस'
+                                    : 'पशुचिकित्सक मूल्यांकन की सिफारिश'}
+                                </h4>
+                                <p className="text-xs font-semibold text-red-800/90 mt-0.5">
+                                  {isMarathi
+                                    ? 'Recommendation of Veterinary Evaluation (पशुवैद्यकीय तपासणीची शिफारस)'
+                                    : isHindi
+                                    ? 'Recommendation of Veterinary Evaluation (पशुचिकित्सक मूल्यांकन की सिफारिश)'
+                                    : 'Recommendation of Veterinary Evaluation'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="bg-white/80 p-3.5 rounded-xl border border-red-200 space-y-2">
+                              <p className="text-xs text-red-950 leading-relaxed font-semibold">
+                                {isEnglish
+                                  ? 'One or more observed symptoms consist of critical livestock indicators (High Fever, Skin Nodules/Lumps, or Excessive Salivation). Even if paired with other symptoms like swelling or appetite loss, immediate on-ground clinical evaluation by a registered veterinarian is strongly recommended to protect your livestock and prevent disease spread.'
+                                  : isMarathi
+                                  ? 'नोंदवलेल्या लक्षणांमध्ये किमान एक गंभीर लक्षण (तीव्र ताप, त्वचेवर गाठी, किंवा तोंडातून लाळ) समाविष्ट आहे. इतर लक्षणांसोबत (उदा. सूज किंवा भूक न लागणे) हे एकत्र असल्यास तात्काळ परवानाधारक पशुवैद्यकाकडून तपासणी करून घेण्याची शिफारस आहे.'
+                                  : 'दर्ज किए गए लक्षणों में कम से कम एक गंभीर लक्षण (तेज बुखार, त्वचा की गांठें, या अधिक लार) शामिल है। संयोजन में अन्य लक्षण (जैसे सूजन या भूख न लगना) होने पर भी तत्काल योग्य डॉक्टर से जांच कराने की सिफारिश की जाती है।'}
+                              </p>
+                              <div className="flex flex-wrap gap-2 text-[11px] text-red-800 font-medium pt-1">
+                                <span>🛡️ <strong>{isEnglish ? 'Immediate Care:' : isMarathi ? 'तात्काळ उपाय:' : 'तत्काल उपाय:'}</strong></span>
+                                <span>• {isEnglish ? 'Isolate affected animal in shade' : isMarathi ? 'जनावरास सावलीत वेगळे ठेवा' : 'पशु को छाया में अलग रखें'}</span>
+                                <span>• {isEnglish ? 'Provide fresh clean water' : isMarathi ? 'स्वच्छ पाणी द्या' : 'साफ पानी दें'}</span>
+                                <span>• {isEnglish ? 'Do not inject antibiotics without prescription' : isMarathi ? 'डॉक्टरांच्या सल्ल्याशिवाय औषध देऊ नका' : 'बिना पर्ची एंटीबायोटिक न दें'}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                              <a
+                                href="tel:1962"
+                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-700 hover:bg-red-800 active:scale-95 text-white rounded-xl text-xs font-black transition shadow-sm cursor-pointer"
+                              >
+                                <PhoneCall className="w-4 h-4" />
+                                <span>{isEnglish ? 'Call 1962 Animal Helpline' : isMarathi ? '1962 रुग्णवाहिका / हेल्पलाईन' : '1962 पशु हेल्पलाइन कॉल करें'}</span>
+                              </a>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onClose();
+                                  navigate('/veterinary-help');
+                                }}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-red-50 text-red-900 border border-red-300 active:scale-95 rounded-xl text-xs font-black transition shadow-2xs cursor-pointer"
+                              >
+                                <Stethoscope className="w-4 h-4 text-red-600" />
+                                <span>{isEnglish ? 'Contact Nagpur Veterinarians' : isMarathi ? 'उपलब्ध पशुवैद्यक पहा' : 'उपलब्ध पशुचिकित्सक देखें'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   <div className="flex justify-end pt-2">
                     <button
@@ -951,26 +1379,58 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
                           </p>
                         )}
 
-                        {/* View More / View Details Toggle */}
+                        {/* View More / View Details Toggle & Direct Recommendations Button */}
                         {hasExtraDetails && (
-                          <div className="pt-1 border-t border-stone-100">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedTimelineIdx(isExpanded ? null : idx)}
-                              className={`inline-flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
-                                isCritical
-                                  ? 'text-red-700 hover:text-red-900'
-                                  : isAttention
-                                  ? 'text-amber-800 hover:text-amber-950'
-                                  : 'text-emerald-700 hover:text-emerald-900'
-                              }`}
-                            >
-                              <span>
-                                {isExpanded
-                                  ? (isEnglish ? 'Hide Details ▲' : isMarathi ? 'तपशील लपवा ▲' : 'विवरण छुपाएं ▲')
-                                  : (isEnglish ? 'View More Details ▼' : isMarathi ? 'अधिक तपशील पहा ▼' : 'अधिक विवरण देखें ▼')}
-                              </span>
-                            </button>
+                          <div className="pt-2 border-t border-stone-100 space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTimelineIdx(isExpanded ? null : idx)}
+                                className={`inline-flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                                  isCritical
+                                    ? 'text-red-700 hover:text-red-900'
+                                    : isAttention
+                                    ? 'text-amber-800 hover:text-amber-950'
+                                    : 'text-emerald-700 hover:text-emerald-900'
+                                }`}
+                              >
+                                <span>
+                                  {isExpanded
+                                    ? (isEnglish ? 'Hide Details ▲' : isMarathi ? 'तपशील लपवा ▲' : 'विवरण छुपाएं ▲')
+                                    : (isEnglish ? 'View More Details ▼' : isMarathi ? 'अधिक तपशील पहा ▼' : 'अधिक विवरण देखें ▼')}
+                                </span>
+                              </button>
+
+                              {(item.confidence > 85 || item.type === 'AI Disease Scan' || item.type === 'AI Diagnosis' || item.advisory) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedAiScanForDialog({
+                                      animalId: modalAnimal._id || modalAnimal.id || modalAnimal.tagId,
+                                      animalName: modalAnimal.name,
+                                      tagId: modalAnimal.tagId,
+                                      species: modalAnimal.species,
+                                      disease: item.disease || cleanTitle,
+                                      confidence: item.confidence || 92,
+                                      riskLevel: isCritical ? 'Critical' : 'Moderate',
+                                      healthStatus: item.status || (isCritical ? 'Critical' : 'Needs Attention'),
+                                      image: item.image || item.imageUrl,
+                                      advisory: item.advisory,
+                                      immediateFirstAid: item.advisory ? item.advisory.split(/\.\s+/).filter(Boolean) : latestAiScan?.immediateFirstAid,
+                                      clinicalPrecautions: latestAiScan?.clinicalPrecautions,
+                                      explanation: summaryNotes,
+                                      symptoms: item.symptoms || [],
+                                      formattedDate: item.date
+                                    });
+                                    setShowAiRecommendationDialog(true);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-black transition shadow-2xs cursor-pointer active:scale-95"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-700 animate-pulse" />
+                                  <span>{isEnglish ? 'AI Recommendations' : isMarathi ? 'AI शिफारसी' : 'AI सिफारिशें'}</span>
+                                </button>
+                              )}
+                            </div>
 
                             {/* Collapsible Expanded Details Section */}
                             {isExpanded && (
@@ -1682,6 +2142,18 @@ export default function AnimalDetailModal({ animal, onClose, onUpdate, initialTa
 
         </div>
       </div>
+
+      {/* AI Based Recommendation Dialogue Box Modal */}
+      <AiRecommendationModal
+        isOpen={showAiRecommendationDialog}
+        onClose={() => {
+          setShowAiRecommendationDialog(false);
+          setSelectedAiScanForDialog(null);
+        }}
+        scanData={selectedAiScanForDialog || latestAiScan}
+        animal={modalAnimal}
+        currentLang={currentLang}
+      />
     </div>
   );
 }

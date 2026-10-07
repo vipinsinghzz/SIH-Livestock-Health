@@ -147,16 +147,29 @@ if (isLiveSupabase) {
 const MOCK_PROFILES = {
   'farmer@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000001',
-    name: 'Ramesh Patil (रमेश पाटील)',
+    name: 'Suresh Patil (सुरेश पाटील)',
     email: 'farmer@pashurakshak.in',
     role: 'farmer',
     phone: '+919822011223',
     district: 'Nagpur',
     state: 'Maharashtra',
-    village: 'Yerkheda',
-    block: 'Kamptee',
+    village: 'Saoner Rural',
+    block: 'Saoner',
     preferredLanguage: 'hi',
-    location: { lat: 21.2400, lng: 79.2150 }
+    location: { lat: 21.3833, lng: 78.9167 }
+  },
+  'suresh@pashurakshak.in': {
+    id: '00000000-0000-0000-0000-000000000001',
+    name: 'Suresh Patil (सुरेश पाटील)',
+    email: 'suresh@pashurakshak.in',
+    role: 'farmer',
+    phone: '+919822011223',
+    district: 'Nagpur',
+    state: 'Maharashtra',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    preferredLanguage: 'hi',
+    location: { lat: 21.3833, lng: 78.9167 }
   },
   'santosh@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000004',
@@ -173,20 +186,20 @@ const MOCK_PROFILES = {
   },
   'sunita@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000005',
-    name: 'Sunita Pawar (सुनिता पवार)',
+    name: 'Sunita Meshram (सुनिता मेश्राम)',
     email: 'sunita@pashurakshak.in',
     role: 'farmer',
     phone: '+919822055667',
     district: 'Nagpur',
     state: 'Maharashtra',
-    village: 'Mansar',
-    block: 'Ramtek',
+    village: 'Yerkheda',
+    block: 'Kamptee',
     preferredLanguage: 'mr',
-    location: { lat: 21.3850, lng: 79.2800 }
+    location: { lat: 21.2227, lng: 79.1970 }
   },
   'vet@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000002',
-    name: 'Dr. Ananya Deshmukh (डॉ. अनन्या देशमुख)',
+    name: 'Dr. Amit Deshmukh (डॉ. अमित देशमुख)',
     email: 'vet@pashurakshak.in',
     role: 'veterinarian',
     phone: '+919822022334',
@@ -216,7 +229,7 @@ const MOCK_PROFILES = {
   },
   'officer@pashurakshak.in': {
     id: '00000000-0000-0000-0000-000000000003',
-    name: 'Dr. Suresh Kulkarni (डॉ. सुरेश कुलकर्णी)',
+    name: 'Dr. Vivek Joshi (डॉ. विवेक जोशी)',
     email: 'officer@pashurakshak.in',
     role: 'officer',
     phone: '+919822033445',

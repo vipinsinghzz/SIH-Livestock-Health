@@ -53,16 +53,18 @@ function normalizeNotificationRecord(raw: any, source: 'supabase' | 'advisory' |
   // Handle title & message that might be localized strings or objects { en, hi }
   let title = '';
   if (typeof raw.title === 'object' && raw.title !== null) {
-    title = raw.title.en || raw.title.hi || 'Livestock Alert';
+    title = raw.title.en || raw.title.hi || raw.titleEn || raw.titleHi || 'Livestock Alert';
   } else {
-    title = String(raw.title || 'Livestock Notification');
+    const rawVal = raw.title && raw.title !== 'undefined' ? raw.title : null;
+    title = String(rawVal || raw.titleEn || raw.titleHi || 'Livestock Alert');
   }
 
   let message = '';
   if (typeof raw.message === 'object' && raw.message !== null) {
-    message = raw.message.en || raw.message.hi || '';
+    message = raw.message.en || raw.message.hi || raw.messageEn || raw.messageHi || '';
   } else {
-    message = String(raw.message || '');
+    const rawVal = raw.message && raw.message !== 'undefined' ? raw.message : null;
+    message = String(rawVal || raw.messageEn || raw.messageHi || '');
   }
 
   const district = raw.district || raw.targetDistrict || raw.metadata?.district || undefined;
@@ -130,7 +132,9 @@ export const notificationService = {
 
     // 1. Try Express `/api/notifications` if it exists (handles 404 cleanly)
     try {
-      const apiRes = await api.get<{ notifications?: any[]; data?: any[] }>('/notifications');
+      const apiRes = await api.get<{ notifications?: any[]; data?: any[] }>('/notifications', {
+        params: params.district ? { district: params.district } : undefined,
+      });
       const apiNotifs = apiRes.data?.notifications || apiRes.data?.data;
       if (Array.isArray(apiNotifs)) {
         for (const item of apiNotifs) {
@@ -231,9 +235,11 @@ export const notificationService = {
     const results: AppNotification[] = [];
     const seenIds = new Set<string>();
 
-    // 1. Try Express `/api/notifications` if it exists (handles 404 cleanly)
+    // 1. Try Express `/api/notifications` with district scoping
     try {
-      const apiRes = await api.get<{ notifications?: any[]; data?: any[] }>('/notifications');
+      const apiRes = await api.get<{ notifications?: any[]; data?: any[] }>('/notifications', {
+        params: params.district ? { district: params.district } : undefined,
+      });
       const apiNotifs = apiRes.data?.notifications || apiRes.data?.data;
       if (Array.isArray(apiNotifs)) {
         for (const item of apiNotifs) {
@@ -294,6 +300,128 @@ export const notificationService = {
       console.warn('[NotificationService] Advisories fetch notice:', advErr.message);
     }
 
+    // 4. Augment with active district surveillance events (Cases, Clusters, Containment)
+    // Matches website and backend notificationController surveillance aggregation
+    const userDistrict = params.district || 'Nagpur';
+    try {
+      const [casesRes, clustersRes, zonesRes] = await Promise.allSettled([
+        api.get<{ cases?: any[] }>('/cases', { params: { district: userDistrict } }),
+        api.get<{ clusters?: any[] }>('/cases/clusters', { params: { district: userDistrict } }),
+        api.get<{ zones?: any[] }>('/cases/containment-zones', { params: { district: userDistrict } }),
+      ]);
+
+      // 4a. Spatial Outbreak Clusters
+      if (clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value.data?.clusters)) {
+        for (const cl of clustersRes.value.data.clusters) {
+          const clusterId = String(cl.clusterId || cl.id || '1');
+          const alertId = `district-cluster-${clusterId}`;
+          if (!seenIds.has(alertId)) {
+            seenIds.add(alertId);
+            const isRead = localReadIds.has(alertId);
+            results.push({
+              id: alertId,
+              recipientId: params.userId || 'vet',
+              caseNumber: `CLUSTER-${clusterId}`,
+              type: 'OUTBREAK_CLUSTER_ALERT',
+              title: `⚠️ Outbreak Cluster: ${cl.disease || 'Livestock Outbreak'}`,
+              message: `${cl.caseCount || 2} confirmed cases clustered within ${cl.radiusKm || 5}km in ${userDistrict}. Immediate biosecurity cordon recommended.`,
+              district: userDistrict,
+              status: isRead ? 'READ' : 'DELIVERED',
+              isRead,
+              severity: 'Critical',
+              metadata: {
+                disease: cl.disease,
+                caseCount: cl.caseCount || 2,
+                totalAffected: cl.totalAffected || cl.caseCount || 2,
+                radiusKm: cl.radiusKm || 5,
+                block: cl.block || userDistrict,
+                isOutbreak: cl.isOutbreak,
+              },
+              createdAt: cl.detectedAt || cl.createdAt || new Date().toISOString(),
+              source: 'api',
+            });
+          }
+        }
+      }
+
+      // 4b. Active Containment Zones
+      if (zonesRes.status === 'fulfilled' && Array.isArray(zonesRes.value.data?.zones)) {
+        for (const z of zonesRes.value.data.zones) {
+          const zoneId = String(z.zoneId || z.id || '');
+          const alertId = `district-zone-${zoneId}`;
+          if (zoneId && !seenIds.has(alertId)) {
+            seenIds.add(alertId);
+            const isRead = localReadIds.has(alertId);
+            results.push({
+              id: alertId,
+              recipientId: params.userId || 'vet',
+              caseId: z.caseId ? String(z.caseId) : undefined,
+              caseNumber: z.zoneId || 'ZONE-ACTIVE',
+              type: 'CONTAINMENT_ZONE_CREATED',
+              title: `🛡️ Active Containment Zone: ${z.disease || 'Quarantine Area'}`,
+              message: `Containment perimeter of ${z.radiusKm || 5.0}km enforced in ${z.village || z.block || userDistrict}. Animal transit banned.`,
+              district: userDistrict,
+              status: isRead ? 'READ' : 'DELIVERED',
+              isRead,
+              severity: 'High',
+              metadata: {
+                disease: z.disease,
+                radiusKm: z.radiusKm || 5.0,
+                block: z.block || userDistrict,
+                village: z.village || '',
+                enforcedRules: z.enforcedRules || [],
+              },
+              createdAt: z.createdAt || new Date().toISOString(),
+              source: 'api',
+            });
+          }
+        }
+      }
+
+      // 4c. Active Urgent / High-Risk Referral Cases
+      if (casesRes.status === 'fulfilled' && Array.isArray(casesRes.value.data?.cases)) {
+        for (const c of casesRes.value.data.cases) {
+          const caseId = String(c.id || c._id || '');
+          const alertId = `district-case-${caseId}`;
+          const isUrgent = c.risk === 'Critical' || c.risk === 'High' || c.status === 'New';
+          if (caseId && isUrgent && !seenIds.has(alertId)) {
+            seenIds.add(alertId);
+            const isRead = localReadIds.has(alertId);
+            const severity: NotificationSeverity = (c.risk as NotificationSeverity) || 'High';
+            results.push({
+              id: alertId,
+              recipientId: params.userId || 'vet',
+              caseId,
+              caseNumber: c.caseId || 'CASE-REF',
+              animalId: c.animalId ? String(c.animalId) : undefined,
+              type: 'NEW_CASE_ALERT',
+              title: `🚨 Urgent ${c.risk || 'Clinical'} Referral: ${c.disease || 'Livestock Condition'}`,
+              message: `Farmer ${c.farmerContact?.name || c.farmerName || 'Farmer'} reported suspected ${c.disease || 'illness'} in ${c.farmerLocation?.block || c.block || userDistrict}.`,
+              district: userDistrict,
+              status: isRead ? 'READ' : 'DELIVERED',
+              isRead,
+              severity,
+              metadata: {
+                disease: c.disease,
+                risk: c.risk,
+                confidence: c.confidence,
+                animalSpecies: c.species,
+                farmerName: c.farmerContact?.name || c.farmerName,
+                farmerPhone: c.farmerContact?.phone || c.farmerPhone,
+                block: c.farmerLocation?.block || c.block || userDistrict,
+                village: c.farmerLocation?.village || c.village || '',
+                caseStatus: c.status,
+              },
+              createdAt: c.createdAt || new Date().toISOString(),
+              source: 'api',
+            });
+          }
+        }
+      }
+    } catch (survErr: any) {
+      console.warn('[NotificationService] District surveillance aggregation notice:', survErr.message);
+    }
+
     // Sort combined real notifications chronologically descending (newest first)
     const sorted = results.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -315,6 +443,17 @@ export const notificationService = {
    */
   async markAsRead(notification: AppNotification): Promise<boolean> {
     localReadIds.add(notification.id);
+
+    // Call backend API first (which has supabaseAdmin access and updates Supabase notifications table)
+    try {
+      await api.patch(`/notifications/${encodeURIComponent(notification.id)}/read`);
+      return true;
+    } catch (err: any) {
+      // Non-fatal if backend endpoint is unavailable or returns error; fall back to Supabase client
+      if (err.status !== 404 && err.status !== 0) {
+        console.warn('[NotificationService] Backend mark-read notice:', err.message);
+      }
+    }
 
     if (notification.source === 'supabase' && isLiveSupabase && supabase?.from) {
       try {
@@ -344,6 +483,16 @@ export const notificationService = {
   async markAllAsRead(userId?: string, notifications?: AppNotification[]): Promise<boolean> {
     if (notifications) {
       notifications.forEach((n) => localReadIds.add(n.id));
+    }
+
+    // Call backend API first (which updates all recipient_id rows on Supabase via service role)
+    try {
+      await api.post('/notifications/mark-all-read');
+      return true;
+    } catch (err: any) {
+      if (err.status !== 404 && err.status !== 0) {
+        console.warn('[NotificationService] Backend mark-all-read notice:', err.message);
+      }
     }
 
     if (userId && isLiveSupabase && supabase?.from) {

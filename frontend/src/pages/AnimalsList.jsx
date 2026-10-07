@@ -8,7 +8,9 @@ import {
   HeartPulse,
   Syringe,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import animalService from '../services/animalService';
@@ -20,11 +22,15 @@ import {
   getSpeciesDisplayName,
   getBreedDisplayName
 } from '../constants/livestockData';
+import { getAnimalAiScan } from '../utils/aiScanStorage';
 
 export default function AnimalsList() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
   const currentLang = getCleanLang(i18n.language);
+  const isEnglish = currentLang === 'en';
+  const isMarathi = currentLang === 'mr';
+  const isHindi = currentLang === 'hi';
 
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +38,7 @@ export default function AnimalsList() {
   const [selectedSpecies, setSelectedSpecies] = useState('All');
   const [selectedHealth, setSelectedHealth] = useState('All');
   const [selectedAnimal, setSelectedAnimal] = useState(null);
+  const [openAiRecForAnimal, setOpenAiRecForAnimal] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCustomBreed, setIsCustomBreed] = useState(false);
@@ -162,7 +169,44 @@ export default function AnimalsList() {
     }
   };
 
-  const filteredAnimals = animals.filter((a) => {
+  const handleDeleteAnimal = async (animal, e) => {
+    if (e) e.stopPropagation();
+    const animalId = animal._id || animal.id || animal.tagId;
+    const confirmMsg = isEnglish
+      ? `Are you sure you want to delete ${animal.name} (${animal.tagId})?`
+      : isMarathi
+      ? `खात्री आहे का? तुम्ही ${animal.name} (${animal.tagId}) हे जनावर कायमचे हटवू इच्छिता?`
+      : `क्या आप वाकई ${animal.name} (${animal.tagId}) को हटाना चाहते हैं?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await animalService.deleteAnimal(animalId);
+      if (selectedAnimal && (selectedAnimal._id === animalId || selectedAnimal.id === animalId || selectedAnimal.tagId === animalId)) {
+        setSelectedAnimal(null);
+      }
+      await loadAnimals();
+    } catch (err) {
+      alert('Delete failed: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const effectiveAnimals = animals.map((a) => {
+    try {
+      const aiScan = getAnimalAiScan(a, currentLang);
+      const conf = Number(aiScan?.confidence || aiScan?.confidenceScore || 0);
+      if (aiScan && conf > 85 && (aiScan.healthStatus === 'Critical' || aiScan.healthStatus === 'Needs Attention')) {
+        if (a.healthStatus === 'Healthy' || !a.healthStatus) {
+          return {
+            ...a,
+            healthStatus: aiScan.healthStatus
+          };
+        }
+      }
+    } catch (e) {}
+    return a;
+  });
+
+  const filteredAnimals = effectiveAnimals.filter((a) => {
     const matchesSearch =
       (a.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.tagId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -297,17 +341,27 @@ export default function AnimalsList() {
                       </div>
                     </div>
 
-                    <span
-                      className={`text-xs sm:text-sm font-black px-3 py-1 rounded-full border shrink-0 ${
-                        animal.healthStatus === 'Healthy'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                          : animal.healthStatus === 'Needs Attention'
-                          ? 'bg-amber-50 text-amber-800 border-amber-300'
-                          : 'bg-red-50 text-red-800 border-red-300'
-                      }`}
-                    >
-                      ● {statusLabel}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`text-xs sm:text-sm font-black px-3 py-1 rounded-full border ${
+                          animal.healthStatus === 'Healthy'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : animal.healthStatus === 'Needs Attention'
+                            ? 'bg-amber-50 text-amber-800 border-amber-300'
+                            : 'bg-red-50 text-red-800 border-red-300'
+                        }`}
+                      >
+                        ● {statusLabel}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteAnimal(animal, e)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                        title={isEnglish ? 'Delete Animal' : 'जनावर हटवा'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="bg-stone-50 rounded-2xl p-3.5 border border-stone-200/70 text-sm space-y-1.5">
@@ -322,15 +376,66 @@ export default function AnimalsList() {
                       </span>
                     </div>
                   </div>
+
+                  {/* AI Scan Disease Badge (>85% Confidence Verified) */}
+                  {(() => {
+                    try {
+                      const aiScan = getAnimalAiScan(animal, currentLang);
+                      const conf = Number(aiScan?.confidence || aiScan?.confidenceScore || 0);
+                      if (!aiScan || conf <= 85) return null;
+                      const displayDisease = typeof aiScan.disease === 'string' ? aiScan.disease : (aiScan.disease?.name || 'Screening');
+                      return (
+                        <div className="flex items-center justify-between p-2.5 rounded-2xl bg-gradient-to-r from-emerald-50/90 to-teal-50/90 border border-emerald-300 text-xs shadow-2xs">
+                          <span className="font-bold text-emerald-950 flex items-center gap-1.5 truncate">
+                            <Sparkles className="w-3.5 h-3.5 text-emerald-700 shrink-0 animate-pulse" />
+                            <span className="truncate">AI: {displayDisease}</span>
+                          </span>
+                          <span className="font-mono font-black text-emerald-800 text-[11px] bg-emerald-200/80 px-2 py-0.5 rounded-md shrink-0">
+                            {conf}% {isEnglish ? 'Match' : 'अचूकता'}
+                          </span>
+                        </div>
+                      );
+                    } catch (e) {
+                      return null;
+                    }
+                  })()}
                 </div>
 
+                {/* Card Actions */}
                 <div className="pt-2 border-t border-stone-100 flex gap-2">
                   <button
-                    onClick={() => setSelectedAnimal(animal)}
-                    className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-sm sm:text-base font-black py-3 rounded-xl transition shadow-xs cursor-pointer"
+                    onClick={() => {
+                      setOpenAiRecForAnimal(null);
+                      setSelectedAnimal(animal);
+                    }}
+                    className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-sm sm:text-base font-black py-3 rounded-xl transition shadow-xs cursor-pointer active:scale-95"
                   >
                     {t('farmer_dash.view_details')}
                   </button>
+
+                  {(() => {
+                    try {
+                      const aiScan = getAnimalAiScan(animal, currentLang);
+                      const conf = Number(aiScan?.confidence || aiScan?.confidenceScore || 0);
+                      if (!aiScan || conf <= 85) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenAiRecForAnimal(animal);
+                            setSelectedAnimal(animal);
+                          }}
+                          className="px-3.5 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                          title={isEnglish ? 'View AI Recommendations Dialog' : isMarathi ? 'AI शिफारसी डायलॉग पहा' : 'AI सिफारिशें डायलॉग देखें'}
+                        >
+                          <Sparkles className="w-4 h-4 text-emerald-700 animate-pulse" />
+                          <span className="hidden sm:inline">{isEnglish ? 'AI Recommendations' : isMarathi ? 'AI शिफारसी' : 'AI सिफारिशें'}</span>
+                        </button>
+                      );
+                    } catch (e) {
+                      return null;
+                    }
+                  })()}
                 </div>
               </div>
             );
@@ -497,8 +602,12 @@ export default function AnimalsList() {
       {selectedAnimal && (
         <AnimalDetailModal
           animal={selectedAnimal}
-          onClose={() => setSelectedAnimal(null)}
+          onClose={() => {
+            setSelectedAnimal(null);
+            setOpenAiRecForAnimal(null);
+          }}
           onUpdate={handleModalUpdate}
+          initialOpenAiRecommendations={Boolean(openAiRecForAnimal && ((openAiRecForAnimal._id || openAiRecForAnimal.id || openAiRecForAnimal.tagId) === (selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId)))}
         />
       )}
     </div>

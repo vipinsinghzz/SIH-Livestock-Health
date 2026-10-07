@@ -49,7 +49,7 @@ class SyncService {
   setActiveFarmer(farmerId: string | null) {
     this.activeFarmerId = farmerId;
     this.notifyState();
-    if (this.currentStatus === 'ONLINE' && farmerId) {
+    if (farmerId) {
       this.syncNow(farmerId);
     }
   }
@@ -88,7 +88,7 @@ class SyncService {
         this.currentStatus = 'OFFLINE';
         await this.notifyState();
       } else {
-        if (this.currentStatus === 'OFFLINE') {
+        if (this.currentStatus === 'OFFLINE' || this.currentStatus === 'SYNC_ERROR') {
           this.currentStatus = 'ONLINE';
           await this.notifyState();
           // Network restored: trigger queue synchronization

@@ -186,6 +186,271 @@ export const INITIAL_ANIMALS = [
   }
 ];
 
+export const SURESH_CATTLE = [
+  {
+    _id: 'anim-sp-001',
+    tagId: 'NG-SP-101',
+    name: 'Lakshmi (लक्ष्मी)',
+    species: 'Cattle',
+    breed: 'Gir Cow (गीर)',
+    age: 4,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-28',
+    milkYieldDaily: '14.5 L',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
+      { name: 'Brucellosis (ब्रूसीलोसिस)', date: '2026-02-10', nextDue: '2027-02-10', status: 'Completed' },
+      { name: 'HS (गलघोंटू)', date: '2026-05-20', nextDue: '2026-11-20', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Routine Health Checkup', date: '28 Sep 2026', doctor: 'Dr. Amit Deshmukh', notes: 'Normal vitals, clear coat' }
+    ]
+  },
+  {
+    _id: 'anim-sp-002',
+    tagId: 'NG-SP-102',
+    name: 'Gauri (गौरी)',
+    species: 'Cattle',
+    breed: 'Gaolao Cow (गावळाऊ)',
+    age: 5,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-25',
+    milkYieldDaily: '12.0 L',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
+      { name: 'Blackleg (लंगड़ा बुखार)', date: '2026-04-10', nextDue: '2026-10-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Lactation & Pregnancy Examination', date: '25 Sep 2026', doctor: 'Dr. Amit Deshmukh', notes: '7 months pregnant, excellent body condition score 3.5/5' }
+    ]
+  },
+  {
+    _id: 'anim-sp-003',
+    tagId: 'NG-SP-103',
+    name: 'Kaali (काळी)',
+    species: 'Buffalo',
+    breed: 'Nagpuri Buffalo (नागपुरी)',
+    age: 4.5,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-20',
+    milkYieldDaily: '11.5 L',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
+      { name: 'HS (गलघोंटू)', date: '2026-05-20', nextDue: '2026-11-20', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Dairy Quality & Fat Inspection', date: '20 Sep 2026', doctor: 'Dr. Amit Deshmukh', notes: 'High butterfat content (7.8%)' }
+    ]
+  },
+  {
+    _id: 'anim-sp-004',
+    tagId: 'NG-SP-104',
+    name: 'Nandi (नंदी)',
+    species: 'Cattle',
+    breed: 'Khillari Bull (खिल्लारी)',
+    age: 6,
+    gender: 'Male',
+    healthStatus: 'Healthy',
+    milkYieldDaily: '0.0 L',
+    lastCheckup: '2026-09-01',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
+      { name: 'Anthrax (एंथ्रेक्स)', date: '2026-01-10', nextDue: '2027-01-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Fitness', title: 'Breeding & Draught Fitness Check', date: '01 Sep 2026', doctor: 'Dr. Amit Deshmukh', notes: 'Strong hooves, excellent muscle tone' }
+    ]
+  },
+  {
+    _id: 'anim-sp-005',
+    tagId: 'NG-SP-105',
+    name: 'Chotu (छोटू)',
+    species: 'Goat',
+    breed: 'Osmanabadi Buck (उस्मानाबादी)',
+    age: 2,
+    gender: 'Male',
+    healthStatus: 'Healthy',
+    milkYieldDaily: '0.0 L',
+    lastCheckup: '2026-09-15',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' },
+      { name: 'Enterotoxaemia (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
+    ]
+  },
+  {
+    _id: 'anim-sp-006',
+    tagId: 'NG-SP-106',
+    name: 'Raja (राजा)',
+    species: 'Sheep',
+    breed: 'Deccani Sheep (दख्खनी)',
+    age: 2.5,
+    gender: 'Male',
+    healthStatus: 'Healthy',
+    milkYieldDaily: '0.0 L',
+    lastCheckup: '2026-09-10',
+    village: 'Saoner Rural',
+    block: 'Saoner',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'Sheep Pox (माता रोग)', date: '2026-02-15', nextDue: '2027-02-15', status: 'Completed' },
+      { name: 'Enterotoxaemia (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
+    ]
+  }
+];
+
+export const SUNITA_GOATS = [
+  {
+    _id: 'anim-sm-001',
+    tagId: 'NG-SM-201',
+    name: 'Pari (परी)',
+    species: 'Goat',
+    breed: 'Berari (बेरारी)',
+    age: 2.5,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-26',
+    milkYieldDaily: '2.5 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' },
+      { name: 'Enterotoxaemia (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Routine Health Checkup', date: '26 Sep 2026', doctor: 'Dr. Amit Deshmukh', notes: 'Healthy appetite, normal coat, lively vitals' }
+    ]
+  },
+  {
+    _id: 'anim-sm-002',
+    tagId: 'NG-SM-202',
+    name: 'Champa (चंपा)',
+    species: 'Goat',
+    breed: 'Osmanabadi (उस्मानाबादी)',
+    age: 3,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-22',
+    milkYieldDaily: '3.0 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Gestation Assessment', date: '22 Sep 2026', doctor: 'Dr. Amit Deshmukh', notes: 'Pregnant, due in 4 weeks' }
+    ]
+  },
+  {
+    _id: 'anim-sm-003',
+    tagId: 'NG-SM-203',
+    name: 'Kamdhenu (कामधेनु)',
+    species: 'Cattle',
+    breed: 'Sahiwal Cow (साहिवाल)',
+    age: 4,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-28',
+    milkYieldDaily: '15.0 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
+      { name: 'Brucellosis (ब्रूसीलोसिस)', date: '2026-02-10', nextDue: '2027-02-10', status: 'Completed' },
+      { name: 'HS (गलघोंटू)', date: '2026-05-20', nextDue: '2026-11-20', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Lactation Check', title: 'Milk Yield Evaluation', date: '28 Sep 2026', doctor: 'Kamptee Veterinary Clinic', notes: 'Peak lactation, excellent milk fat' }
+    ]
+  },
+  {
+    _id: 'anim-sm-004',
+    tagId: 'NG-SM-204',
+    name: 'Yamuna (यमुना)',
+    species: 'Buffalo',
+    breed: 'Murrah Buffalo (मुर्राह)',
+    age: 5,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-21',
+    milkYieldDaily: '13.5 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'FMD (खुरपका-मुंहपका)', date: '2026-06-15', nextDue: '2026-12-15', status: 'Completed' },
+      { name: 'Blackleg (लंगड़ा बुखार)', date: '2026-04-10', nextDue: '2026-10-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Dairy Productivity Inspection', date: '21 Sep 2026', doctor: 'Kamptee Veterinary Clinic', notes: 'High yield buffalo, 8.1% milk fat' }
+    ]
+  },
+  {
+    _id: 'anim-sm-005',
+    tagId: 'NG-SM-205',
+    name: 'Sundari (सुंदरी)',
+    species: 'Sheep',
+    breed: 'Deccani Sheep (दख्खनी)',
+    age: 2,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-24',
+    milkYieldDaily: '0.8 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'Sheep Pox (माता रोग)', date: '2026-02-15', nextDue: '2027-02-15', status: 'Completed' },
+      { name: 'ET (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Health Check', title: 'Flock Health Verification', date: '24 Sep 2026', notes: 'Active grazer, good fleece' }
+    ]
+  },
+  {
+    _id: 'anim-sm-006',
+    tagId: 'NG-SM-206',
+    name: 'Chandni (चांदनी)',
+    species: 'Goat',
+    breed: 'Sirohi (सिरोही)',
+    age: 1.5,
+    gender: 'Female',
+    healthStatus: 'Healthy',
+    lastCheckup: '2026-09-18',
+    milkYieldDaily: '1.8 L',
+    village: 'Yerkheda',
+    block: 'Kamptee',
+    district: 'Nagpur',
+    vaccinations: [
+      { name: 'PPR (बकरी प्लेग)', date: '2026-01-15', nextDue: '2027-01-15', status: 'Completed' },
+      { name: 'Enterotoxaemia (ईटी)', date: '2026-05-10', nextDue: '2026-11-10', status: 'Completed' }
+    ],
+    timeline: [
+      { type: 'Growth Check', title: 'First Year Growth Score', date: '18 Sep 2026', notes: 'Weight: 27 kg, alert and healthy' }
+    ]
+  }
+];
+
 export const animalService = {
   getCacheKey() {
     try {
@@ -201,8 +466,9 @@ export const animalService = {
     try {
       const response = await api.get('/animals');
       // Backend returns { success: true, count: N, animals: [...] }
-      const animals = response.data?.animals ?? (Array.isArray(response.data) ? response.data : null);
-      if (animals !== null && animals.length > 0) {
+      const rawAnimals = response.data?.animals ?? (Array.isArray(response.data) ? response.data : null);
+      if (rawAnimals !== null && rawAnimals.length > 0) {
+        const animals = rawAnimals.filter(a => !(a.name && a.name.toLowerCase() === 'hnf'));
         const cacheKey = this.getCacheKey();
         localStorage.setItem(cacheKey, JSON.stringify(animals));
         return animals;
@@ -217,10 +483,26 @@ export const animalService = {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const sanitized = parsed.filter(a => !(a.name && a.name.toLowerCase() === 'hnf'));
+          return sanitized;
         }
       } catch (err) {}
     }
+
+    // Role and user-specific fallback
+    try {
+      const user = JSON.parse(localStorage.getItem('pashurakshak_user') || '{}');
+      if (user.email === 'sunita@pashurakshak.in' || (user.name && user.name.includes('Sunita'))) {
+        return SUNITA_GOATS;
+      }
+      if (
+        user.email === 'farmer@pashurakshak.in' ||
+        user.email === 'suresh@pashurakshak.in' ||
+        (user.name && user.name.includes('Suresh'))
+      ) {
+        return SURESH_CATTLE;
+      }
+    } catch (e) {}
 
     // Lively fallback guarantees the interface always displays complete, realistic Nagpur livestock
     return INITIAL_ANIMALS;
@@ -329,6 +611,23 @@ export const animalService = {
     const cacheKey = this.getCacheKey();
     localStorage.setItem(cacheKey, JSON.stringify(updated));
     return updatedAnimal || updated.find(a => (a._id === animalId || a.id === animalId || a.tagId === animalId));
+  },
+
+  async deleteAnimal(animalId) {
+    if (!animalId) return false;
+    try {
+      await api.delete(`/animals/${animalId}`);
+    } catch (e) {
+      console.warn('Backend delete animal error:', e.message);
+    }
+
+    const animals = await this.getAnimals();
+    const filtered = animals.filter(
+      (a) => a._id !== animalId && a.id !== animalId && a.tagId !== animalId && (a.name || '').toLowerCase() !== String(animalId).toLowerCase()
+    );
+    const cacheKey = this.getCacheKey();
+    localStorage.setItem(cacheKey, JSON.stringify(filtered));
+    return true;
   }
 };
 

@@ -29,6 +29,7 @@ import {
 import { useRouter } from 'expo-router';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useAppLanguage } from '../../../src/services/i18n';
 import { colors, spacing, radii, typography, shadows } from '../../../src/theme';
 import vaccinationService from '../../../src/services/vaccinationService';
 import { VaccinationDrive } from '../../../src/types/vaccination';
@@ -39,6 +40,8 @@ type CampaignFilter = 'ALL' | 'UPCOMING' | 'ONGOING' | 'COMPLETED';
 export default function OfficerVaccinationScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isEnglish, isMarathi, isHindi, t } = useAppLanguage();
+  const tr = (en: string, mr: string, hi: string) => (isEnglish ? en : isMarathi ? (mr || en) : (hi || mr || en));
   const district = user?.district;
 
   // State
@@ -72,7 +75,7 @@ export default function OfficerVaccinationScreen() {
 
   const loadDrives = useCallback(async () => {
     if (!district) {
-      setError('Officer district jurisdiction is not configured on this account. Contact system administrator.');
+      setError(tr('Officer district jurisdiction is not configured on this account. Contact system administrator.', 'या खात्यावर अधिकारी जिल्हा कार्यक्षेत्र निश्चित केलेले नाही. प्रशासकाशी संपर्क साधा.', 'अधिकारी ज़िला कार्यक्षेत्र कॉन्फ़िगर नहीं है। सिस्टम एडमिनिस्ट्रेटर से संपर्क करें।'));
       setLoading(false);
       setRefreshing(false);
       return;
@@ -88,12 +91,12 @@ export default function OfficerVaccinationScreen() {
       setDrives(res || []);
     } catch (err: any) {
       console.warn('[OfficerVaccination] Error loading drives:', err.message);
-      setError(err.message || 'Failed to load vaccination campaigns.');
+      setError(err.message || tr('Failed to load vaccination campaigns.', 'लसीकरण मोहिमा लोड करण्यात अडचण.', 'टीकाकरण अभियान लोड करने में समस्या।'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [district]);
+  }, [district, tr]);
 
   useEffect(() => {
     loadDrives();
@@ -150,22 +153,34 @@ export default function OfficerVaccinationScreen() {
   // Handle create campaign
   const handleCreateSubmit = async () => {
     if (!district) {
-      Alert.alert('District Unavailable', 'Cannot create vaccination campaign without an assigned officer district.');
+      Alert.alert(
+        tr('District Unavailable', 'जिल्हा अनुपलब्ध', 'ज़िला अनुपलब्ध'),
+        tr('Cannot create vaccination campaign without an assigned officer district.', 'नियुक्त जिल्ह्याशिवाय लसीकरण मोहीम सुरू करता येत नाही.', 'नियुक्त ज़िले के बिना टीकाकरण अभियान स्थापित नहीं किया जा सकता।')
+      );
       return;
     }
 
     if (!newVaccine.trim()) {
-      Alert.alert('Required Field', 'Please enter a vaccine name.');
+      Alert.alert(
+        tr('Required Field', 'आवश्यक माहिती', 'आवश्यक जानकारी'),
+        tr('Please enter a vaccine name.', 'कृपया लसीचे नाव प्रविष्ट करा.', 'कृपया टीका नाम दर्ज करें।')
+      );
       return;
     }
     if (!newVillage.trim() || !newBlock.trim()) {
-      Alert.alert('Required Fields', 'Target village and block are required.');
+      Alert.alert(
+        tr('Required Fields', 'आवश्यक माहिती', 'आवश्यक जानकारी'),
+        tr('Target village and block are required.', 'लक्ष्य गाव आणि तालुका आवश्यक आहेत.', 'लक्षित गाँव एवं ब्लॉक अनिवार्य हैं।')
+      );
       return;
     }
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected || netState.isInternetReachable === false) {
-      Alert.alert('Offline', 'Internet connection required for this action.');
+      Alert.alert(
+        tr('Offline', 'ऑफलाइन', 'ऑफ़लाइन'),
+        tr('Internet connection required for this action.', 'या कृतीसाठी इंटरनेट कनेक्शन आवश्यक आहे.', 'इस कार्रवाई के लिए इंटरनेट आवश्यक है।')
+      );
       return;
     }
 
@@ -192,10 +207,16 @@ export default function OfficerVaccinationScreen() {
       setNewVillage('');
       setNewVenue('');
       setNewNotes('');
-      Alert.alert('Campaign Established', res.message || 'Vaccination drive established successfully.');
+      Alert.alert(
+        tr('Campaign Established', 'मोहीम सुरू झाली', 'अभियान स्थापित'),
+        res.message || tr('Vaccination drive established successfully.', 'लसीकरण मोहीम यशस्वीरीत्या सुरू करण्यात आली.', 'टीकाकरण अभियान सफलतापूर्वक स्थापित किया गया।')
+      );
       loadDrives();
     } catch (err: any) {
-      Alert.alert('Creation Failed', err.message || 'Failed to create vaccination campaign.');
+      Alert.alert(
+        tr('Creation Failed', 'मोहीम सुरू अयशस्वी', 'अभियान स्थापना विफल'),
+        err.message || tr('Failed to create vaccination campaign.', 'लसीकरण मोहीम सुरू करण्यात अयशस्वी.', 'टीकाकरण अभियान बनाने में विफलता।')
+      );
     } finally {
       setSubmittingCreate(false);
     }
@@ -206,13 +227,19 @@ export default function OfficerVaccinationScreen() {
     if (!selectedDrive) return;
 
     if (!district) {
-      Alert.alert('District Unavailable', 'Cannot update campaign progress without an assigned officer district.');
+      Alert.alert(
+        tr('District Unavailable', 'जिल्हा अनुपलब्ध', 'ज़िला अनुपलब्ध'),
+        tr('Cannot update campaign progress without an assigned officer district.', 'नियुक्त जिल्ह्याशिवाय मोहीम प्रगती अद्ययावत करता येत नाही.', 'नियुक्त ज़िले के बिना अभियान प्रगति अपडेट नहीं की जा सकती।')
+      );
       return;
     }
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected || netState.isInternetReachable === false) {
-      Alert.alert('Offline', 'Internet connection required for this action.');
+      Alert.alert(
+        tr('Offline', 'ऑफलाइन', 'ऑफ़लाइन'),
+        tr('Internet connection required for this action.', 'या कृतीसाठी इंटरनेट कनेक्शन आवश्यक आहे.', 'इस कार्रवाई के लिए इंटरनेट आवश्यक है।')
+      );
       return;
     }
 
@@ -229,10 +256,16 @@ export default function OfficerVaccinationScreen() {
       setUpdateModalVisible(false);
       setSelectedDrive(null);
       setUpdateCovered('');
-      Alert.alert('Progress Updated', res.message || 'Campaign progress updated successfully.');
+      Alert.alert(
+        tr('Progress Updated', 'प्रगती अद्ययावत', 'प्रगति अपडेट'),
+        res.message || tr('Campaign progress updated successfully.', 'मोहीम प्रगती यशस्वीरीत्या नोंदवली.', 'अभियान प्रगति सफलतापूर्वक अपडेट की गई।')
+      );
       loadDrives();
     } catch (err: any) {
-      Alert.alert('Update Failed', err.message || 'Failed to update campaign progress.');
+      Alert.alert(
+        tr('Update Failed', 'अद्ययावत अयशस्वी', 'अपडेट विफल'),
+        err.message || tr('Failed to update campaign progress.', 'मोहीम प्रगती अद्ययावत करण्यात अडचण.', 'अभियान प्रगति अपडेट करने में समस्या।')
+      );
     } finally {
       setSubmittingUpdate(false);
     }
@@ -247,11 +280,13 @@ export default function OfficerVaccinationScreen() {
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <View>
-            <Text style={styles.headerTitle}>Mass Vaccination Governance</Text>
+            <Text style={styles.headerTitle}>
+              {tr('Mass Vaccination Governance', 'सामूहिक लसीकरण व्यवस्थापन', 'सामूहिक टीकाकरण प्रशासन')}
+            </Text>
             <Text style={styles.headerSubtitle}>
               {district
-                ? `${district} District • ${kpis.ongoingCount} Ongoing Campaign${kpis.ongoingCount !== 1 ? 's' : ''}`
-                : 'District Jurisdiction Unavailable'}
+                ? `${district} ${tr('District', 'जिल्हा', 'ज़िला')} • ${kpis.ongoingCount} ${tr('Ongoing Campaigns', 'सक्रिय मोहिमा', 'सक्रिय अभियान')}`
+                : tr('District Jurisdiction Unavailable', 'जिल्हा कार्यक्षेत्र अनुपलब्ध', 'ज़िला क्षेत्राधिकार अनुपलब्ध')}
             </Text>
           </View>
           <TouchableOpacity
@@ -259,14 +294,16 @@ export default function OfficerVaccinationScreen() {
             onPress={() => setCreateModalVisible(true)}
             activeOpacity={0.8}
           >
-            <Text style={styles.createBtnText}>+ New Campaign</Text>
+            <Text style={styles.createBtnText}>
+              {tr('+ New Campaign', '+ नवीन मोहीम', '+ नया अभियान')}
+            </Text>
           </TouchableOpacity>
         </View>
 
         {isOffline && (
           <View style={styles.cacheBanner}>
             <Text style={styles.cacheBannerText}>
-              ⚡ Offline Mode: Displaying saved campaigns from device cache.
+              {tr('⚡ Offline Mode: Displaying saved campaigns from device cache.', '⚡ ऑफलाइन मोड: डिव्हाइस कॅशमधील मोहिमा दाखवल्या जात आहेत.', '⚡ ऑफ़लाइन मोड: डिवाइस पर सहेजे गए अभियान प्रदर्शित किए जा रहे हैं।')}
             </Text>
           </View>
         )}
@@ -277,21 +314,21 @@ export default function OfficerVaccinationScreen() {
         <View style={styles.kpiRow}>
           <View style={styles.kpiItem}>
             <Text style={styles.kpiValue}>{kpis.totalTarget}</Text>
-            <Text style={styles.kpiLabel}>Target Herd</Text>
+            <Text style={styles.kpiLabel}>{tr('Target Herd', 'लक्षित जनावरे', 'लक्षित पशु')}</Text>
           </View>
           <View style={styles.kpiDivider} />
           <View style={styles.kpiItem}>
             <Text style={[styles.kpiValue, { color: colors.light.success }]}>
               {kpis.totalCovered}
             </Text>
-            <Text style={styles.kpiLabel}>Vaccinated</Text>
+            <Text style={styles.kpiLabel}>{tr('Vaccinated', 'लसीकरण पूर्ण', 'टीकाकरण पूर्ण')}</Text>
           </View>
           <View style={styles.kpiDivider} />
           <View style={styles.kpiItem}>
             <Text style={[styles.kpiValue, { color: colors.light.officerBadge }]}>
               {kpis.coveragePct}%
             </Text>
-            <Text style={styles.kpiLabel}>District Shield</Text>
+            <Text style={styles.kpiLabel}>{tr('District Shield', 'जिल्हा संरक्षण', 'जिला सुरक्षा')}</Text>
           </View>
         </View>
       </View>
@@ -304,7 +341,7 @@ export default function OfficerVaccinationScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.tabChipText, activeFilter === 'ALL' && styles.tabChipTextActive]}>
-            All ({drives.length})
+            {tr('All', 'सर्व', 'सभी')} ({drives.length})
           </Text>
         </TouchableOpacity>
 
@@ -314,7 +351,7 @@ export default function OfficerVaccinationScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.tabChipText, activeFilter === 'ONGOING' && styles.tabChipTextActive]}>
-            ⚡ Ongoing ({kpis.ongoingCount})
+            ⚡ {tr('Ongoing', 'सक्रिय', 'सक्रिय')} ({kpis.ongoingCount})
           </Text>
         </TouchableOpacity>
 
@@ -324,7 +361,7 @@ export default function OfficerVaccinationScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.tabChipText, activeFilter === 'UPCOMING' && styles.tabChipTextActive]}>
-            📅 Upcoming ({kpis.upcomingCount})
+            📅 {tr('Upcoming', 'नियोजित', 'आगामी')} ({kpis.upcomingCount})
           </Text>
         </TouchableOpacity>
 
@@ -334,7 +371,7 @@ export default function OfficerVaccinationScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.tabChipText, activeFilter === 'COMPLETED' && styles.tabChipTextActive]}>
-            ✓ Completed ({kpis.completedCount})
+            ✓ {tr('Completed', 'पूर्ण', 'पूर्ण')} ({kpis.completedCount})
           </Text>
         </TouchableOpacity>
       </View>
@@ -342,15 +379,21 @@ export default function OfficerVaccinationScreen() {
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={colors.light.officerBadge} />
-          <Text style={styles.loadingText}>Loading district vaccination campaigns...</Text>
+          <Text style={styles.loadingText}>
+            {tr('Loading district vaccination campaigns...', 'जिल्हा लसीकरण मोहिमा लोड होत आहेत...', 'ज़िला टीकाकरण अभियान लोड हो रहे हैं...')}
+          </Text>
         </View>
       ) : error && drives.length === 0 ? (
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorTitle}>Campaign Data Unavailable</Text>
+          <Text style={styles.errorTitle}>
+            {tr('Campaign Data Unavailable', 'मोहीम डेटा अनुपलब्ध', 'अभियान डेटा अनुपलब्ध')}
+          </Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadDrives} activeOpacity={0.8}>
-            <Text style={styles.retryBtnText}>Retry Loading</Text>
+            <Text style={styles.retryBtnText}>
+              {tr('Retry Loading', 'पुन्हा प्रयत्न करा', 'पुनः प्रयास करें')}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -369,11 +412,13 @@ export default function OfficerVaccinationScreen() {
           {filteredDrives.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyIcon}>⛺</Text>
-              <Text style={styles.emptyTitle}>No Vaccination Campaigns Found</Text>
+              <Text style={styles.emptyTitle}>
+                {tr('No Vaccination Campaigns Found', 'कोणतीही लसीकरण मोहीम आढळली नाही', 'कोई टीकाकरण अभियान नहीं मिला')}
+              </Text>
               <Text style={styles.emptySub}>
                 {drives.length === 0
-                  ? `No vaccination drives scheduled in ${district} district.`
-                  : 'No campaigns match the selected filter.'}
+                  ? tr(`No vaccination drives scheduled in ${district} district.`, `${district} जिल्ह्यात कोणत्याही लसीकरण मोहिमा नियोजित नाहीत.`, `${district} ज़िले में कोई टीकाकरण अभियान निर्धारित नहीं है।`)
+                  : tr('No campaigns match the selected filter.', 'निवडलेल्या निकषानुसार मोहिमा आढळल्या नाहीत.', 'चयनित फ़िल्टर के अनुसार कोई अभियान नहीं मिला।')}
               </Text>
             </View>
           ) : (
@@ -398,7 +443,9 @@ export default function OfficerVaccinationScreen() {
                       {drive.vaccineFullName && drive.vaccineFullName !== drive.vaccine && (
                         <Text style={styles.vaccineFullName}>{drive.vaccineFullName}</Text>
                       )}
-                      <Text style={styles.speciesText}>Target: {drive.targetSpecies || 'Cattle & Buffalo'}</Text>
+                      <Text style={styles.speciesText}>
+                        {tr('Target:', 'लक्ष्य:', 'लक्षित:')} {drive.targetSpecies || tr('Cattle & Buffalo', 'गाय व म्हैस', 'गाय एवं भैंस')}
+                      </Text>
                     </View>
                     <View
                       style={[
@@ -410,14 +457,20 @@ export default function OfficerVaccinationScreen() {
                           : styles.badgeUpcoming,
                       ]}
                     >
-                      <Text style={styles.statusBadgeText}>{drive.status}</Text>
+                      <Text style={styles.statusBadgeText}>
+                        {isCompleted
+                          ? tr('Completed', 'पूर्ण', 'पूर्ण')
+                          : isOngoing
+                          ? tr('Ongoing', 'सक्रिय', 'सक्रिय')
+                          : tr('Upcoming', 'आगामी', 'आगामी')}
+                      </Text>
                     </View>
                   </View>
 
                   {/* Location & Hospital */}
                   <View style={styles.locationBox}>
                     <Text style={styles.locationText}>
-                      📍 {drive.venue || `Veterinary Dispensary, ${drive.village}`} ({drive.block})
+                      📍 {drive.venue || `${tr('Veterinary Dispensary', 'पशुवैद्यकीय दवाखाना', 'पशु चिकित्सालय')}, ${drive.village}`} ({drive.block})
                     </Text>
                     {drive.organizingHospital && (
                       <Text style={styles.hospitalText}>🏥 {drive.organizingHospital}</Text>
@@ -427,7 +480,9 @@ export default function OfficerVaccinationScreen() {
                   {/* Progress Section */}
                   <View style={styles.progressContainer}>
                     <View style={styles.progressLabelRow}>
-                      <Text style={styles.progressLabel}>Coverage Progress</Text>
+                      <Text style={styles.progressLabel}>
+                        {tr('Coverage Progress', 'कव्हरेज प्रगती', 'कवरेज प्रगति')}
+                      </Text>
                       <Text style={styles.progressNumbers}>
                         {covered} / {target} ({pct}%)
                       </Text>
@@ -450,9 +505,11 @@ export default function OfficerVaccinationScreen() {
                   {/* Footer & Actions */}
                   <View style={styles.cardFooter}>
                     <View style={styles.dateInfo}>
-                      <Text style={styles.dateLabel}>Date / Hours:</Text>
+                      <Text style={styles.dateLabel}>
+                        {tr('Date / Hours:', 'तारीख / वेळ:', 'तिथि / समय:')}
+                      </Text>
                       <Text style={styles.dateValue}>
-                        {drive.campDate ? new Date(drive.campDate).toLocaleDateString() : 'Active Drive'}
+                        {drive.campDate ? new Date(drive.campDate).toLocaleDateString() : tr('Active Drive', 'सक्रिय मोहीम', 'सक्रिय अभियान')}
                         {drive.startTime ? ` • ${drive.startTime}` : ''}
                       </Text>
                     </View>
@@ -467,7 +524,9 @@ export default function OfficerVaccinationScreen() {
                       }}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.updateBtnText}>Update Progress ➔</Text>
+                      <Text style={styles.updateBtnText}>
+                        {tr('Update Progress ➔', 'प्रगती नोंदवा ➔', 'प्रगति दर्ज करें ➔')}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -482,39 +541,41 @@ export default function OfficerVaccinationScreen() {
         <View style={styles.modalOverlay}>
           <ScrollView contentContainerStyle={styles.modalScrollContainer}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Establish Vaccination Campaign</Text>
+              <Text style={styles.modalTitle}>
+                {tr('Establish Vaccination Campaign', 'लसीकरण मोहीम नियोजन', 'टीकाकरण अभियान स्थापित करें')}
+              </Text>
               <Text style={styles.modalDesc}>
-                Create an official government mass vaccination camp in {district}.
+                {tr(`Create an official government mass vaccination camp in ${district}.`, `${district} जिल्ह्यात अधिकृत शासकीय सामूहिक लसीकरण शिबिर आखा.`, `${district} ज़िले में आधिकारिक सरकारी सामूहिक टीकाकरण शिविर स्थापित करें।`)}
               </Text>
 
-              <Text style={styles.inputLabel}>Vaccine Name *</Text>
+              <Text style={styles.inputLabel}>{tr('Vaccine Name *', 'लसीचे नाव *', 'टीका नाम *')}</Text>
               <TextInput
                 style={styles.singleLineInput}
-                placeholder="e.g. FMD Oil Adjuvant / Goat Pox"
+                placeholder={tr('e.g. FMD Oil Adjuvant / Goat Pox', 'उदा. FMD लस / गोट पॉक्स', 'उदा. एफएमडी / गोट पॉक्स')}
                 value={newVaccine}
                 onChangeText={setNewVaccine}
               />
 
-              <Text style={styles.inputLabel}>Full Scientific Name</Text>
+              <Text style={styles.inputLabel}>{tr('Full Scientific Name', 'संपूर्ण वैज्ञानिक नाव', 'पूर्ण वैज्ञानिक नाम')}</Text>
               <TextInput
                 style={styles.singleLineInput}
-                placeholder="e.g. Foot and Mouth Disease Quadrivalent"
+                placeholder={tr('e.g. Foot and Mouth Disease Quadrivalent', 'उदा. लाळ खुरकत लस', 'उदा. खुरपका-मुँहपका चतुर्संयोजी')}
                 value={newVaccineFullName}
                 onChangeText={setNewVaccineFullName}
               />
 
               <View style={styles.rowInputs}>
                 <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Target Species</Text>
+                  <Text style={styles.inputLabel}>{tr('Target Species', 'लक्षित प्रजाती', 'लक्षित प्रजाति')}</Text>
                   <TextInput
                     style={styles.singleLineInput}
-                    placeholder="e.g. Bovine, Ovine"
+                    placeholder={tr('e.g. Bovine, Ovine', 'उदा. गाय, म्हैस, शेळी', 'उदा. गोवंश, भेड़-बकरी')}
                     value={newSpecies}
                     onChangeText={setNewSpecies}
                   />
                 </View>
                 <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Target Quantity *</Text>
+                  <Text style={styles.inputLabel}>{tr('Target Quantity *', 'लक्षित संख्या *', 'लक्षित संख्या *')}</Text>
                   <TextInput
                     style={styles.singleLineInput}
                     placeholder="500"
@@ -527,36 +588,36 @@ export default function OfficerVaccinationScreen() {
 
               <View style={styles.rowInputs}>
                 <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Block *</Text>
+                  <Text style={styles.inputLabel}>{tr('Block *', 'तालुका *', 'ब्लॉक *')}</Text>
                   <TextInput
                     style={styles.singleLineInput}
-                    placeholder="e.g. Saoner"
+                    placeholder={tr('e.g. Saoner', 'उदा. सावनेर', 'उदा. सावनेर')}
                     value={newBlock}
                     onChangeText={setNewBlock}
                   />
                 </View>
                 <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Village *</Text>
+                  <Text style={styles.inputLabel}>{tr('Village *', 'गाव *', 'गाँव *')}</Text>
                   <TextInput
                     style={styles.singleLineInput}
-                    placeholder="e.g. Kelwad"
+                    placeholder={tr('e.g. Kelwad', 'उदा. केळवद', 'उदा. केलवद')}
                     value={newVillage}
                     onChangeText={setNewVillage}
                   />
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Venue / Veterinary Facility</Text>
+              <Text style={styles.inputLabel}>{tr('Venue / Veterinary Facility', 'ठिकाण / पशुवैद्यकीय संस्था', 'स्थान / पशु चिकित्सा केंद्र')}</Text>
               <TextInput
                 style={styles.singleLineInput}
-                placeholder="e.g. Primary Veterinary Dispensary, Saoner"
+                placeholder={tr('e.g. Primary Veterinary Dispensary, Saoner', 'उदा. प्राथमिक पशुवैद्यकीय दवाखाना, सावनेर', 'उदा. प्राथमिक पशु चिकित्सालय, सावनेर')}
                 value={newVenue}
                 onChangeText={setNewVenue}
               />
 
               <View style={styles.rowInputs}>
                 <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>Start Date</Text>
+                  <Text style={styles.inputLabel}>{tr('Start Date', 'आरंभ तारीख', 'आरंभ तिथि')}</Text>
                   <TextInput
                     style={styles.singleLineInput}
                     placeholder="YYYY-MM-DD"
@@ -565,7 +626,7 @@ export default function OfficerVaccinationScreen() {
                   />
                 </View>
                 <View style={styles.flex1}>
-                  <Text style={styles.inputLabel}>End Date</Text>
+                  <Text style={styles.inputLabel}>{tr('End Date', 'समाप्ती तारीख', 'समाप्ति तिथि')}</Text>
                   <TextInput
                     style={styles.singleLineInput}
                     placeholder="YYYY-MM-DD"
@@ -575,10 +636,10 @@ export default function OfficerVaccinationScreen() {
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Campaign Guidelines & Logistics Notes</Text>
+              <Text style={styles.inputLabel}>{tr('Campaign Guidelines & Logistics Notes', 'मोहीम मार्गदर्शक सूचना व लॉजिस्टिक्स', 'अभियान दिशानिर्देश एवं रसद निर्देश')}</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Cold-chain parameters, mobile team roster..."
+                placeholder={tr('Cold-chain parameters, mobile team roster...', 'कोल्ड-चेन पॅरामीटर्स, फिरते पथक नियोजन...', 'शीत-श्रृंखला मानक, मोबाइल दल तैनाती...')}
                 value={newNotes}
                 onChangeText={setNewNotes}
                 multiline
@@ -591,7 +652,7 @@ export default function OfficerVaccinationScreen() {
                   onPress={() => setCreateModalVisible(false)}
                   disabled={submittingCreate}
                 >
-                  <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                  <Text style={styles.modalCancelBtnText}>{tr('Cancel', 'रद्द करा', 'रद्द करें')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -602,7 +663,9 @@ export default function OfficerVaccinationScreen() {
                   {submittingCreate ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.modalConfirmBtnText}>Establish Drive</Text>
+                    <Text style={styles.modalConfirmBtnText}>
+                      {tr('Establish Drive', 'मोहीम सुरू करा', 'अभियान स्थापित करें')}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -615,12 +678,16 @@ export default function OfficerVaccinationScreen() {
       <Modal visible={updateModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Update Campaign Progress</Text>
+            <Text style={styles.modalTitle}>
+              {tr('Update Campaign Progress', 'मोहीम प्रगती अद्ययावत करा', 'अभियान प्रगति अपडेट करें')}
+            </Text>
             <Text style={styles.modalDesc}>
               {selectedDrive?.vaccine} ({selectedDrive?.village}, {selectedDrive?.block})
             </Text>
 
-            <Text style={styles.inputLabel}>Total Vaccinated Animals Count:</Text>
+            <Text style={styles.inputLabel}>
+              {tr('Total Vaccinated Animals Count:', 'एकूण लसीकरण झालेल्या जनावरांची संख्या:', 'कुल टीकाकरण किए गए पशुओं की संख्या:')}
+            </Text>
             <TextInput
               style={styles.singleLineInput}
               placeholder="e.g. 250"
@@ -629,7 +696,7 @@ export default function OfficerVaccinationScreen() {
               onChangeText={setUpdateCovered}
             />
 
-            <Text style={styles.inputLabel}>Campaign Status:</Text>
+            <Text style={styles.inputLabel}>{tr('Campaign Status:', 'मोहीम स्थिती:', 'अभियान स्थिति:')}</Text>
             <View style={styles.statusSelectRow}>
               <TouchableOpacity
                 style={[
@@ -638,7 +705,7 @@ export default function OfficerVaccinationScreen() {
                 ]}
                 onPress={() => setUpdateStatus('Upcoming')}
               >
-                <Text style={styles.statusSelectText}>Upcoming</Text>
+                <Text style={styles.statusSelectText}>{tr('Upcoming', 'आगामी', 'आगामी')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -647,7 +714,7 @@ export default function OfficerVaccinationScreen() {
                 ]}
                 onPress={() => setUpdateStatus('Ongoing')}
               >
-                <Text style={styles.statusSelectText}>Ongoing</Text>
+                <Text style={styles.statusSelectText}>{tr('Ongoing', 'सक्रिय', 'सक्रिय')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -656,7 +723,7 @@ export default function OfficerVaccinationScreen() {
                 ]}
                 onPress={() => setUpdateStatus('Completed')}
               >
-                <Text style={styles.statusSelectText}>Completed</Text>
+                <Text style={styles.statusSelectText}>{tr('Completed', 'पूर्ण', 'पूर्ण')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -669,7 +736,7 @@ export default function OfficerVaccinationScreen() {
                 }}
                 disabled={submittingUpdate}
               >
-                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+                <Text style={styles.modalCancelBtnText}>{tr('Cancel', 'रद्द करा', 'रद्द करें')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -680,7 +747,9 @@ export default function OfficerVaccinationScreen() {
                 {submittingUpdate ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalConfirmBtnText}>Save Progress</Text>
+                  <Text style={styles.modalConfirmBtnText}>
+                    {tr('Save Progress', 'प्रगती जतन करा', 'प्रगति सुरक्षित करें')}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>

@@ -44,7 +44,7 @@ export default function OfficerMapScreen() {
   const { user } = useAuth();
   const { t } = useAppLanguage();
 
-  const district = user?.district || 'Nagpur';
+  const district = (user?.district || 'Nagpur').split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
   // Spatial datasets
   const [containmentZones, setContainmentZones] = useState<ContainmentZone[]>([]);
@@ -323,15 +323,15 @@ export default function OfficerMapScreen() {
                     {selectedEntity.type === 'zone'
                       ? '🛡️ Containment Zone'
                       : selectedEntity.type === 'cluster'
-                      ? '🔶 Outbreak Cluster'
-                      : '📍 Clinical Disease Case'}
+                        ? '🔶 Outbreak Cluster'
+                        : '📍 Clinical Disease Case'}
                   </Text>
                   <Text style={styles.cardMainTitle}>
                     {selectedEntity.type === 'zone'
                       ? selectedEntity.data.disease
                       : selectedEntity.type === 'cluster'
-                      ? selectedEntity.data.disease
-                      : selectedEntity.data.disease}
+                        ? selectedEntity.data.disease
+                        : selectedEntity.data.disease}
                   </Text>
                 </View>
                 <TouchableOpacity

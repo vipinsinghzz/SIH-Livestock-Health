@@ -41,6 +41,7 @@ const FONT_SEMIBOLD = Platform.select({ ios: 'System', android: 'sans-serif-medi
 const FONT_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
 
 const SPECIES_OPTIONS = ['All', 'Cattle', 'Buffalo', 'Goat', 'Sheep'];
+const CONDITION_OPTIONS = ['All', 'Healthy', 'Needs Attention', 'Critical'];
 
 export default function FarmerAnimalsScreen() {
   const router = useRouter();
@@ -51,6 +52,7 @@ export default function FarmerAnimalsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSpecies, setSelectedSpecies] = useState('All');
+  const [selectedCondition, setSelectedCondition] = useState('All');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Floating up/down levitation animation for AI bot
@@ -121,6 +123,25 @@ export default function FarmerAnimalsScreen() {
     };
   }, [animals]);
 
+  // Condition counts for chips
+  const conditionCounts = useMemo(() => {
+    let healthy = 0;
+    let attention = 0;
+    let critical = 0;
+    animals.forEach((a) => {
+      const s = (a.healthStatus || 'Healthy').toLowerCase().trim();
+      if (s === 'critical') critical++;
+      else if (s === 'needs attention' || s.includes('attention') || s.includes('urgent') || s.includes('risk')) attention++;
+      else healthy++;
+    });
+    return {
+      All: animals.length,
+      Healthy: healthy,
+      'Needs Attention': attention,
+      Critical: critical,
+    };
+  }, [animals]);
+
   // Species counts for chips
   const speciesCounts = useMemo(() => {
     const counts: Record<string, number> = { All: animals.length };
@@ -167,6 +188,17 @@ export default function FarmerAnimalsScreen() {
           return false;
         }
       }
+      if (selectedCondition !== 'All') {
+        const condLower = selectedCondition.toLowerCase();
+        const statusLower = (animal.healthStatus || 'Healthy').toLowerCase();
+        if (condLower === 'healthy') {
+          if (statusLower !== 'healthy' && statusLower !== 'normal') return false;
+        } else if (condLower === 'needs attention') {
+          if (!statusLower.includes('attention') && !statusLower.includes('urgent') && !statusLower.includes('risk')) return false;
+        } else if (condLower === 'critical') {
+          if (statusLower !== 'critical') return false;
+        }
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = animal.name?.toLowerCase().includes(q);
@@ -196,7 +228,7 @@ export default function FarmerAnimalsScreen() {
       // Tertiary tie-breaker: name
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [animals, selectedSpecies, searchQuery]);
+  }, [animals, selectedSpecies, selectedCondition, searchQuery]);
 
   // Hand-painted species avatars
   const getSpeciesAvatar = (species: string) => {
@@ -357,22 +389,34 @@ export default function FarmerAnimalsScreen() {
         {/* QUICK HERD HEALTH SUMMARY PILLS */}
         {/* ======================================================== */}
         <View style={styles.statsSummaryDeck}>
-          <View style={styles.statMiniCard}>
+          <TouchableOpacity
+            style={[styles.statMiniCard, selectedCondition === 'All' && { backgroundColor: '#E2E8F0' }]}
+            onPress={() => setSelectedCondition('All')}
+            activeOpacity={0.8}
+          >
             <Text style={[styles.statMiniVal, { color: '#0F5132' }]}>{animals.length}</Text>
             <Text style={styles.statMiniLbl}>{isEnglish ? 'Total Herd' : 'कुल पशु'}</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.statDivider} />
-          <View style={styles.statMiniCard}>
+          <TouchableOpacity
+            style={[styles.statMiniCard, selectedCondition === 'Healthy' && { backgroundColor: '#DCFCE7' }]}
+            onPress={() => setSelectedCondition(selectedCondition === 'Healthy' ? 'All' : 'Healthy')}
+            activeOpacity={0.8}
+          >
             <Text style={[styles.statMiniVal, { color: '#16A34A' }]}>{healthStats.healthy}</Text>
             <Text style={styles.statMiniLbl}>{isEnglish ? 'Healthy' : 'स्वस्थ'}</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.statDivider} />
-          <View style={styles.statMiniCard}>
+          <TouchableOpacity
+            style={[styles.statMiniCard, (selectedCondition === 'Needs Attention' || selectedCondition === 'Critical') && { backgroundColor: '#FEF3C7' }]}
+            onPress={() => setSelectedCondition(selectedCondition === 'Needs Attention' ? 'All' : 'Needs Attention')}
+            activeOpacity={0.8}
+          >
             <Text style={[styles.statMiniVal, { color: healthStats.attention > 0 ? '#D97706' : '#64748B' }]}>
               {healthStats.attention}
             </Text>
             <Text style={styles.statMiniLbl}>{isEnglish ? 'Attention' : 'ध्यान दें'}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* ======================================================== */}
@@ -413,7 +457,7 @@ export default function FarmerAnimalsScreen() {
               const count = speciesCounts[item] ?? 0;
               const label =
                 item === 'All'
-                  ? (isEnglish ? 'All' : 'सभी')
+                  ? (isEnglish ? 'All Species' : 'सभी प्रजातियां')
                   : item === 'Cattle'
                   ? (isEnglish ? 'Cattle' : 'गाय')
                   : item === 'Buffalo'
@@ -429,6 +473,54 @@ export default function FarmerAnimalsScreen() {
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.filterChipText, isSelected && styles.filterChipTextSelected]}>
+                    {label} {count > 0 ? `(${count})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+
+          {/* Condition Filter Chips */}
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={CONDITION_OPTIONS}
+            keyExtractor={(item) => item}
+            contentContainerStyle={[styles.speciesList, { marginTop: 8 }]}
+            renderItem={({ item }) => {
+              const isSelected = selectedCondition === item;
+              const count = conditionCounts[item as keyof typeof conditionCounts] ?? 0;
+              const label =
+                item === 'All'
+                  ? (isEnglish ? 'All Status' : 'सभी स्थिति')
+                  : item === 'Healthy'
+                  ? (isEnglish ? '● Healthy' : '● स्वस्थ')
+                  : item === 'Needs Attention'
+                  ? (isEnglish ? '▲ Attention' : '▲ ध्यान दें')
+                  : (isEnglish ? '● Critical' : '● गंभीर');
+
+              const isCrit = item === 'Critical';
+              const isAttn = item === 'Needs Attention';
+              const isHlth = item === 'Healthy';
+
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.filterChip,
+                    isSelected && styles.filterChipSelected,
+                    isSelected && isCrit && { backgroundColor: '#DC2626', borderColor: '#B91C1C' },
+                    isSelected && isAttn && { backgroundColor: '#D97706', borderColor: '#B45309' },
+                    isSelected && isHlth && { backgroundColor: '#15803D', borderColor: '#166534' },
+                  ]}
+                  onPress={() => setSelectedCondition(isSelected && item !== 'All' ? 'All' : item)}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      isSelected && styles.filterChipTextSelected,
+                    ]}
+                  >
                     {label} {count > 0 ? `(${count})` : ''}
                   </Text>
                 </TouchableOpacity>

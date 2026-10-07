@@ -20,7 +20,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/context/AuthContext';
@@ -29,6 +29,7 @@ import { useAppLanguage } from '../../src/services/i18n';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ auto?: string }>();
   const { login } = useAuth();
   const { t } = useAppLanguage();
 
@@ -37,6 +38,38 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-login from deep link parameter (e.g. ?auto=farmer, ?auto=vet, ?auto=officer)
+  React.useEffect(() => {
+    if (params.auto) {
+      const autoKey = params.auto.toLowerCase().trim();
+      if (autoKey === 'farmer') {
+        setIdentifier('farmer@pashurakshak.in');
+        setPassword('Farmer@123');
+        setLoading(true);
+        login('farmer@pashurakshak.in', 'Farmer@123')
+          .then(() => router.replace('/(farmer)'))
+          .catch((err) => setError(err?.message || 'Login failed.'))
+          .finally(() => setLoading(false));
+      } else if (autoKey === 'vet' || autoKey === 'veterinarian') {
+        setIdentifier('vet@pashurakshak.in');
+        setPassword('Vet@123');
+        setLoading(true);
+        login('vet@pashurakshak.in', 'Vet@123')
+          .then(() => router.replace('/(vet)'))
+          .catch((err) => setError(err?.message || 'Login failed.'))
+          .finally(() => setLoading(false));
+      } else if (autoKey === 'officer' || autoKey === 'admin') {
+        setIdentifier('officer@pashurakshak.in');
+        setPassword('Admin@123');
+        setLoading(true);
+        login('officer@pashurakshak.in', 'Admin@123')
+          .then(() => router.replace('/(officer)'))
+          .catch((err) => setError(err?.message || 'Login failed.'))
+          .finally(() => setLoading(false));
+      }
+    }
+  }, [params.auto]);
 
   // Field focus states for visual feedback
   const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);

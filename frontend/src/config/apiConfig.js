@@ -30,6 +30,18 @@ export function resolveApiConfig(rawUrl) {
   // Remove trailing slashes
   const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
 
+  // When running locally in browser on localhost/127.0.0.1, always prefer the local /api proxy
+  // if rawUrl points to remote Railway to prevent cross-origin CORS rejections
+  if (typeof window !== 'undefined' && window.location) {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalhost && cleanUrl.includes('railway.app')) {
+      return {
+        baseURL: '/api',
+        rootURL: ''
+      };
+    }
+  }
+
   if (cleanUrl.endsWith('/api')) {
     return {
       baseURL: cleanUrl,

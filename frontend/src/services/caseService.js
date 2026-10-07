@@ -4,6 +4,49 @@ import { getApiUrl } from '../config/apiConfig';
 // Comprehensive Synthetic Nagpur Demo Dataset for PS-128
 export const FALLBACK_CASES = [
   {
+    _id: 'case-nag-zoon-001',
+    caseId: 'CASE-2026-NAG-ZOON-01',
+    disease: 'Anthrax (बैसिलस एंथ्रेक्स)',
+    suspectedDisease: 'Anthrax (बैसिलस एंथ्रेक्स)',
+    species: 'Cattle',
+    breed: 'Gaolao Bull',
+    tagId: 'NG-SP-104',
+    animalName: 'Nandi Bull (गाओलाव वळू)',
+    status: 'Investigating',
+    urgency: 'CRITICAL',
+    confidenceScore: 0.96,
+    isZoonotic: true,
+    zoonoticRisk: 'Critical',
+    humanExposureCount: 4,
+    oneHealthNotified: true,
+    symptoms: [
+      'Sudden unexplained death',
+      'Dark tarry unclotted blood from orifices',
+      'Absence of rigor mortis',
+      'Bloat and rapid tympanites'
+    ],
+    location: {
+      village: 'Saoner Rural',
+      block: 'Saoner',
+      district: 'Nagpur',
+      state: 'Maharashtra',
+      coordinates: { lat: 21.385, lng: 78.918 }
+    },
+    farmer: {
+      name: 'Suresh Rao Patil',
+      phone: '+91 98230 45671'
+    },
+    assignedVet: {
+      name: 'Dr. Amit Deshmukh',
+      phone: '+91 98224 55001'
+    },
+    clinicalDiagnosis: 'Acute Septicemic Anthrax (Bacillus anthracis). Pathognomonic unclotted dark hemorrhage with non-motile gram-positive bacilli on blood smear. Post-mortem strictly prohibited.',
+    notes: 'One Health Biohazard: Suspected Anthrax event. Do not open carcass. Human contacts under surveillance.',
+    investigationNotes: '4 family members exposed during morning milking. District CMO Dr. Sharma alerted for oral ciprofloxacin prophylaxis. 5 km ring vaccination recommended.',
+    createdAt: '2026-09-29T06:15:00Z',
+    updatedAt: '2026-09-29T14:30:00Z'
+  },
+  {
     _id: 'case-nag-001',
     caseId: 'CASE-2026-NAG-001',
     disease: 'Lumpy Skin Disease',

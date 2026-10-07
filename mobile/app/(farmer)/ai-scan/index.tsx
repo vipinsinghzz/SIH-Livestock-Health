@@ -372,6 +372,40 @@ export default function FarmerAiScanScreen() {
           })
           .catch(() => {});
       }
+      // Auto-sync status with animal record if confidence > 85%
+      const confidence = result.confidenceScore || 0;
+      const cond = (result.possibleCondition || '').toLowerCase();
+      const isNormal = cond.includes('healthy') || cond.includes('normal') || cond.includes('no disease');
+      let newHealthStatus = selectedAnimal.healthStatus || 'Healthy';
+      let statusUpdated = false;
+
+      if (confidence > 85 && !isNormal) {
+        const isCritical =
+          result.riskLevel === 'Critical' ||
+          result.riskLevel === 'High' ||
+          ['lumpy', 'lsd', 'foot and mouth', 'fmd', 'anthrax', 'blackleg', 'rabies', 'ppr'].some((k) => cond.includes(k)) ||
+          selectedSymptoms.some((s) => ['fever', 'nodule', 'lump', 'salivat'].some((k) => s.toLowerCase().includes(k)));
+
+        newHealthStatus = isCritical ? 'Critical' : 'Needs Attention';
+        statusUpdated = true;
+      } else if (confidence > 85 && isNormal) {
+        newHealthStatus = 'Healthy';
+        statusUpdated = true;
+      }
+
+      if (statusUpdated) {
+        try {
+          const targetId = selectedAnimal._id || selectedAnimal.id;
+          if (targetId) {
+            await animalService.updateAnimal(targetId, {
+              healthStatus: newHealthStatus as any,
+            });
+            selectedAnimal.healthStatus = newHealthStatus as any;
+          }
+        } catch (syncErr) {
+          console.warn('[handleSubmitScreening] Auto sync animal status warning:', syncErr);
+        }
+      }
 
       setIsAnalyzing(false);
 
@@ -386,6 +420,8 @@ export default function FarmerAiScanScreen() {
           temperature: temperature || '',
           duration: duration || '',
           notes: customNotes || '',
+          statusUpdated: statusUpdated ? 'true' : 'false',
+          newHealthStatus,
         },
       });
     } catch (err: any) {

@@ -14,7 +14,7 @@
  * - Zero raw text emojis; platform-safe typography stack
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -69,6 +69,8 @@ export default function OfficerSurveillanceScreen() {
   const [selectedBlock, setSelectedBlock] = useState<string>('All');
   const [activeTrendMetric, setActiveTrendMetric] = useState<'cases' | 'critical' | 'mortality'>('cases');
 
+  const chartScrollRef = useRef<ScrollView>(null);
+
   const userId = user?.id || (user as any)?._id || 'officer_default';
   const districtName = user?.district || (isEnglish ? 'District Surveillance' : 'ज़िला निगरानी');
 
@@ -77,8 +79,11 @@ export default function OfficerSurveillanceScreen() {
     else setLoading(true);
     setErrorMessage(null);
 
+    const rawDistrict = user?.district || 'Nagpur';
+    const cleanDistrict = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
+
     const filterObj = {
-      district: user?.district,
+      district: cleanDistrict,
       block: block !== 'All' ? block : undefined,
     };
 
@@ -344,49 +349,60 @@ export default function OfficerSurveillanceScreen() {
               </View>
 
               {/* Native Responsive Trend Chart Bars */}
-              {trends.length === 0 ? (
+              {totalTrendCases === 0 || trends.length === 0 ? (
                 <View style={styles.emptyTrendBox}>
+                  <Text style={styles.emptyTrendTitle}>
+                    {isEnglish ? 'No Epidemic Progression Data' : 'कोई महामारी डेटा दर्ज नहीं'}
+                  </Text>
                   <Text style={styles.emptyTrendText}>
                     {isEnglish
-                      ? 'No temporal trend records for this period.'
-                      : 'इस अवधि के लिए कोई रुझान रिकॉर्ड उपलब्ध नहीं है।'}
+                      ? 'No disease transmission spikes recorded during the selected 30-day surveillance window.'
+                      : 'चयनित 30-दिवसीय निगरानी अवधि के दौरान कोई संचरण स्पाइक दर्ज नहीं है।'}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.chartContainer}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScroll}>
+                  <ScrollView
+                    ref={chartScrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chartScroll}
+                    onContentSizeChange={() => chartScrollRef.current?.scrollToEnd({ animated: false })}
+                  >
                     <View style={styles.chartBarsRow}>
                       {trends.map((tItem, idx) => {
                         const val =
                           activeTrendMetric === 'cases'
                             ? tItem.cases
                             : activeTrendMetric === 'critical'
-                            ? tItem.criticalCases
-                            : tItem.mortalities;
+                              ? tItem.criticalCases
+                              : tItem.mortalities;
 
-                        const barHeightPct = Math.max(10, Math.round((val / maxTrendCases) * 100));
+                        const barHeightPct = val > 0 ? Math.max(20, Math.round((val / maxTrendCases) * 100)) : 6;
                         const barColor =
-                          activeTrendMetric === 'cases'
-                            ? '#4338CA'
-                            : activeTrendMetric === 'critical'
-                            ? '#D97706'
-                            : '#DC2626';
+                          val > 0
+                            ? activeTrendMetric === 'cases'
+                              ? '#4338CA'
+                              : activeTrendMetric === 'critical'
+                                ? '#D97706'
+                                : '#DC2626'
+                            : '#E2E8F0';
 
                         return (
                           <View key={idx} style={styles.barColumn}>
-                            <Text style={styles.barValue}>{val > 0 ? val : ''}</Text>
+                            <Text style={[styles.barValue, val > 0 && styles.barValueActive]}>{val > 0 ? val : ''}</Text>
                             <View style={styles.barTrack}>
                               <View
                                 style={[
                                   styles.barFill,
                                   {
                                     height: `${barHeightPct}%`,
-                                    backgroundColor: val > 0 ? barColor : '#E2E8F0',
+                                    backgroundColor: barColor,
                                   },
                                 ]}
                               />
                             </View>
-                            <Text style={styles.barDate}>{tItem.displayDate.split(' ')[0]}</Text>
+                            <Text style={[styles.barDate, val > 0 && styles.barDateActive]}>{tItem.displayDate.split(' ')[0]}</Text>
                           </View>
                         );
                       })}
@@ -422,6 +438,7 @@ export default function OfficerSurveillanceScreen() {
                     const totalReports = summary.totalReports || 1;
                     const caseCount = (item as any).cases ?? (item as any).count ?? 0;
                     const diseaseName = item.name || (item as any)._id || (isEnglish ? 'Unspecified' : 'अज्ञात');
+                    const conf = (item as any).avgConfidencePct;
                     const pct = Math.min(100, Math.round((caseCount / totalReports) * 100));
                     const color = DISEASE_PALETTE[idx % DISEASE_PALETTE.length];
 
@@ -433,7 +450,8 @@ export default function OfficerSurveillanceScreen() {
                             <Text style={styles.diseaseName}>{diseaseName}</Text>
                           </View>
                           <Text style={styles.diseaseCountText}>
-                            {caseCount} {isEnglish ? 'cases' : 'मामले'} ({pct}%)
+                            {caseCount} {isEnglish ? 'cases' : 'मामले'}
+                            {typeof conf === 'number' ? ` (${conf}%)` : ''}
                           </Text>
                         </View>
                         <View style={styles.diseaseTrack}>
@@ -489,6 +507,44 @@ export default function OfficerSurveillanceScreen() {
                       </View>
                     );
                   })}
+                </View>
+              </View>
+            )}
+
+            {/* 8. Sub-District Disease Burden Distribution */}
+            {summary.blockDistribution && summary.blockDistribution.length > 0 && (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>
+                    {isEnglish ? 'Sub-District Disease Burden' : 'उप-ज़िला रोग भार विश्लेषण'}
+                  </Text>
+                  <Text style={styles.cardSubtitle}>
+                    {isEnglish
+                      ? 'Live distribution of active cases and mortalities across blocks'
+                      : 'तालुका-वार सक्रिय मामलों और मृत्यु की वर्तमान स्थिति'}
+                  </Text>
+                </View>
+
+                <View style={styles.blockList}>
+                  {summary.blockDistribution.map((b, idx) => (
+                    <View key={idx} style={styles.blockRowItem}>
+                      <View style={styles.blockNameCol}>
+                        <Text style={styles.blockNameText}>
+                          {b._id || 'District'} {isEnglish ? 'Block' : 'तालुका'}
+                        </Text>
+                        <Text style={styles.blockMortalityText}>
+                          {b.deaths > 0
+                            ? `${b.deaths} ${isEnglish ? 'deaths reported' : 'मृत्यु दर्ज'}`
+                            : (isEnglish ? 'Zero mortalities' : 'शून्य मृत्यु')}
+                        </Text>
+                      </View>
+                      <View style={styles.blockCountPill}>
+                        <Text style={styles.blockCountPillText}>
+                          {b.count} {isEnglish ? 'cases' : 'मामले'}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
               </View>
             )}
@@ -782,6 +838,16 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 6,
   },
+  barValueActive: {
+    color: '#0F172A',
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+  },
+  barDateActive: {
+    color: '#4338CA',
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+  },
   chartHelpText: {
     fontFamily: FONT_REGULAR,
     fontSize: 10.5,
@@ -793,11 +859,59 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
+  emptyTrendTitle: {
+    fontFamily: FONT_BOLD,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
   emptyTrendText: {
     fontFamily: FONT_REGULAR,
     fontSize: 12.5,
     color: '#94A3B8',
     textAlign: 'center',
+  },
+  blockList: {
+    gap: 10,
+  },
+  blockRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAF9',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  blockNameCol: {
+    flex: 1,
+  },
+  blockNameText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  blockMortalityText: {
+    fontFamily: FONT_REGULAR,
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  blockCountPill: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  blockCountPillText: {
+    fontFamily: FONT_BOLD,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4338CA',
   },
   diseaseList: {
     gap: 12,

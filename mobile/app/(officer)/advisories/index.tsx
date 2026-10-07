@@ -43,7 +43,7 @@ type SeverityFilter = 'ALL' | 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW';
 export default function OfficerAdvisoriesScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const district = user?.district;
+  const district = (user?.district || 'Nagpur').split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
   // State
   const [advisories, setAdvisories] = useState<OfficialAdvisory[]>([]);
@@ -67,15 +67,6 @@ export default function OfficerAdvisoriesScreen() {
   // Load advisories
   const loadAdvisories = useCallback(
     async (isPullRefresh = false) => {
-      if (!district) {
-        setLoading(false);
-        setRefreshing(false);
-        setErrorMessage(
-          'Officer district jurisdiction is not configured on this account. Contact system administrator.'
-        );
-        return;
-      }
-
       if (isPullRefresh) {
         setRefreshing(true);
       } else {

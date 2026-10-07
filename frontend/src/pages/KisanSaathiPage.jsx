@@ -36,6 +36,12 @@ import nadresService from '../services/nadresService';
 import VoiceWaveform from '../components/VoiceWaveform';
 import { useAuth } from '../context/AuthContext';
 import { LivestockSaathiEmblem, KisanSaathiEmblem } from '../components/LivestockSaathiLogo';
+import AiRecommendationModal from '../components/AiRecommendationModal';
+import {
+  storeAnimalAiScan,
+  determineHealthStatusFromScan,
+  getTailoredRecommendations
+} from '../utils/aiScanStorage';
 
 class KisanSaathiErrorBoundary extends React.Component {
   constructor(props) {
@@ -122,6 +128,7 @@ function KisanSaathiContent() {
   const [recordSavedNotice, setRecordSavedNotice] = useState(null);
   const [symptomSearch, setSymptomSearch] = useState('');
   const [showAllSymptoms, setShowAllSymptoms] = useState(false);
+  const [showAiRecDialog, setShowAiRecDialog] = useState(false);
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -381,15 +388,25 @@ function KisanSaathiContent() {
 
       setDiagnosisResult(normalizedResult);
 
-      // 3. Automatically store in Animal Health Records (Concern 4)
+      // 3. Automatically store in Animal Health Records when confidence > 85
       if (selectedAnimal) {
         try {
-          const newHealthStatus =
-            risk === 'High' || risk === 'Critical'
-              ? 'Needs Attention'
-              : risk === 'Moderate'
-              ? 'Needs Attention'
-              : selectedAnimal.healthStatus || 'Healthy';
+          const confidenceNum = Number(confidence || 0);
+          const tailored = getTailoredRecommendations(
+            cleanCondition,
+            selectedAnimal.species,
+            risk,
+            currentKey
+          );
+
+          let newHealthStatus = selectedAnimal.healthStatus || 'Healthy';
+          let statusChanged = false;
+
+          // Strict Requirement: Only when confidence > 85, change healthy category to Critical or Needs Attention!
+          if (confidenceNum > 85) {
+            newHealthStatus = determineHealthStatusFromScan(normalizedResult, cleanCondition, selectedSymptoms) || (risk === 'High' || risk === 'Critical' ? 'Critical' : 'Needs Attention');
+            statusChanged = true;
+          }
 
           const vitalsDisplay = rawTemp > 0 ? `${rawTemp}°${tempUnit}` : 'N/A';
           const durationDisplay =
@@ -397,8 +414,14 @@ function KisanSaathiContent() {
               ? `${rawDuration} ${durationUnit === 'hours' ? 'घंटे (Hours)' : 'दिन (Days)'}`
               : 'N/A';
 
+          const immediateAidList = (normalizedResult.immediateFirstAid && normalizedResult.immediateFirstAid.length > 0)
+            ? normalizedResult.immediateFirstAid
+            : tailored.immediateFirstAid;
+
+          const advisoryText = immediateAidList.join('. ');
+
           const scanTimelineEvent = {
-            type: 'Health Check',
+            type: 'AI Disease Scan',
             title: `AI प्रारंभिक जांच: ${cleanCondition} (${risk} Risk)`,
             date: new Date().toLocaleDateString('en-GB'),
             doctor: 'AI Preliminary Screening (Kisan Saathi)',
@@ -406,20 +429,46 @@ function KisanSaathiContent() {
             image: imagePreview || '',
             status: newHealthStatus,
             disease: cleanCondition,
-            confidence,
+            confidence: confidenceNum,
             symptoms: selectedSymptoms,
-            advisory: firstAidAdvice,
+            advisory: advisoryText,
             temperature: rawTemp,
             tempUnit,
             duration: rawDuration,
             durationUnit,
-            notes: `AI प्रारंभिक जांच में ${cleanCondition} के संकेत (${confidence}% सटीकता, ${risk} जोखिम) मिले। AI-assisted preliminary screening — not a final veterinary diagnosis. तापमान: ${vitalsDisplay}, अवधि: ${durationDisplay}। सलाह: ${firstAidAdvice}`
+            notes: `AI प्रारंभिक जांच में ${cleanCondition} के संकेत (${confidenceNum}% सटीकता, ${risk} जोखिम) मिले। तापमान: ${vitalsDisplay}, अवधि: ${durationDisplay}। सलाह: ${advisoryText}`
           };
+
+          const richScanData = {
+            animalId: selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId,
+            animalName: selectedAnimal.name,
+            tagId: selectedAnimal.tagId,
+            species: selectedAnimal.species,
+            disease: cleanCondition,
+            confidence: confidenceNum,
+            riskLevel: risk,
+            healthStatus: newHealthStatus,
+            image: imagePreview || '',
+            advisory: advisoryText,
+            immediateFirstAid: immediateAidList,
+            clinicalPrecautions: tailored.clinicalPrecautions,
+            explanation: normalizedResult.explanation || '',
+            symptoms: selectedSymptoms,
+            timestamp: new Date().toISOString(),
+            formattedDate: new Date().toLocaleDateString('en-GB')
+          };
+
+          // Cache rich recommendations in localStorage
+          storeAnimalAiScan(selectedAnimal._id || selectedAnimal.id || selectedAnimal.tagId, richScanData);
+          if (selectedAnimal.tagId) {
+            storeAnimalAiScan(selectedAnimal.tagId, richScanData);
+          }
 
           const updates = {
             healthStatus: newHealthStatus,
             lastCheckup: new Date().toLocaleDateString('en-GB'),
-            newTimelineEvent: scanTimelineEvent
+            newTimelineEvent: scanTimelineEvent,
+            latestAiScan: richScanData
           };
 
           await animalService.updateAnimal(
@@ -435,14 +484,19 @@ function KisanSaathiContent() {
                     ...a,
                     healthStatus: newHealthStatus,
                     lastCheckup: updates.lastCheckup,
-                    timeline: [scanTimelineEvent, ...(a.timeline || [])]
+                    timeline: [scanTimelineEvent, ...(a.timeline || [])],
+                    latestAiScan: richScanData
                   }
                 : a
             )
           );
 
           const animalName = selectedAnimal.name || 'पशु';
-          setRecordSavedNotice(`✓ ${animalName} के स्वास्थ्य रिकॉर्ड में स्वतः दर्ज किया गया`);
+          if (confidenceNum > 85) {
+            setRecordSavedNotice(`✓ सटीकता >85% (${confidenceNum}%): ${animalName} के स्वास्थ्य रिकॉर्ड में "${cleanCondition}" दर्ज व श्रेणी "${newHealthStatus}" सुरक्षित`);
+          } else {
+            setRecordSavedNotice(`✓ ${animalName} के रिकॉर्ड में जांच अवलोकन दर्ज (सटीकता ${confidenceNum}% ≤ 85%, स्थिति अपरिवर्तित)`);
+          }
         } catch (saveErr) {
           console.warn('Auto-save to health records failed:', saveErr);
         }
@@ -1092,6 +1146,16 @@ function KisanSaathiContent() {
                     </div>
                   )}
 
+                  {/* Action Buttons: View Recommendations Dialog & Chat */}
+                  <button
+                    type="button"
+                    onClick={() => setShowAiRecDialog(true)}
+                    className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
+                    <span>View AI Recommendations Dialog (AI शिफारसी डायलॉग पहा)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1500,6 +1564,15 @@ function KisanSaathiContent() {
           </div>
         </div>
       </div>
+
+      {/* AI Recommendation Dialogue Box Modal */}
+      <AiRecommendationModal
+        isOpen={showAiRecDialog}
+        onClose={() => setShowAiRecDialog(false)}
+        scanData={diagnosisResult}
+        animal={selectedAnimal}
+        currentLang={currentKey}
+      />
     </div>
   );
 }

@@ -72,15 +72,13 @@ export const containmentService = {
   }): Promise<GetContainmentZonesResult> {
     const netState = await NetInfo.fetch();
     const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
-    const targetDistrict = params?.district;
-    if (!targetDistrict) {
-      return { zones: [], count: 0, fromCache: false };
-    }
+    const rawDistrict = params?.district || 'Nagpur';
+    const targetDistrict = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
     if (isOnline) {
       try {
         const queryParams: Record<string, string> = {};
-        if (params?.district) queryParams.district = params.district;
+        queryParams.district = targetDistrict;
         if (params?.status && params.status !== 'all') queryParams.status = params.status;
 
         const response = await api.get<{
@@ -328,15 +326,13 @@ export const containmentService = {
   }): Promise<GetOutbreakClustersResult> {
     const netState = await NetInfo.fetch();
     const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
-    const targetDistrict = params?.district;
-    if (!targetDistrict) {
-      return { clusters: [], count: 0, district: '', fromCache: false };
-    }
+    const rawDistrict = params?.district || 'Nagpur';
+    const targetDistrict = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
     if (isOnline) {
       try {
         const queryParams: Record<string, any> = {};
-        if (params?.district) queryParams.district = params.district;
+        queryParams.district = targetDistrict;
         if (params?.distanceKm) queryParams.distanceKm = params.distanceKm;
         if (params?.minCases) queryParams.minCases = params.minCases;
 

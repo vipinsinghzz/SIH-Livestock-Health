@@ -244,6 +244,7 @@ exports.getAnimals = async (req, res, next) => {
       const profile = await resolveFarmerProfile(req.user);
       if (profile && profile.id) {
         query.ownerId = String(profile.id);
+        query.ownerEmail = profile.email || req.user.email;
       } else {
         return res.status(200).json({
           success: true,

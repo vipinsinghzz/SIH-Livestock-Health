@@ -27,7 +27,7 @@ export const emergencyService = {
       ambulanceEtaMinutes: 18
     };
 
-    const alerts = this.getAllSOS();
+    const alerts = this.getAllSOS().filter(a => a && a.id !== 'SOS-302220');
     alerts.unshift(newAlert);
     localStorage.setItem('emergency_sos_alerts', JSON.stringify(alerts));
     return newAlert;
@@ -36,7 +36,7 @@ export const emergencyService = {
   getAllSOS() {
     try {
       const stored = localStorage.getItem('emergency_sos_alerts');
-      return stored ? JSON.parse(stored) : [
+      const alerts = stored ? JSON.parse(stored) : [
         {
           id: 'SOS-841920',
           animalName: 'Lakshmi',
@@ -51,6 +51,22 @@ export const emergencyService = {
           ambulanceEtaMinutes: 0
         }
       ];
+      // Filter out mistakenly added record SOS-302220 only
+      const sanitized = alerts.filter(a => a && a.id !== 'SOS-302220');
+      if (stored && sanitized.length !== alerts.length) {
+        localStorage.setItem('emergency_sos_alerts', JSON.stringify(sanitized));
+      }
+      return sanitized;
+    } catch (e) {
+      return [];
+    }
+  },
+
+  deleteEmergencySOS(id) {
+    try {
+      const alerts = this.getAllSOS().filter(a => a && a.id !== id);
+      localStorage.setItem('emergency_sos_alerts', JSON.stringify(alerts));
+      return alerts;
     } catch (e) {
       return [];
     }

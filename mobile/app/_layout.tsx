@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth, UserRole } from '../src/context/AuthContext';
@@ -20,9 +21,37 @@ export const ErrorBoundary = RouteErrorBoundary;
 const VALID_ROLES = ['farmer', 'veterinarian', 'field_worker', 'officer', 'admin'] as const;
 
 function NavigationGuard() {
-  const { user, token, loading, logout } = useAuth();
+  const { user, token, loading, logout, loginAsPersona } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Listen to deep links for dynamic role switching (e.g. livestocksaathi://?switchRole=vet)
+  useEffect(() => {
+    const handleUrl = (event: { url: string }) => {
+      try {
+        const parsed = Linking.parse(event.url);
+        const switchRole = (parsed.queryParams?.switchRole || parsed.queryParams?.role || '') as string;
+        if (switchRole) {
+          const r = String(switchRole).toLowerCase().trim();
+          if (r === 'vet' || r === 'veterinarian') {
+            loginAsPersona('vet').then(() => router.replace('/(vet)'));
+          } else if (r === 'farmer') {
+            loginAsPersona('farmer').then(() => router.replace('/(farmer)'));
+          } else if (r === 'officer' || r === 'admin') {
+            loginAsPersona('officer').then(() => router.replace('/(officer)'));
+          }
+        }
+      } catch (err) {
+        console.warn('[NavigationGuard] URL parse error:', err);
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleUrl);
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+    return () => sub.remove();
+  }, [loginAsPersona, router]);
 
   const rawRole = user?.role ? String(user.role).toLowerCase() : '';
   const isRoleValid = VALID_ROLES.includes(rawRole as any);

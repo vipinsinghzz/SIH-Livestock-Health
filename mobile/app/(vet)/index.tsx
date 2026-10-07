@@ -38,8 +38,13 @@ import { useAppLanguage } from '../../src/services/i18n';
 import { veterinarianService } from '../../src/services/veterinarianService';
 import { nadresService } from '../../src/services/nadresService';
 import notificationService from '../../src/services/notificationService';
+import { advisoryService } from '../../src/services/advisoryService';
 import { VetDashboardMetrics } from '../../src/types/vet';
-import { NadresAlert, WeatherContext } from '../../src/types/advisory';
+import { NadresAlert, WeatherContext, OfficialAdvisory } from '../../src/types/advisory';
+import {
+  AppNotification,
+  resolveVetNotificationNavigation,
+} from '../../src/types/notification';
 import {
   DiseaseCase,
   getStatusTheme,
@@ -59,6 +64,138 @@ const FONT_MEDIUM = Platform.select({ ios: 'System', android: 'sans-serif-medium
 const FONT_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
 const FONT_EXTRABOLD = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' });
 
+function formatRelativeTime(isoString?: string, isEn = true): string {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  if (diffMs < 0 || isNaN(diffMs)) return isEn ? 'Just now' : 'अभी';
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return isEn ? 'Just now' : 'अभी';
+  if (diffMins < 60) return `${diffMins}${isEn ? 'm ago' : ' मिनट पहले'}`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}${isEn ? 'h ago' : ' घंटे पहले'}`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}${isEn ? 'd ago' : ' दिन पहले'}`;
+  return d.toLocaleDateString(isEn ? 'en-IN' : 'hi-IN', { month: 'short', day: 'numeric' });
+}
+
+function getAlertSeverityTheme(severity?: string, isEn = true) {
+  const s = String(severity || '').toLowerCase();
+  if (s.includes('crit')) {
+    return {
+      label: isEn ? 'CRITICAL' : 'गंभीर',
+      bg: '#FEE2E2',
+      border: '#FCA5A5',
+      text: '#991B1B',
+      dot: '#DC2626',
+      actionColor: '#DC2626',
+    };
+  }
+  if (s.includes('high')) {
+    return {
+      label: isEn ? 'HIGH RISK' : 'उच्च जोखिम',
+      bg: '#FFEDD5',
+      border: '#FDBA74',
+      text: '#9A3412',
+      dot: '#EA580C',
+      actionColor: '#EA580C',
+    };
+  }
+  if (s.includes('mod')) {
+    return {
+      label: isEn ? 'MODERATE' : 'मध्यम',
+      bg: '#FEF3C7',
+      border: '#FDE68A',
+      text: '#92400E',
+      dot: '#D97706',
+      actionColor: '#D97706',
+    };
+  }
+  return {
+    label: isEn ? 'LOW' : 'सामान्य',
+    bg: '#ECFDF5',
+    border: '#A7F3D0',
+    text: '#065F46',
+    dot: '#059669',
+    actionColor: '#0F5132',
+  };
+}
+
+function getAdvisoryCardTheme(severity?: string, isEn = true) {
+  const s = String(severity || '').toLowerCase();
+  if (s.includes('crit')) {
+    return {
+      label: isEn ? 'CRITICAL DIRECTIVE' : 'अति आवश्यक निर्देश',
+      bg: '#FEE2E2',
+      border: '#FCA5A5',
+      text: '#991B1B',
+      dot: '#DC2626',
+      actionColor: '#DC2626',
+    };
+  }
+  if (s.includes('high')) {
+    return {
+      label: isEn ? 'BIOSECURITY ADVISORY' : 'जैव सुरक्षा परामर्श',
+      bg: '#FFEDD5',
+      border: '#FDBA74',
+      text: '#9A3412',
+      dot: '#EA580C',
+      actionColor: '#EA580C',
+    };
+  }
+  return {
+    label: isEn ? 'DEPARTMENT BULLETIN' : 'विभागीय बुलेटिन',
+    bg: '#E0F2FE',
+    border: '#BAE6FD',
+    text: '#0369A1',
+    dot: '#0284C7',
+    actionColor: '#0284C7',
+  };
+}
+
+function getAlertCategoryLabel(alert: AppNotification, isEn = true): string {
+  if (alert.type === 'OUTBREAK_CLUSTER_ALERT') {
+    return isEn ? 'Outbreak Alert' : 'महामारी प्रकोप अलर्ट';
+  }
+  if (alert.type === 'CONTAINMENT_ZONE_CREATED' || alert.type === 'CONTAINMENT_ZONE_UPDATED') {
+    return isEn ? 'Containment Perimeter' : 'कंटेनमेंट घेराबंदी';
+  }
+  if (alert.type === 'NEW_CASE_ALERT') {
+    return isEn ? 'New Referral Case' : 'नया रेफरल केस';
+  }
+  if (alert.type === 'RING_VACCINATION_SCHEDULED') {
+    return isEn ? 'Ring Vaccination Drive' : 'रिंग टीकाकरण अभियान';
+  }
+  return isEn ? 'Clinical Surveillance' : 'क्लिनिकल निगरानी';
+}
+
+function getAlertDiseaseText(alert: AppNotification): string {
+  if (alert.metadata?.disease) {
+    return `${alert.metadata.disease} detected`;
+  }
+  if (alert.title) {
+    const clean = alert.title.replace(/^[^a-zA-Z0-9]+/, '').trim();
+    return clean;
+  }
+  return 'Suspected condition under surveillance';
+}
+
+function getAlertLocationText(alert: AppNotification, defaultDistrict: string): string {
+  const parts = [
+    defaultDistrict || alert.district,
+    alert.metadata?.block || alert.metadata?.village,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' • ') : defaultDistrict;
+}
+
+function getAdvisoryLocationText(adv: OfficialAdvisory, defaultDistrict: string): string {
+  const dist = adv.targetDistrict || defaultDistrict;
+  const block = adv.targetBlock && adv.targetBlock !== 'All' ? adv.targetBlock : '';
+  const parts = [dist, block].filter(Boolean);
+  return parts.length > 0 ? parts.join(' • ') : `${dist} District-wide`;
+}
+
 export default function VetHomeScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -66,7 +203,11 @@ export default function VetHomeScreen() {
 
   const [metrics, setMetrics] = useState<VetDashboardMetrics | null>(null);
   const [recentCases, setRecentCases] = useState<DiseaseCase[]>([]);
+  const [clinicalAlerts, setClinicalAlerts] = useState<AppNotification[]>([]);
+  const [biosecurityAdvisories, setBiosecurityAdvisories] = useState<OfficialAdvisory[]>([]);
   const [unreadAlertsCount, setUnreadAlertsCount] = useState<number>(0);
+  const [advisoriesCount, setAdvisoriesCount] = useState<number>(0);
+  const [latestAdvisory, setLatestAdvisory] = useState<OfficialAdvisory | null>(null);
   const [nadresAlerts, setNadresAlerts] = useState<NadresAlert[]>([]);
   const [weatherContext, setWeatherContext] = useState<WeatherContext | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -75,6 +216,8 @@ export default function VetHomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [showSignOutModal, setShowSignOutModal] = useState<boolean>(false);
+  const [selectedAlertModal, setSelectedAlertModal] = useState<AppNotification | null>(null);
+  const [selectedAdvisoryModal, setSelectedAdvisoryModal] = useState<OfficialAdvisory | null>(null);
 
   const rawName = user?.name ? user.name.replace(/^Dr\.\s*/i, '') : 'Specialist';
   const vetName = `Dr. ${rawName}`;
@@ -84,7 +227,7 @@ export default function VetHomeScreen() {
   const loadDashboardData = useCallback(async () => {
     try {
       setError(null);
-      const [result, notifs, nadresResult] = await Promise.allSettled([
+      const [result, notifs, nadresResult, advisoriesRes] = await Promise.allSettled([
         veterinarianService.getDashboardMetrics(user?.district || 'Nagpur'),
         notificationService.getVeterinarianNotifications({
           userId: user?.id || user?._id,
@@ -93,6 +236,9 @@ export default function VetHomeScreen() {
         nadresService.getNadresAlerts({
           district: user?.district || 'Nagpur',
           state: user?.state || 'Maharashtra',
+        }),
+        advisoryService.getAdvisories({
+          district: user?.district || 'Nagpur',
         }),
       ]);
 
@@ -108,12 +254,23 @@ export default function VetHomeScreen() {
       }
 
       if (notifs.status === 'fulfilled') {
-        setUnreadAlertsCount(notificationService.getUnreadCount(notifs.value));
+        const notifList = notifs.value || [];
+        setUnreadAlertsCount(notificationService.getUnreadCount(notifList));
+        setClinicalAlerts(notifList.slice(0, 3));
       }
 
       if (nadresResult.status === 'fulfilled') {
         setNadresAlerts(nadresResult.value.alerts || []);
         setWeatherContext(nadresResult.value.weatherContext || null);
+      }
+
+      if (advisoriesRes.status === 'fulfilled') {
+        const advList = advisoriesRes.value.advisories || [];
+        setAdvisoriesCount(advisoriesRes.value.count || advList.length);
+        setBiosecurityAdvisories(advList.slice(0, 3));
+        if (advList.length > 0) {
+          setLatestAdvisory(advList[0]);
+        }
       }
     } catch (err: any) {
       console.warn('[VetDashboard] Error loading dashboard data:', err?.message);
@@ -462,6 +619,315 @@ export default function VetHomeScreen() {
                     : `${vetDistrict} में उच्च आर्द्रता एवं टीएचआई वेक्टर फैलाव हेतु संवेदनशील। रिंग टीकाकरण एवं जैविक घेराबंदी प्राथमिकता दें।`)}
               </Text>
             </View>
+          </View>
+
+          {/* Dual Action: Clinical Alerts & Advisories Command Strip */}
+          <View style={styles.dualAlertAdvStrip}>
+            <TouchableOpacity
+              style={styles.dualAlertAdvCol}
+              onPress={() => router.push('/(vet)/notifications')}
+              activeOpacity={0.82}
+            >
+              <View style={styles.dualAlertIconWrap}>
+                <Image
+                  source={require('../../assets/icons/bell_minimal_green.png')}
+                  style={styles.dualAlertIcon}
+                  resizeMode="contain"
+                />
+                {unreadAlertsCount > 0 && (
+                  <View style={styles.dualBadgeRed}>
+                    <Text style={styles.dualBadgeText}>{unreadAlertsCount}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.dualAlertTextCol}>
+                <Text style={styles.dualAlertTitle}>
+                  {isEnglish ? 'Clinical Alerts' : 'क्लिनिकल अलर्ट'}
+                </Text>
+                <Text style={styles.dualAlertSub} numberOfLines={1}>
+                  {unreadAlertsCount > 0
+                    ? isEnglish
+                      ? `${unreadAlertsCount} unread notices`
+                      : `${unreadAlertsCount} अपठित सूचनाएं`
+                    : isEnglish
+                    ? 'Surveillance active'
+                    : 'निगरानी सक्रिय'}
+                </Text>
+              </View>
+              <Image
+                source={require('../../assets/icons/chevron-right.png')}
+                style={styles.dualChevron}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            <View style={styles.dualDivider} />
+
+            <TouchableOpacity
+              style={styles.dualAlertAdvCol}
+              onPress={() => router.push('/(vet)/advisories')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.dualAlertIconWrap, { backgroundColor: '#E0F2FE' }]}>
+                <Image
+                  source={require('../../assets/icons/shield.png')}
+                  style={[styles.dualAlertIcon, { tintColor: '#0284C7' }]}
+                  resizeMode="contain"
+                />
+                {advisoriesCount > 0 && (
+                  <View style={[styles.dualBadgeRed, { backgroundColor: '#0284C7' }]}>
+                    <Text style={styles.dualBadgeText}>{advisoriesCount}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.dualAlertTextCol}>
+                <Text style={styles.dualAlertTitle}>
+                  {isEnglish ? 'Biosecurity Desk' : 'जैव सुरक्षा बुलेटिन'}
+                </Text>
+                <Text style={styles.dualAlertSub} numberOfLines={1}>
+                  {advisoriesCount > 0
+                    ? isEnglish
+                      ? `${advisoriesCount} official bulletins`
+                      : `${advisoriesCount} आधिकारिक बुलेटिन`
+                    : isEnglish
+                    ? 'Directives active'
+                    : 'दिशानिर्देश सक्रिय'}
+                </Text>
+              </View>
+              <Image
+                source={require('../../assets/icons/chevron-right.png')}
+                style={styles.dualChevron}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* ======================================================== */}
+          {/* PROMINENT CLINICAL ALERTS SECTION */}
+          {/* ======================================================== */}
+          <View style={styles.prominentSection}>
+            <View style={styles.prominentSectionHeader}>
+              <View style={styles.prominentTitleCol}>
+                <View style={styles.sectionPillRow}>
+                  <View style={[styles.sectionPulseDot, { backgroundColor: '#DC2626' }]} />
+                  <Text style={styles.sectionPillText}>
+                    {isEnglish ? 'SURVEILLANCE RADAR' : 'निगरानी रडार'}
+                  </Text>
+                </View>
+                <Text style={styles.prominentSectionTitle}>
+                  {isEnglish ? 'Clinical Alerts' : 'क्लिनिकल अलर्ट'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => router.push('/(vet)/notifications')}
+                style={styles.viewAllPillBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllPillText}>
+                  {isEnglish ? 'View All' : 'सभी देखें'} ({unreadAlertsCount > 0 ? unreadAlertsCount : clinicalAlerts.length})
+                </Text>
+                <Image
+                  source={require('../../assets/icons/chevron-right.png')}
+                  style={styles.viewAllChevronSmall}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {clinicalAlerts.length === 0 ? (
+              <View style={styles.compactEmptyCard}>
+                <Image
+                  source={require('../../assets/icons/checkmark.png')}
+                  style={styles.compactEmptyIcon}
+                  resizeMode="contain"
+                />
+                <Text style={styles.compactEmptyTitle}>
+                  {isEnglish ? 'No Critical Outbreak Alerts' : 'कोई गंभीर प्रकोप अलर्ट नहीं'}
+                </Text>
+                <Text style={styles.compactEmptySub}>
+                  {isEnglish
+                    ? `Surveillance active across ${vetDistrict} district. No epidemic clusters detected.`
+                    : `${vetDistrict} जिले में कोई प्रकोप रिपोर्ट नहीं है।`}
+                </Text>
+              </View>
+            ) : (
+              clinicalAlerts.map((alert) => {
+                const sevTheme = getAlertSeverityTheme(alert.severity, isEnglish);
+                const categoryLabel = getAlertCategoryLabel(alert, isEnglish);
+                const diseaseText = getAlertDiseaseText(alert);
+                const locationText = getAlertLocationText(alert, vetDistrict);
+
+                return (
+                  <TouchableOpacity
+                    key={alert.id}
+                    style={styles.compactCard}
+                    onPress={() => setSelectedAlertModal(alert)}
+                    activeOpacity={0.88}
+                  >
+                    <View style={styles.compactCardTopRow}>
+                      <View
+                        style={[
+                          styles.compactBadge,
+                          { backgroundColor: sevTheme.bg, borderColor: sevTheme.border },
+                        ]}
+                      >
+                        <View style={[styles.compactBadgeDot, { backgroundColor: sevTheme.dot }]} />
+                        <Text style={[styles.compactBadgeText, { color: sevTheme.text }]}>
+                          {sevTheme.label}
+                        </Text>
+                      </View>
+                      <Text style={styles.compactTimeText}>
+                        {formatRelativeTime(alert.createdAt, isEnglish)}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.compactAlertCategory}>{categoryLabel}</Text>
+                    <Text style={styles.compactAlertDisease} numberOfLines={1}>
+                      {diseaseText}
+                    </Text>
+
+                    <View style={styles.compactLocationRow}>
+                      <Image
+                        source={require('../../assets/icons/location.png')}
+                        style={styles.compactLocationPin}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.compactLocationText} numberOfLines={1}>
+                        {locationText}
+                      </Text>
+                    </View>
+
+                    <View style={styles.compactCardFooter}>
+                      <TouchableOpacity
+                        style={styles.compactActionBtn}
+                        onPress={() => setSelectedAlertModal(alert)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.compactActionBtnText, { color: sevTheme.actionColor }]}>
+                          {isEnglish ? 'View Alert →' : 'अलर्ट देखें →'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+
+          {/* ======================================================== */}
+          {/* PROMINENT ADVISORIES SECTION */}
+          {/* ======================================================== */}
+          <View style={styles.prominentSection}>
+            <View style={styles.prominentSectionHeader}>
+              <View style={styles.prominentTitleCol}>
+                <View style={[styles.sectionPillRow, { backgroundColor: '#E0F2FE' }]}>
+                  <View style={[styles.sectionPulseDot, { backgroundColor: '#0284C7' }]} />
+                  <Text style={[styles.sectionPillText, { color: '#0369A1' }]}>
+                    {isEnglish ? 'DEPARTMENT DIRECTIVES' : 'विभागीय निर्देश'}
+                  </Text>
+                </View>
+                <Text style={styles.prominentSectionTitle}>
+                  {isEnglish ? 'Advisories' : 'जैव सुरक्षा परामर्श'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => router.push('/(vet)/advisories')}
+                style={styles.viewAllPillBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllPillText}>
+                  {isEnglish ? 'View All' : 'सभी देखें'} ({advisoriesCount > 0 ? advisoriesCount : biosecurityAdvisories.length})
+                </Text>
+                <Image
+                  source={require('../../assets/icons/chevron-right.png')}
+                  style={styles.viewAllChevronSmall}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {biosecurityAdvisories.length === 0 ? (
+              <View style={styles.compactEmptyCard}>
+                <Image
+                  source={require('../../assets/icons/shield.png')}
+                  style={styles.compactEmptyIcon}
+                  resizeMode="contain"
+                />
+                <Text style={styles.compactEmptyTitle}>
+                  {isEnglish ? 'No Active Advisories' : 'कोई सक्रिय परामर्श नहीं'}
+                </Text>
+                <Text style={styles.compactEmptySub}>
+                  {isEnglish
+                    ? `Official bulletins and disease prevention directives for ${vetDistrict} will appear here.`
+                    : `${vetDistrict} जिले के लिए जैव सुरक्षा निर्देश यहां प्रदर्शित होंगे।`}
+                </Text>
+              </View>
+            ) : (
+              biosecurityAdvisories.map((adv) => {
+                const advTheme = getAdvisoryCardTheme(adv.severity, isEnglish);
+                const advTopic = adv.disease || (isEnglish ? 'Disease Prevention' : 'रोग रोकथाम');
+                const rawMsg = typeof adv.message === 'object' ? adv.message.en || adv.message.hi : adv.message;
+                const cleanMsg = (rawMsg && rawMsg !== 'undefined' ? rawMsg : adv.messageEn) || (typeof adv.title === 'object' ? adv.title.en : adv.titleEn) || (isEnglish ? 'Immediate containment measures recommended' : 'तत्काल रोकथाम उपाय अनुशंसित');
+                const advMsg = String(cleanMsg);
+                const advLocation = getAdvisoryLocationText(adv, vetDistrict);
+
+                return (
+                  <TouchableOpacity
+                    key={adv.id || adv._id}
+                    style={styles.compactCard}
+                    onPress={() => setSelectedAdvisoryModal(adv)}
+                    activeOpacity={0.88}
+                  >
+                    <View style={styles.compactCardTopRow}>
+                      <View
+                        style={[
+                          styles.compactBadge,
+                          { backgroundColor: advTheme.bg, borderColor: advTheme.border },
+                        ]}
+                      >
+                        <View style={[styles.compactBadgeDot, { backgroundColor: advTheme.dot }]} />
+                        <Text style={[styles.compactBadgeText, { color: advTheme.text }]}>
+                          {advTheme.label}
+                        </Text>
+                      </View>
+                      <Text style={styles.compactTimeText}>
+                        {formatRelativeTime(adv.createdAt, isEnglish)}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.compactAdvisoryTopic}>{advTopic}</Text>
+                    <Text style={styles.compactAdvisoryMsg} numberOfLines={2}>
+                      {advMsg}
+                    </Text>
+
+                    <View style={styles.compactLocationRow}>
+                      <Image
+                        source={require('../../assets/icons/location.png')}
+                        style={styles.compactLocationPin}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.compactLocationText} numberOfLines={1}>
+                        {advLocation}
+                      </Text>
+                    </View>
+
+                    <View style={styles.compactCardFooter}>
+                      <TouchableOpacity
+                        style={styles.compactActionBtn}
+                        onPress={() => setSelectedAdvisoryModal(adv)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.compactActionBtnText, { color: advTheme.actionColor }]}>
+                          {isEnglish ? 'Read Advisory →' : 'परामर्श पढ़ें →'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
 
           {/* ======================================================== */}
@@ -1035,6 +1501,43 @@ export default function VetHomeScreen() {
               />
             </TouchableOpacity>
 
+            {/* Action 6: Zoonotic Disease Surveillance (One Health) */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push('/(vet)/zoonotic' as any)}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: '#FEF2F2' }]}>
+                <Image
+                  source={require('../../assets/icons/alert.png')}
+                  style={[styles.actionIconImg, { tintColor: '#DC2626' }]}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <View style={styles.actionTitleRow}>
+                  <Text style={styles.actionTitle}>
+                    {isEnglish ? 'Zoonotic Disease Surveillance' : 'झुनोटिक आजार नियंत्रण (One Health)'}
+                  </Text>
+                  <View style={[styles.actionBadgeRed, { backgroundColor: '#DC2626' }]}>
+                    <Text style={styles.actionBadgeText}>
+                      {isEnglish ? 'BIOHAZARD' : 'बायोहॅझार्ड'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.actionDesc}>
+                  {isEnglish
+                    ? 'Cross-species pathogen tracking for Anthrax, Brucellosis, Rabies & coordinated CMO liaison'
+                    : 'अँथ्रॅक्स, ब्रुसेलोसिस, रेबीज नियंत्रण व जिल्हा मुख्य वैद्यकीय अधिकारी समन्वय'}
+                </Text>
+              </View>
+              <Image
+                source={require('../../assets/icons/chevron-right.png')}
+                style={styles.actionChevron}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
             {/* Action 6: Clinical Alerts */}
             <TouchableOpacity
               style={styles.actionCard}
@@ -1069,6 +1572,49 @@ export default function VetHomeScreen() {
                     : isEnglish
                       ? 'High-priority epidemic alerts, cluster detections & containment milestones'
                       : 'महामारी अलर्ट, क्लस्टर सूचनाएं एवं कंटेनमेंट प्रगति सूचनाएं'}
+                </Text>
+              </View>
+              <Image
+                source={require('../../assets/icons/chevron-right.png')}
+                style={styles.actionChevron}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+
+            {/* Action 7: Official Biosecurity Advisories */}
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => router.push('/(vet)/advisories')}
+              activeOpacity={0.82}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: '#E0F2FE' }]}>
+                <Image
+                  source={require('../../assets/icons/shield.png')}
+                  style={[styles.actionIconImg, { tintColor: '#0284C7' }]}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.actionContent}>
+                <View style={styles.actionTitleRow}>
+                  <Text style={styles.actionTitle}>
+                    {isEnglish ? 'Biosecurity Advisories & Bulletins' : 'जैव सुरक्षा बुलेटिन व परामर्श'}
+                  </Text>
+                  {advisoriesCount > 0 && (
+                    <View style={[styles.actionBadgeGreen, { backgroundColor: '#E0F2FE' }]}>
+                      <Text style={[styles.actionBadgeText, { color: '#0369A1' }]}>
+                        {advisoriesCount} {isEnglish ? 'BULLETINS' : 'बुलेटिन'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.actionDesc}>
+                  {latestAdvisory
+                    ? typeof latestAdvisory.title === 'object'
+                      ? latestAdvisory.title.en || latestAdvisory.title.hi
+                      : latestAdvisory.title
+                    : isEnglish
+                    ? 'Departmental disease bulletins, quarantine directives & ring vaccination guidance'
+                    : 'विभागीय रोग बुलेटिन, क्वारंटाइन निर्देश एवं रिंग टीकाकरण मार्गदर्शन'}
                 </Text>
               </View>
               <Image
@@ -1141,6 +1687,253 @@ export default function VetHomeScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================== */}
+        {/* CLINICAL ALERT DETAIL MODAL */}
+        {/* ======================================================== */}
+        <Modal
+          visible={Boolean(selectedAlertModal)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedAlertModal(null)}
+        >
+          <View style={styles.detailModalOverlay}>
+            <View style={styles.detailModalCard}>
+              {selectedAlertModal && (() => {
+                const sevTheme = getAlertSeverityTheme(selectedAlertModal.severity, isEnglish);
+                const categoryLabel = getAlertCategoryLabel(selectedAlertModal, isEnglish);
+                const navTarget = resolveVetNotificationNavigation(selectedAlertModal);
+
+                return (
+                  <>
+                    <View style={styles.detailModalHeader}>
+                      <View style={styles.detailModalBadgeRow}>
+                        <View style={[styles.compactBadge, { backgroundColor: sevTheme.bg, borderColor: sevTheme.border }]}>
+                          <View style={[styles.compactBadgeDot, { backgroundColor: sevTheme.dot }]} />
+                          <Text style={[styles.compactBadgeText, { color: sevTheme.text }]}>
+                            {sevTheme.label}
+                          </Text>
+                        </View>
+                        <View style={styles.detailCategoryPill}>
+                          <Text style={styles.detailCategoryText}>{categoryLabel}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setSelectedAlertModal(null)}
+                        style={styles.detailCloseBtn}
+                        accessibilityLabel="Close"
+                      >
+                        <Text style={styles.detailCloseText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <ScrollView style={styles.detailModalScroll} showsVerticalScrollIndicator={false}>
+                      <Text style={styles.detailModalTitle}>{selectedAlertModal.title}</Text>
+                      <Text style={styles.detailModalTime}>
+                        {formatRelativeTime(selectedAlertModal.createdAt, isEnglish)} • {new Date(selectedAlertModal.createdAt).toLocaleDateString(isEnglish ? 'en-IN' : 'hi-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
+
+                      <View style={styles.detailMetaTagsRow}>
+                        {(selectedAlertModal.caseNumber || selectedAlertModal.caseId) && (
+                          <View style={styles.detailMetaPill}>
+                            <Image source={require('../../assets/icons/tag.png')} style={styles.detailMetaIcon} resizeMode="contain" />
+                            <Text style={styles.detailMetaText}>#{selectedAlertModal.caseNumber || selectedAlertModal.caseId}</Text>
+                          </View>
+                        )}
+                        <View style={styles.detailMetaPill}>
+                          <Image source={require('../../assets/icons/location.png')} style={styles.detailMetaIcon} resizeMode="contain" />
+                          <Text style={styles.detailMetaText}>
+                            {getAlertLocationText(selectedAlertModal, vetDistrict)}
+                          </Text>
+                        </View>
+                        {selectedAlertModal.metadata?.disease && (
+                          <View style={styles.detailMetaPill}>
+                            <Image source={require('../../assets/icons/stethoscope.png')} style={styles.detailMetaIcon} resizeMode="contain" />
+                            <Text style={styles.detailMetaText}>{selectedAlertModal.metadata.disease}</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.detailMessageBox}>
+                        <Text style={styles.detailMessageLabel}>
+                          {isEnglish ? 'Surveillance Alert Message:' : 'अलर्ट संदेश विवरण:'}
+                        </Text>
+                        <Text style={styles.detailMessageText}>{selectedAlertModal.message}</Text>
+                      </View>
+
+                      {(selectedAlertModal.metadata?.farmerName || selectedAlertModal.metadata?.animalSpecies || selectedAlertModal.metadata?.radiusKm) && (
+                        <View style={styles.detailContextBox}>
+                          {selectedAlertModal.metadata?.farmerName && (
+                            <View style={styles.detailContextRow}>
+                              <Text style={styles.detailContextKey}>{isEnglish ? 'Farmer:' : 'किसान:'}</Text>
+                              <Text style={styles.detailContextVal}>
+                                {selectedAlertModal.metadata.farmerName} {selectedAlertModal.metadata?.farmerPhone ? `(${selectedAlertModal.metadata.farmerPhone})` : ''}
+                              </Text>
+                            </View>
+                          )}
+                          {selectedAlertModal.metadata?.animalSpecies && (
+                            <View style={styles.detailContextRow}>
+                              <Text style={styles.detailContextKey}>{isEnglish ? 'Species:' : 'प्रजाति:'}</Text>
+                              <Text style={styles.detailContextVal}>{selectedAlertModal.metadata.animalSpecies}</Text>
+                            </View>
+                          )}
+                          {selectedAlertModal.metadata?.radiusKm && (
+                            <View style={styles.detailContextRow}>
+                              <Text style={styles.detailContextKey}>{isEnglish ? 'Buffer:' : 'परिधि:'}</Text>
+                              <Text style={styles.detailContextVal}>{selectedAlertModal.metadata.radiusKm} km cordon</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+
+                      <View style={styles.detailActionsCol}>
+                        {navTarget.type !== 'none' && (
+                          <TouchableOpacity
+                            style={styles.detailActionPrimaryBtn}
+                            onPress={() => {
+                              const target = navTarget;
+                              setSelectedAlertModal(null);
+                              router.push(target.route as any);
+                            }}
+                            activeOpacity={0.82}
+                          >
+                            <Text style={styles.detailActionPrimaryText}>
+                              {navTarget.type === 'referral'
+                                ? (isEnglish ? 'Open Referral Case Dossier →' : 'रेफरल केस देखें →')
+                                : navTarget.type === 'map'
+                                ? (isEnglish ? 'Locate on Outbreak GIS Radar →' : 'जीआईएस रडार पर देखें →')
+                                : navTarget.type === 'containment'
+                                ? (isEnglish ? 'Inspect Containment Perimeter →' : 'कंटेनमेंट घेरा देखें →')
+                                : navTarget.type === 'advisory'
+                                ? (isEnglish ? 'Open Biosecurity Advisories →' : 'जैव सुरक्षा परामर्श देखें →')
+                                : navTarget.type === 'labs'
+                                ? (isEnglish ? 'Open Diagnostic Lab Testing →' : 'लैब जांच देखें →')
+                                : (isEnglish ? 'Open Case Records →' : 'केस रिकॉर्ड देखें →')}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                          style={styles.detailActionSecondaryBtn}
+                          onPress={() => {
+                            setSelectedAlertModal(null);
+                            router.push('/(vet)/notifications');
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.detailActionSecondaryText}>
+                            {isEnglish ? 'View All Alerts in Feed' : 'सभी अलर्ट्स देखें'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </ScrollView>
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </Modal>
+
+        {/* ======================================================== */}
+        {/* BIOSECURITY ADVISORY DETAIL MODAL */}
+        {/* ======================================================== */}
+        <Modal
+          visible={Boolean(selectedAdvisoryModal)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedAdvisoryModal(null)}
+        >
+          <View style={styles.detailModalOverlay}>
+            <View style={styles.detailModalCard}>
+              {selectedAdvisoryModal && (() => {
+                const advTheme = getAdvisoryCardTheme(selectedAdvisoryModal.severity, isEnglish);
+                const rawTitle = typeof selectedAdvisoryModal.title === 'object' ? selectedAdvisoryModal.title.en || selectedAdvisoryModal.title.hi : selectedAdvisoryModal.title;
+                const rawMsg = typeof selectedAdvisoryModal.message === 'object' ? selectedAdvisoryModal.message.en || selectedAdvisoryModal.message.hi : selectedAdvisoryModal.message;
+                const locationText = getAdvisoryLocationText(selectedAdvisoryModal, vetDistrict);
+
+                return (
+                  <>
+                    <View style={styles.detailModalHeader}>
+                      <View style={styles.detailModalBadgeRow}>
+                        <View style={[styles.compactBadge, { backgroundColor: advTheme.bg, borderColor: advTheme.border }]}>
+                          <View style={[styles.compactBadgeDot, { backgroundColor: advTheme.dot }]} />
+                          <Text style={[styles.compactBadgeText, { color: advTheme.text }]}>
+                            {advTheme.label}
+                          </Text>
+                        </View>
+                        <View style={[styles.detailCategoryPill, { backgroundColor: '#F0FDF4' }]}>
+                          <Text style={[styles.detailCategoryText, { color: '#166534' }]}>
+                            {selectedAdvisoryModal.disease || (isEnglish ? 'Livestock Protocol' : 'पशु प्रोटोकॉल')}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setSelectedAdvisoryModal(null)}
+                        style={styles.detailCloseBtn}
+                        accessibilityLabel="Close"
+                      >
+                        <Text style={styles.detailCloseText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <ScrollView style={styles.detailModalScroll} showsVerticalScrollIndicator={false}>
+                      <Text style={styles.detailModalTitle}>{rawTitle}</Text>
+                      <Text style={styles.detailModalTime}>
+                        {formatRelativeTime(selectedAdvisoryModal.createdAt, isEnglish)} • {new Date(selectedAdvisoryModal.createdAt).toLocaleDateString(isEnglish ? 'en-IN' : 'hi-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
+
+                      <View style={styles.detailMetaTagsRow}>
+                        <View style={styles.detailMetaPill}>
+                          <Image source={require('../../assets/icons/location.png')} style={styles.detailMetaIcon} resizeMode="contain" />
+                          <Text style={styles.detailMetaText}>{locationText}</Text>
+                        </View>
+                        <View style={styles.detailMetaPill}>
+                          <Image source={require('../../assets/icons/shield.png')} style={styles.detailMetaIcon} resizeMode="contain" />
+                          <Text style={styles.detailMetaText}>{selectedAdvisoryModal.issuedBy || 'Dept of Animal Husbandry'}</Text>
+                        </View>
+                      </View>
+
+                      <View style={[styles.detailMessageBox, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
+                        <Text style={[styles.detailMessageLabel, { color: '#0369A1' }]}>
+                          {isEnglish ? 'Departmental Directive & Guidelines:' : 'विभागीय निर्देश व दिशा-निर्देश:'}
+                        </Text>
+                        <Text style={[styles.detailMessageText, { color: '#0C4A6E' }]}>{rawMsg}</Text>
+                      </View>
+
+                      <View style={styles.detailActionsCol}>
+                        <TouchableOpacity
+                          style={[styles.detailActionPrimaryBtn, { backgroundColor: '#0284C7' }]}
+                          onPress={() => {
+                            setSelectedAdvisoryModal(null);
+                            router.push('/(vet)/advisories');
+                          }}
+                          activeOpacity={0.82}
+                        >
+                          <Text style={styles.detailActionPrimaryText}>
+                            {isEnglish ? 'Open Biosecurity Advisories Feed →' : 'जैव सुरक्षा बुलेटिन देखें →'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.detailActionSecondaryBtn}
+                          onPress={() => {
+                            setSelectedAdvisoryModal(null);
+                            router.push('/(vet)/containment');
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.detailActionSecondaryText}>
+                            {isEnglish ? 'Containment & Ring Vaccination' : 'कंटेनमेंट व रिंग टीकाकरण'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </ScrollView>
+                  </>
+                );
+              })()}
             </View>
           </View>
         </Modal>
@@ -2486,5 +3279,463 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontFamily: FONT_BOLD,
+  },
+  dualAlertAdvStrip: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    marginBottom: 16,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
+      android: { elevation: 2 },
+    }),
+  },
+  dualAlertAdvCol: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  dualAlertIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  dualAlertIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#059669',
+  },
+  dualBadgeRed: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  dualBadgeText: {
+    fontSize: 8.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  dualAlertTextCol: {
+    flex: 1,
+  },
+  dualAlertTitle: {
+    fontSize: 12.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  dualAlertSub: {
+    fontSize: 10,
+    fontFamily: FONT_REGULAR,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  dualChevron: {
+    width: 12,
+    height: 12,
+    tintColor: '#94A3B8',
+  },
+  dualDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 4,
+  },
+
+  /* Prominent Clinical Alerts & Advisories Sections */
+  prominentSection: {
+    paddingHorizontal: 16,
+    marginTop: 18,
+  },
+  prominentSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  prominentTitleCol: {
+    flex: 1,
+  },
+  sectionPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 3,
+  },
+  sectionPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  sectionPillText: {
+    fontSize: 9.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#991B1B',
+    letterSpacing: 0.5,
+  },
+  prominentSectionTitle: {
+    fontSize: 16,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  viewAllPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  viewAllPillText: {
+    fontSize: 11,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#0F5132',
+    marginRight: 2,
+  },
+  viewAllChevronSmall: {
+    width: 10,
+    height: 10,
+    tintColor: '#0F5132',
+  },
+
+  /* Compact Professional Alert/Advisory Cards */
+  compactCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1.5,
+      },
+    }),
+  },
+  compactCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  compactBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  compactBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  compactBadgeText: {
+    fontSize: 9.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  compactTimeText: {
+    fontSize: 10,
+    fontFamily: FONT_REGULAR,
+    color: '#94A3B8',
+  },
+  compactAlertCategory: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  compactAlertDisease: {
+    fontSize: 12,
+    fontFamily: FONT_MEDIUM,
+    color: '#334155',
+    marginBottom: 6,
+  },
+  compactAdvisoryTopic: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  compactAdvisoryMsg: {
+    fontSize: 11.5,
+    fontFamily: FONT_REGULAR,
+    color: '#475569',
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  compactLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  compactLocationPin: {
+    width: 11,
+    height: 11,
+    tintColor: '#64748B',
+    marginRight: 4,
+  },
+  compactLocationText: {
+    fontSize: 11,
+    fontFamily: FONT_MEDIUM,
+    color: '#64748B',
+  },
+  compactCardFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 7,
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  compactActionBtn: {
+    paddingVertical: 2,
+  },
+  compactActionBtnText: {
+    fontSize: 12,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+  },
+
+  /* Empty State */
+  compactEmptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  compactEmptyIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#10B981',
+    marginBottom: 6,
+  },
+  compactEmptyTitle: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  compactEmptySub: {
+    fontSize: 11,
+    fontFamily: FONT_REGULAR,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+
+  /* Interactive Detail Modals */
+  detailModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  detailModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  detailModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  detailModalBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailCategoryPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  detailCategoryText: {
+    fontSize: 10,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  detailCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailCloseText: {
+    fontSize: 14,
+    fontFamily: FONT_BOLD,
+    color: '#64748B',
+  },
+  detailModalScroll: {
+    maxHeight: 460,
+  },
+  detailModalTitle: {
+    fontSize: 16,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  detailModalTime: {
+    fontSize: 11,
+    fontFamily: FONT_REGULAR,
+    color: '#94A3B8',
+    marginBottom: 12,
+  },
+  detailMetaTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
+  },
+  detailMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  detailMetaIcon: {
+    width: 10,
+    height: 10,
+    tintColor: '#64748B',
+    marginRight: 4,
+  },
+  detailMetaText: {
+    fontSize: 10.5,
+    fontFamily: FONT_MEDIUM,
+    color: '#475569',
+  },
+  detailMessageBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  detailMessageLabel: {
+    fontSize: 11,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 4,
+  },
+  detailMessageText: {
+    fontSize: 12.5,
+    fontFamily: FONT_REGULAR,
+    color: '#7F1D1D',
+    lineHeight: 18,
+  },
+  detailContextBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    gap: 6,
+  },
+  detailContextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailContextKey: {
+    fontSize: 11,
+    fontFamily: FONT_REGULAR,
+    color: '#64748B',
+  },
+  detailContextVal: {
+    fontSize: 11.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  detailActionsCol: {
+    gap: 8,
+    marginTop: 6,
+  },
+  detailActionPrimaryBtn: {
+    backgroundColor: '#0F5132',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailActionPrimaryText: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  detailActionSecondaryBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailActionSecondaryText: {
+    fontSize: 12.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#334155',
   },
 });

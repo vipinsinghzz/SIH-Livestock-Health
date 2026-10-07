@@ -128,8 +128,11 @@ export type VetNotificationCategory = 'All' | 'Unread' | 'Cases' | 'Outbreaks' |
  */
 export type VetNotificationNavigationTarget =
   | { type: 'referral'; route: `/(vet)/referrals/${string}` }
+  | { type: 'cases'; route: '/(vet)/cases' }
   | { type: 'map'; route: '/(vet)/map' }
   | { type: 'containment'; route: '/(vet)/containment' }
+  | { type: 'advisory'; route: '/(vet)/advisories' }
+  | { type: 'labs'; route: '/(vet)/labs' }
   | { type: 'none'; reason?: string };
 
 /**
@@ -140,20 +143,26 @@ export function resolveVetNotificationNavigation(
 ): VetNotificationNavigationTarget {
   const caseId = notification.caseId || notification.metadata?.caseId;
 
-  // Case Alerts: NEW_CASE_ALERT, CASE_STATUS_UPDATE, CASE_CLAIMED, CASE_ASSIGNED
+  // Advisory notifications
+  if (notification.type === 'ADVISORY' || notification.source === 'advisory') {
+    return {
+      type: 'advisory',
+      route: '/(vet)/advisories',
+    };
+  }
+
+  // Diagnostic Lab Testing alerts
   if (
-    notification.type === 'NEW_CASE_ALERT' ||
-    notification.type === 'CASE_STATUS_UPDATE' ||
-    notification.type === 'CASE_CLAIMED' ||
-    notification.type === 'CASE_ASSIGNED'
+    notification.type === ('LAB_RESULT' as any) ||
+    notification.title.toLowerCase().includes('lab') ||
+    notification.title.toLowerCase().includes('serology') ||
+    notification.title.toLowerCase().includes('pcr') ||
+    notification.message.toLowerCase().includes('lab result')
   ) {
-    if (caseId && String(caseId).trim()) {
-      return {
-        type: 'referral',
-        route: `/(vet)/referrals/${String(caseId).trim()}`,
-      };
-    }
-    return { type: 'none', reason: 'Linked referral ID unavailable' };
+    return {
+      type: 'labs',
+      route: '/(vet)/labs',
+    };
   }
 
   // Outbreak Cluster alerts -> /(vet)/map
@@ -173,6 +182,25 @@ export function resolveVetNotificationNavigation(
     return {
       type: 'containment',
       route: '/(vet)/containment',
+    };
+  }
+
+  // Case Alerts: NEW_CASE_ALERT, CASE_STATUS_UPDATE, CASE_CLAIMED, CASE_ASSIGNED
+  if (
+    notification.type === 'NEW_CASE_ALERT' ||
+    notification.type === 'CASE_STATUS_UPDATE' ||
+    notification.type === 'CASE_CLAIMED' ||
+    notification.type === 'CASE_ASSIGNED'
+  ) {
+    if (caseId && String(caseId).trim()) {
+      return {
+        type: 'referral',
+        route: `/(vet)/referrals/${String(caseId).trim()}`,
+      };
+    }
+    return {
+      type: 'cases',
+      route: '/(vet)/cases',
     };
   }
 

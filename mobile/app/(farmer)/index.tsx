@@ -60,7 +60,7 @@ const FONT_EXTRABOLD = Platform.select({ ios: 'System', android: 'sans-serif-med
 export default function FarmerHomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { language, changeLanguage, isEnglish, isHindi } = useAppLanguage();
+  const { language, changeLanguage, isEnglish, isHindi, isMarathi } = useAppLanguage();
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Live state
@@ -773,6 +773,39 @@ export default function FarmerHomeScreen() {
               <AppIcon name="chevron-right" size={16} color="#107C41" />
             </TouchableOpacity>
           </View>
+
+          {/* Tertiary Action: Nearby Veterinarians Directory */}
+          <TouchableOpacity
+            style={styles.nearbyVetActionCard}
+            onPress={() => router.push('/(farmer)/map' as any)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={isEnglish ? 'Nearby Veterinarians' : 'नज़दीकी पशु चिकित्सक'}
+          >
+            <View style={styles.nearbyVetIconBubble}>
+              <AppIcon name="stethoscope" size={22} color="#0F5132" />
+            </View>
+            <View style={styles.nearbyVetTextDetails}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.nearbyVetTitle} numberOfLines={1}>
+                  {isEnglish ? 'Nearby Veterinarians' : isMarathi ? 'जवळचे पशुवैद्यकीय डॉक्टर' : 'नज़दीकी पशु चिकित्सक'}
+                </Text>
+                <View style={styles.nearbyVetLiveBadge}>
+                  <Text style={styles.nearbyVetLiveBadgeText}>GPS</Text>
+                </View>
+              </View>
+              <Text style={styles.nearbyVetSubtitle} numberOfLines={1}>
+                {isEnglish
+                  ? 'Top 10 nearest active doctors • Live distance, direct call & directions'
+                  : isMarathi
+                  ? 'जवळचे १० डॉक्टर • थेट अंतर, कॉल व क्लिनिक नकाशा'
+                  : 'निकटतम १० सक्रिय डॉक्टर • लाइव दूरी, सीधा कॉल व रास्ता'}
+              </Text>
+            </View>
+            <View style={styles.nearbyVetChevronBubble}>
+              <AppIcon name="chevron-right" size={16} color="#0F5132" />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* ======================================================== */}
@@ -1226,6 +1259,28 @@ export default function FarmerHomeScreen() {
               <Text style={styles.emergencyCallBtnText}>{isEnglish ? 'Call' : 'कॉल'}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Dedicated Nearby Veterinarians Directory Card */}
+          <TouchableOpacity
+            style={styles.vetDirectoryCard}
+            onPress={() => router.push('/(farmer)/map' as any)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.vetDirectoryIconBubble}>
+              <AppIcon name="stethoscope" size={20} color="#1D4ED8" />
+            </View>
+            <View style={styles.emergencyTextCol}>
+              <Text style={styles.vetDirectoryTitle}>
+                {isEnglish ? 'Find Nearby Veterinarians' : isMarathi ? 'जवळचे पशुवैद्यकीय दवाखाने' : 'नज़दीकी पशु डॉक्टर व क्लिनिक'}
+              </Text>
+              <Text style={styles.emergencySubtitle}>
+                {isEnglish ? 'View local clinics & active doctors with live distance' : isMarathi ? 'स्थानिक डॉक्टर व दवाखान्यांची यादी' : 'निकटतम सक्रिय डॉक्टर व शासकीय पशु चिकित्सालय'}
+              </Text>
+            </View>
+            <View style={styles.vetDirectoryBtn}>
+              <Text style={styles.vetDirectoryBtnText}>{isEnglish ? 'Open' : 'खोलें'}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Space buffer above floating bottom navigation */}
@@ -2063,6 +2118,74 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 2,
   },
+  nearbyVetActionCard: {
+    marginTop: 10,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F5132',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  nearbyVetIconBubble: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  nearbyVetTextDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  nearbyVetTitle: {
+    fontSize: 14,
+    fontFamily: FONT_BOLD,
+    color: '#0F5132',
+  },
+  nearbyVetSubtitle: {
+    fontSize: 11,
+    fontFamily: FONT_REGULAR,
+    color: '#166534',
+    marginTop: 2,
+  },
+  nearbyVetLiveBadge: {
+    backgroundColor: '#0F5132',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  nearbyVetLiveBadgeText: {
+    fontSize: 9,
+    fontFamily: FONT_BOLD,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  nearbyVetChevronBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
 
   /* 5. "My Livestock" Showcase */
   livestockHorizontalScroll: {
@@ -2340,6 +2463,43 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12.5,
     fontFamily: FONT_BOLD,
+  },
+  vetDirectoryCard: {
+    marginTop: 10,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  vetDirectoryIconBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  vetDirectoryTitle: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    color: '#1E40AF',
+  },
+  vetDirectoryBtn: {
+    backgroundColor: '#1D4ED8',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  vetDirectoryBtnText: {
+    fontSize: 12,
+    fontFamily: FONT_BOLD,
+    color: '#FFFFFF',
   },
 
   /* 8. Floating Kisan Saathi AI Bot */

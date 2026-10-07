@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import syncService, { SyncState } from '../services/syncService';
 import { colors, typography, spacing } from '../theme';
 
@@ -43,8 +43,19 @@ export const OfflineNotice: React.FC = () => {
     ? '#DC2626'
     : '#4B5563';
 
+  const handlePress = () => {
+    if (!isSyncing) {
+      syncService.syncNow();
+    }
+  };
+
   return (
-    <View style={[styles.banner, { backgroundColor }]}>
+    <TouchableOpacity
+      activeOpacity={isSyncing ? 1 : 0.8}
+      onPress={handlePress}
+      disabled={isSyncing}
+      style={[styles.banner, { backgroundColor }]}
+    >
       {isSyncing && (
         <ActivityIndicator
           size="small"
@@ -55,10 +66,10 @@ export const OfflineNotice: React.FC = () => {
       <Text style={styles.text} numberOfLines={1}>
         {isOffline && `⚠️ ${t('common.offlineMode')}`}
         {isSyncing && `🔄 ${t('common.syncing')}`}
-        {isError && `⚠️ Sync issue: ${syncState.pendingCount} queued for retry.`}
+        {isError && `⚠️ Sync issue: ${syncState.pendingCount} queued (Tap to retry)`}
         {syncState.status === 'ONLINE' && syncState.pendingCount > 0 && `⏳ ${syncState.pendingCount} waiting for sync.`}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 };
 

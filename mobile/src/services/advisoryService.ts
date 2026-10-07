@@ -22,6 +22,7 @@ import {
   GetAdvisoriesResponse,
   CreateAdvisoryResponse,
   GetAdvisoriesResult,
+  DynamicEpidemiologicalAdvisory,
 } from '../types/advisory';
 import {
   saveAdvisoriesCache,
@@ -37,10 +38,8 @@ export const advisoryService = {
     district?: string;
     severity?: string;
   }): Promise<GetAdvisoriesResult> {
-    const targetDistrict = params?.district;
-    if (!targetDistrict) {
-      return { advisories: [], count: 0, fromCache: false, lastUpdated: null };
-    }
+    const rawDistrict = params?.district || 'Nagpur';
+    const targetDistrict = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
     const netState = await NetInfo.fetch();
     const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
@@ -54,30 +53,73 @@ export const advisoryService = {
           queryParams.severity = params.severity;
         }
 
-        const response = await api.get<GetAdvisoriesResponse>('/advisories', {
+        let response = await api.get<any>('/advisories', {
           params: queryParams,
         });
 
-        const rawAdvisories = response.data?.advisories || [];
-        const validAdvisories: OfficialAdvisory[] = rawAdvisories.map((a: any) => ({
-          _id: a._id || a.id,
-          id: String(a.id || a._id || ''),
-          title: a.title,
-          titleEn: typeof a.title === 'object' ? a.title?.en : a.titleEn || a.title,
-          titleHi: typeof a.title === 'object' ? a.title?.hi : a.titleHi,
-          message: a.message,
-          messageEn: typeof a.message === 'object' ? a.message?.en : a.messageEn || a.message,
-          messageHi: typeof a.message === 'object' ? a.message?.hi : a.messageHi,
-          severity: a.severity || 'Moderate',
-          disease: a.disease || 'General Livestock Alert',
-          targetVillage: a.targetVillage || 'All',
-          targetBlock: a.targetBlock || 'All',
-          targetDistrict: a.targetDistrict || targetDistrict,
-          issuedBy: a.issuedBy || 'District Animal Husbandry Department',
-          reportId: a.reportId || null,
-          createdAt: a.createdAt || new Date().toISOString(),
-          updatedAt: a.updatedAt,
-        }));
+        let rawAdvisories: any[] =
+          Array.isArray(response.data)
+            ? response.data
+            : response.data?.advisories || response.data?.data || [];
+
+        // Fallback: If district-scoped query returned 0, fetch all official advisories (website source of truth)
+        if (rawAdvisories.length === 0) {
+          const fallbackRes = await api.get<any>('/advisories');
+          rawAdvisories =
+            Array.isArray(fallbackRes.data)
+              ? fallbackRes.data
+              : fallbackRes.data?.advisories || fallbackRes.data?.data || [];
+        }
+
+        const validAdvisories: OfficialAdvisory[] = rawAdvisories.map((a: any) => {
+          const rawTitle = a.title && a.title !== 'undefined' ? a.title : null;
+          const cleanTitle =
+            (typeof rawTitle === 'object' ? rawTitle.en || rawTitle.hi : rawTitle) ||
+            a.titleEn ||
+            a.title_en ||
+            a.titleHi ||
+            a.title_hi ||
+            a.headline ||
+            a.disease ||
+            'Official Biosecurity Advisory';
+
+          const rawMsg = a.message && a.message !== 'undefined' ? a.message : null;
+          const cleanMsg =
+            (typeof rawMsg === 'object' ? rawMsg.en || rawMsg.hi : rawMsg) ||
+            a.messageEn ||
+            a.message_en ||
+            a.messageHi ||
+            a.message_hi ||
+            a.description ||
+            a.summary ||
+            '';
+
+          const severity = a.severity || a.riskLevel || a.risk || 'Moderate';
+
+          return {
+            _id: a._id || a.id,
+            id: String(a.id || a._id || ''),
+            title: cleanTitle,
+            titleEn: a.titleEn || a.title_en || cleanTitle,
+            titleHi: a.titleHi || a.title_hi,
+            message: cleanMsg,
+            messageEn: a.messageEn || a.message_en || cleanMsg,
+            messageHi: a.messageHi || a.message_hi,
+            severity,
+            disease: a.disease || 'General Livestock Alert',
+            targetVillage: a.targetVillage || 'All',
+            targetBlock: a.targetBlock || 'All',
+            targetDistrict: a.targetDistrict || targetDistrict,
+            issuedBy:
+              a.issuedBy ||
+              a.authority ||
+              a.issuingAuthority ||
+              'District Animal Husbandry Department, Nagpur',
+            reportId: a.reportId || null,
+            createdAt: a.createdAt || new Date().toISOString(),
+            updatedAt: a.updatedAt,
+          };
+        });
 
         // Persist server records into SQLite cache asynchronously
         saveAdvisoriesCache(targetDistrict, validAdvisories).catch((err) => {
@@ -205,8 +247,27 @@ export const advisoryService = {
       const found = cached.advisories.find((a) => a.id === id || a._id === id);
       if (found) return found;
     }
-    // If not found in cache or no district provided, fetch all and search
-    const all = await this.getAdvisories({ district: district || '' });
-    return all.advisories.find((a) => a.id === id || a._id === id) || null;
+    return null;
+  },
+
+  /**
+   * Fetch Dynamic AI Preventive Advisory based on district disease cases & containment zones.
+   * Backed by GET /api/cases/advisories.
+   */
+  async getDynamicEpidemiologicalAdvisory(
+    district: string
+  ): Promise<DynamicEpidemiologicalAdvisory | null> {
+    try {
+      const response = await api.get<DynamicEpidemiologicalAdvisory>('/cases/advisories', {
+        params: { district },
+      });
+      if (response.data && response.data.success) {
+        return response.data;
+      }
+      return null;
+    } catch (err: any) {
+      console.warn('[AdvisoryService] Dynamic advisory fetch notice:', err.message);
+      return null;
+    }
   },
 };

@@ -65,28 +65,29 @@ export const veterinarianService = {
 
     const isOnline = Boolean(netState.isConnected && netState.isInternetReachable !== false);
 
-    if (isOnline) {
-      try {
-        const queryParams: Record<string, any> = {
-          limit: params?.limit || 100,
-        };
+    // Always attempt online fetch first to stay in sync with local/remote server
+    try {
+      const queryParams: Record<string, any> = {
+        limit: params?.limit || 100,
+      };
 
-        if (params?.district) queryParams.district = params.district;
-        if (params?.status && params.status !== 'all') queryParams.status = params.status;
-        if (params?.filter) queryParams.filter = params.filter;
-        if (params?.disease) queryParams.disease = params.disease;
+      if (params?.district) queryParams.district = params.district;
+      if (params?.status && params.status !== 'all') queryParams.status = params.status;
+      if (params?.filter) queryParams.filter = params.filter;
+      if (params?.disease) queryParams.disease = params.disease;
 
-        const response = await api.get<CaseListResponse>('/cases', { params: queryParams });
-        const cases = response.data?.cases || [];
+      const response = await api.get<CaseListResponse>('/cases', { params: queryParams });
+      const cases = response.data?.cases || [];
 
-        if (vetId && Array.isArray(cases) && cases.length > 0) {
-          await saveCasesCache(vetId, cases);
-        }
-
-        return { cases, fromCache: false };
-      } catch (err: any) {
-        console.warn('[VeterinarianService] Online referrals fetch failed, falling back to cache:', err?.message);
+      if (vetId && Array.isArray(cases) && cases.length > 0) {
+        await saveCasesCache(vetId, cases);
       }
+
+      if (cases && cases.length > 0) {
+        return { cases, fromCache: false };
+      }
+    } catch (err: any) {
+      console.warn('[VeterinarianService] Online referrals fetch failed, falling back to cache:', err?.message);
     }
 
     // Offline SQLite cache fallback

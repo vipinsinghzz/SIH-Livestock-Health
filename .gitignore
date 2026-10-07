@@ -123,3 +123,10 @@ tmp/
 # Internal phase-by-phase audit/implementation reports (development journal).
 # Long-lived documentation belongs in docs/ instead.
 /PHASE*.md
+
+# Benchmark & local model evaluation datasets
+newmodel/
+
+# Local diagnostic & one-off development scripts
+backend/scripts/
+backend/seed/seedSyntheticLabData.js

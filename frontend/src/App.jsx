@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { OfflineProvider } from './context/OfflineContext';
 import Navbar from './components/Navbar';
@@ -23,6 +23,17 @@ class AppErrorBoundary extends React.Component {
     console.error('[AppErrorBoundary] Uncaught rendering exception:', error, errorInfo);
   }
 
+  componentDidUpdate(prevProps) {
+    // Automatically reset error boundary state when route changes so user never gets permanently stuck
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -40,7 +51,7 @@ class AppErrorBoundary extends React.Component {
                 {this.state.error.message || String(this.state.error)}
               </div>
             )}
-            <div className="flex gap-3 justify-center pt-2">
+            <div className="flex gap-3 justify-center pt-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => {
@@ -51,12 +62,13 @@ class AppErrorBoundary extends React.Component {
               >
                 पुनः लोड करें (Reload)
               </button>
-              <a
-                href="/"
+              <Link
+                to="/"
+                onClick={this.handleReset}
                 className="px-5 py-2.5 bg-stone-100 hover:bg-stone-200 text-slate-800 font-bold text-sm rounded-xl transition"
               >
                 होम पेज (Home)
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -126,6 +138,7 @@ function ProtectedRoute({ children, allowedRoles }) {
 
 function AppContent() {
   const { user } = useAuth();
+  const location = useLocation();
   const isFarmer = !user || user.role === 'farmer';
 
   React.useEffect(() => {
@@ -137,7 +150,7 @@ function AppContent() {
       <OfflineBanner />
       <Navbar />
       <main className="flex-grow">
-        <AppErrorBoundary>
+        <AppErrorBoundary key={location.pathname} resetKey={location.pathname}>
           <React.Suspense fallback={<AppLoadingScreen message="लोड हो रहा है... Loading page..." />}>
             <Routes>
               {/* Public & Dynamic Entry */}
@@ -185,6 +198,17 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/my-animals"
+              element={
+                <ProtectedRoute>
+                  <AnimalsList />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/my_animals" element={<Navigate to="/my-animals" replace />} />
+            <Route path="/my%20animals" element={<Navigate to="/my-animals" replace />} />
+            <Route path="/myanimals" element={<Navigate to="/my-animals" replace />} />
             <Route
               path="/reports"
               element={

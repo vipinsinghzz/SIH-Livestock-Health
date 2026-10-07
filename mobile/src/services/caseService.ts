@@ -42,17 +42,18 @@ export const caseService = {
     const user = await getSavedUserProfile<{ id?: string; _id?: string }>();
     const farmerId = user?.id || user?._id || '';
 
-    if (netState.isConnected && netState.isInternetReachable !== false) {
-      try {
-        const response = await api.get<CaseListResponse>('/cases', { params });
-        const cases = response.data.cases || [];
-        if (farmerId && cases.length > 0) {
-          await saveCasesCache(farmerId, cases);
-        }
-        return sortCasesByCriticality(cases);
-      } catch (err) {
-        console.warn('[CaseService] Network fetch failed, falling back to cache:', err);
+    // Always attempt live network fetch first
+    try {
+      const response = await api.get<CaseListResponse>('/cases', { params });
+      const cases = response.data.cases || [];
+      if (farmerId && cases.length > 0) {
+        await saveCasesCache(farmerId, cases);
       }
+      if (cases && cases.length > 0) {
+        return sortCasesByCriticality(cases);
+      }
+    } catch (err) {
+      console.warn('[CaseService] Network fetch failed, falling back to SQLite cache:', err);
     }
 
     // Fallback to SQLite cache

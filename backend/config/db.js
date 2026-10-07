@@ -20,12 +20,13 @@ const connectDB = async () => {
 
   try {
     const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 3000 // Fast fail in 3s if unreachable
+      serverSelectionTimeoutMS: 15000, // 15s timeout to survive CPU spikes
+      connectTimeoutMS: 15000
     });
-    console.log(`[Database] Optional MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
+    console.log(`[Database] MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
     return conn;
   } catch (error) {
-    console.warn(`[Database Warning] Optional MongoDB connection failed: ${error.message}. Running in Supabase PostgreSQL primary mode.`);
+    console.warn(`[Database Warning] MongoDB connection attempt failed: ${error.message}. Running in resilient offline mode.`);
     return null;
   }
 };

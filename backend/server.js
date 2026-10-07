@@ -55,9 +55,12 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // In non-production environments, allow any localhost or 127.0.0.1 port
+    // In non-production environments, allow any localhost, 127.0.0.1, LAN IP, or exp:// origin
     if (process.env.NODE_ENV !== 'production') {
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
+      if (
+        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(normalizedOrigin) ||
+        normalizedOrigin.startsWith('exp://')
+      ) {
         return callback(null, true);
       }
     }
@@ -199,13 +202,14 @@ app.use('/api/upload', require('./routes/uploadRoutes'));
 app.use('/api/kisan-saathi', require('./routes/kisanSaathiRoutes'));
 app.use('/api/cases', require('./routes/caseRoutes'));
 app.use('/api/veterinarians', require('./routes/veterinaryRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 // Centralized error handling
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`=======================================================`);
   console.log(`🚀 PashuCare API Server running on port ${PORT}`);
   console.log(`🤖 AI Engine: lsd_model.keras (EfficientNetB0 + Keras 3 / TensorFlow Backend)`);

@@ -157,8 +157,8 @@ export default function Login() {
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => handleQuickDemo('farmer_ramesh')}
-                  className="p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group"
+                  onClick={() => handleQuickDemo('farmer_suresh')}
+                  className="p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group cursor-pointer"
                 >
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
                     🌾 Suresh Patil
@@ -168,7 +168,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => handleQuickDemo('farmer_sunita')}
-                  className="p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group"
+                  className="p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group cursor-pointer"
                 >
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
                     🌾 Sunita Meshram
@@ -182,7 +182,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleQuickDemo('field_worker')}
-                className="w-full p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group flex items-center justify-between"
+                className="w-full p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group flex items-center justify-between cursor-pointer"
               >
                 <div>
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">
@@ -198,7 +198,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleQuickDemo('officer')}
-                className="w-full p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group flex items-center justify-between"
+                className="w-full p-3 rounded-xl bg-white hover:bg-emerald-50/60 border border-stone-200 text-left transition shadow-2xs group flex items-center justify-between cursor-pointer"
               >
                 <div>
                   <div className="text-sm font-bold text-slate-900 group-hover:text-emerald-800">

@@ -25,6 +25,8 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
+  Modal,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
@@ -237,6 +239,7 @@ export default function VetNotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<VetNotificationCategory>('All');
+  const [selectedAlert, setSelectedAlert] = useState<AppNotification | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -385,14 +388,24 @@ export default function VetNotificationsScreen() {
         prev.map((n) => (n.id === item.id ? { ...n, isRead: true, status: 'READ' } : n))
       );
     }
+    setSelectedAlert(item);
+  };
 
+  const handleNavigateFromAlert = (item: AppNotification) => {
+    setSelectedAlert(null);
     const target = resolveVetNotificationNavigation(item);
     if (target.type === 'referral') {
       router.push(target.route as any);
+    } else if (target.type === 'cases') {
+      router.push('/(vet)/cases');
     } else if (target.type === 'map') {
       router.push('/(vet)/map');
     } else if (target.type === 'containment') {
       router.push('/(vet)/containment');
+    } else if (target.type === 'advisory') {
+      router.push('/(vet)/advisories');
+    } else if (target.type === 'labs') {
+      router.push('/(vet)/labs');
     } else if (target.type === 'none' && target.reason) {
       Alert.alert(isEnglish ? 'Notice' : 'सूचना', target.reason);
     }
@@ -495,16 +508,26 @@ export default function VetNotificationsScreen() {
               <Text style={styles.actionPromptText}>
                 {navTarget.type === 'referral'
                   ? (isEnglish ? 'Review Referral & Clinical Dossier' : 'रेफरल व क्लिनिकल केस देखें')
+                  : navTarget.type === 'cases'
+                  ? (isEnglish ? 'Open Patient Cases' : 'मरीज़ के मामले देखें')
                   : navTarget.type === 'map'
                   ? (isEnglish ? 'Locate on Field GIS Radar' : 'जीआईएस रडार पर देखें')
                   : navTarget.type === 'containment'
                   ? (isEnglish ? 'Inspect Ring & Quarantine Perimeter' : 'कंटेनमेंट व रिंग विवरण देखें')
+                  : navTarget.type === 'advisory'
+                  ? (isEnglish ? 'Open Biosecurity Advisories' : 'जैव सुरक्षा बुलेटिन देखें')
+                  : navTarget.type === 'labs'
+                  ? (isEnglish ? 'Open Diagnostic Lab Testing' : 'प्रयोगशाला जांच देखें')
                   : (isEnglish ? 'Tap for Details' : 'विवरण देखें')}
               </Text>
             </View>
-            <View style={styles.chevronCircle}>
+            <TouchableOpacity
+              style={styles.chevronCircle}
+              onPress={() => handleNavigateFromAlert(item)}
+              activeOpacity={0.7}
+            >
               <Image source={ICON_CHEVRON} style={styles.chevronIcon} resizeMode="contain" />
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
@@ -714,7 +737,164 @@ export default function VetNotificationsScreen() {
       )}
 
       {/* ======================================================== */}
-      {/* 4. UNIVERSAL VETERINARIAN FLOATING NAVIGATION DOCK */}
+      {/* 4. ALERT DETAIL MODAL */}
+      {/* ======================================================== */}
+      <Modal
+        visible={Boolean(selectedAlert)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedAlert(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedAlert && (() => {
+              const typeMeta = getNotificationTypeMeta(selectedAlert.type, isEnglish);
+              const sevMeta = getSeverityMeta(selectedAlert.severity, isEnglish);
+              const navTarget = resolveVetNotificationNavigation(selectedAlert);
+
+              return (
+                <>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalHeaderBadges}>
+                      <View style={[styles.typeBadge, { backgroundColor: typeMeta.bg, borderColor: typeMeta.border }]}>
+                        <Image source={typeMeta.iconAsset} style={[styles.typeIconImg, { tintColor: typeMeta.text }]} />
+                        <Text style={[styles.typeLabel, { color: typeMeta.text }]}>
+                          {typeMeta.label}
+                        </Text>
+                      </View>
+                      {sevMeta && (
+                        <View style={[styles.sevPill, { backgroundColor: sevMeta.bg, borderColor: sevMeta.border }]}>
+                          <Text style={[styles.sevLabel, { color: sevMeta.text }]}>
+                            {sevMeta.label}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setSelectedAlert(null)}
+                      style={styles.modalCloseBtn}
+                      accessibilityLabel="Close"
+                    >
+                      <Text style={styles.modalCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.modalAlertTitle}>{selectedAlert.title}</Text>
+
+                    <Text style={styles.modalTimestamp}>
+                      {formatRelativeTime(selectedAlert.createdAt, isEnglish)} • {new Date(selectedAlert.createdAt).toLocaleString(isEnglish ? 'en-IN' : 'hi-IN')}
+                    </Text>
+
+                    {/* Geocoded & Entity Tags */}
+                    <View style={styles.modalMetaRow}>
+                      {(selectedAlert.caseNumber || selectedAlert.caseId) && (
+                        <View style={styles.modalMetaPill}>
+                          <Image source={ICON_TAG} style={styles.modalMetaIcon} resizeMode="contain" />
+                          <Text style={styles.modalMetaText}>#{selectedAlert.caseNumber || selectedAlert.caseId}</Text>
+                        </View>
+                      )}
+
+                      {(selectedAlert.metadata?.village || selectedAlert.district) && (
+                        <View style={styles.modalMetaPill}>
+                          <Image source={ICON_PIN} style={styles.modalMetaIcon} resizeMode="contain" />
+                          <Text style={styles.modalMetaText}>
+                            {[selectedAlert.metadata?.village, selectedAlert.metadata?.block, selectedAlert.district]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </Text>
+                        </View>
+                      )}
+
+                      {selectedAlert.metadata?.disease && (
+                        <View style={styles.modalMetaPill}>
+                          <Image source={ICON_STETHOSCOPE} style={styles.modalMetaIcon} resizeMode="contain" />
+                          <Text style={styles.modalMetaText}>{selectedAlert.metadata.disease}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Body Message */}
+                    <View style={styles.modalMessageBox}>
+                      <Text style={styles.modalMessageLabel}>
+                        {isEnglish ? 'Surveillance Alert Details:' : 'निगरानी अलर्ट विवरण:'}
+                      </Text>
+                      <Text style={styles.modalMessageText}>{selectedAlert.message}</Text>
+                    </View>
+
+                    {/* Metadata Context (Farmer, Species, Radius) */}
+                    {(selectedAlert.metadata?.farmerName || selectedAlert.metadata?.animalSpecies || selectedAlert.metadata?.radiusKm) && (
+                      <View style={styles.modalContextCard}>
+                        {selectedAlert.metadata?.farmerName && (
+                          <View style={styles.modalContextRow}>
+                            <Text style={styles.modalContextKey}>{isEnglish ? 'Reporting Farmer:' : 'रिपोर्टकर्ता किसान:'}</Text>
+                            <Text style={styles.modalContextVal}>
+                              {selectedAlert.metadata.farmerName} {selectedAlert.metadata?.farmerPhone ? `(${selectedAlert.metadata.farmerPhone})` : ''}
+                            </Text>
+                          </View>
+                        )}
+                        {selectedAlert.metadata?.animalSpecies && (
+                          <View style={styles.modalContextRow}>
+                            <Text style={styles.modalContextKey}>{isEnglish ? 'Animal Species:' : 'पशु प्रजाति:'}</Text>
+                            <Text style={styles.modalContextVal}>{selectedAlert.metadata.animalSpecies}</Text>
+                          </View>
+                        )}
+                        {selectedAlert.metadata?.radiusKm && (
+                          <View style={styles.modalContextRow}>
+                            <Text style={styles.modalContextKey}>{isEnglish ? 'Buffer Perimeter:' : 'बफर परिधि:'}</Text>
+                            <Text style={styles.modalContextVal}>{selectedAlert.metadata.radiusKm} km radius</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Actions */}
+                    <View style={styles.modalActionsWrap}>
+                      {navTarget.type !== 'none' && (
+                        <TouchableOpacity
+                          style={styles.modalActionPrimaryBtn}
+                          onPress={() => handleNavigateFromAlert(selectedAlert)}
+                          activeOpacity={0.82}
+                        >
+                          <Image source={ICON_CHEVRON} style={styles.modalActionPrimaryIcon} resizeMode="contain" />
+                          <Text style={styles.modalActionPrimaryText}>
+                            {navTarget.type === 'referral'
+                              ? (isEnglish ? 'Open Referral Case Dossier' : 'रेफरल केस देखें')
+                              : navTarget.type === 'cases'
+                              ? (isEnglish ? 'Open Patient Cases' : 'मरीज़ रिकॉर्ड देखें')
+                              : navTarget.type === 'map'
+                              ? (isEnglish ? 'Locate on GIS Outbreak Radar' : 'जीआईएस रडार पर देखें')
+                              : navTarget.type === 'containment'
+                              ? (isEnglish ? 'Inspect Ring & Quarantine Perimeter' : 'कंटेनमेंट ज़ोन देखें')
+                              : navTarget.type === 'advisory'
+                              ? (isEnglish ? 'Open Biosecurity Advisories' : 'जैव सुरक्षा बुलेटिन देखें')
+                              : navTarget.type === 'labs'
+                              ? (isEnglish ? 'Open Diagnostic Lab Testing' : 'प्रयोगशाला जांच देखें')
+                              : (isEnglish ? 'Open Associated Record' : 'संबंधित रिकॉर्ड खोलें')}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={styles.modalActionSecondaryBtn}
+                        onPress={() => setSelectedAlert(null)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.modalActionSecondaryText}>
+                          {isEnglish ? 'Dismiss' : 'बंद करें'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ======================================================== */}
+      {/* 5. UNIVERSAL VETERINARIAN FLOATING NAVIGATION DOCK */}
       {/* ======================================================== */}
       <VetFloatingNav activeTab="alerts" />
     </View>
@@ -1226,5 +1406,166 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  // ALERT DETAIL MODAL
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
+  },
+  modalHeaderBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#94A3B8',
+    fontWeight: '700',
+  },
+  modalScroll: {
+    marginBottom: 10,
+  },
+  modalAlertTitle: {
+    fontSize: 17,
+    fontFamily: FONT_BOLD,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 6,
+    lineHeight: 22,
+  },
+  modalTimestamp: {
+    fontSize: 11,
+    fontFamily: FONT_REGULAR,
+    color: '#94A3B8',
+    marginBottom: 12,
+  },
+  modalMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  modalMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modalMetaIcon: {
+    width: 12,
+    height: 12,
+    tintColor: '#64748B',
+  },
+  modalMetaText: {
+    fontSize: 11,
+    fontFamily: FONT_MEDIUM,
+    color: '#475569',
+  },
+  modalMessageBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EDF2F7',
+    marginBottom: 14,
+  },
+  modalMessageLabel: {
+    fontSize: 11.5,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  modalMessageText: {
+    fontSize: 12.5,
+    fontFamily: FONT_REGULAR,
+    color: '#334155',
+    lineHeight: 19,
+  },
+  modalContextCard: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 6,
+  },
+  modalContextRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalContextKey: {
+    fontSize: 11,
+    fontFamily: FONT_MEDIUM,
+    color: '#64748B',
+  },
+  modalContextVal: {
+    fontSize: 11.5,
+    fontFamily: FONT_BOLD,
+    color: '#0F172A',
+  },
+  modalActionsWrap: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  modalActionPrimaryBtn: {
+    backgroundColor: '#0F5132',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  modalActionPrimaryIcon: {
+    width: 14,
+    height: 14,
+    tintColor: '#FFFFFF',
+  },
+  modalActionPrimaryText: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  modalActionSecondaryBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modalActionSecondaryText: {
+    fontSize: 13,
+    fontFamily: FONT_BOLD,
+    fontWeight: '700',
+    color: '#64748B',
   },
 });

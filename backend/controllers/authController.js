@@ -42,7 +42,9 @@ function getOfflineProfile(key) {
 // Static demo credentials for instant evaluation
 const DEMO_CREDENTIALS = {
   'farmer@pashurakshak.in': { password: 'Farmer@123', role: 'farmer' },
+  'suresh@pashurakshak.in': { password: 'Farmer@123', role: 'farmer' },
   'vet@pashurakshak.in': { password: 'Vet@123', role: 'veterinarian' },
+  'amit.vet@pashurakshak.in': { password: 'Vet@123', role: 'veterinarian' },
   'vet2@pashurakshak.in': { password: 'Vet@123', role: 'veterinarian' },
   'officer@pashurakshak.in': { password: 'Admin@123', role: 'officer' },
   'admin@pashurakshak.in': { password: 'Admin@123', role: 'admin' },

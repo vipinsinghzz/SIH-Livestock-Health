@@ -33,7 +33,7 @@ export default function GovernmentSchemesPage() {
           <span className="text-xs sm:text-sm font-black text-emerald-300 uppercase tracking-wider bg-white/10 px-3 py-1 rounded-full inline-block mb-2">
             🏛️ Schemes & Subsidies
           </span>
-          <h1 className="text-2xl sm:text-4xl font-black">
+          <h1 className="text-2xl sm:text-4xl font-black text-white">
             {t('farmer_dash.govt_schemes')}
           </h1>
           <p className="text-sm sm:text-base text-emerald-100/90 mt-2 max-w-2xl leading-relaxed">

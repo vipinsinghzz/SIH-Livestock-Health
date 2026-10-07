@@ -44,7 +44,8 @@ const ICON_INFO = require('../../../assets/icons/clipboard.png');
 export default function OfficerProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { language, changeLanguage, t, isEnglish } = useAppLanguage();
+  const { language, changeLanguage, t, isEnglish, isMarathi, isHindi } = useAppLanguage();
+  const tr = (en: string, mr: string, hi: string) => (isEnglish ? en : isMarathi ? (mr || en) : (hi || mr || en));
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
@@ -344,16 +345,18 @@ export default function OfficerProfileScreen() {
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>
-            {isEnglish ? 'Quick Access & Command Operations' : 'त्वरित पहुंच एवं संचालन'}
+            {tr('Quick Access & Command Operations', 'जलद प्रवेश व नियंत्रण संचालन', 'त्वरित पहुंच एवं संचालन')}
           </Text>
           <View style={styles.badgePill}>
-            <Text style={styles.badgePillText}>{isEnglish ? '8 Modules' : '८ मॉड्यूल'}</Text>
+            <Text style={styles.badgePillText}>{tr('8 Modules', '८ मॉड्यूल्स', '८ मॉड्यूल')}</Text>
           </View>
         </View>
         <Text style={styles.sectionSub}>
-          {isEnglish
-            ? 'Instant access to surveillance, outbreak alerts, biosecurity & district logistics.'
-            : 'निगरानी, प्रकोप अलर्ट, बायोसिक्योरिटी एवं ज़िला रसद के त्वरित मॉड्यूल।'}
+          {tr(
+            'Instant access to surveillance, outbreak alerts, biosecurity & district logistics.',
+            'पाळत, उद्रेक अलर्ट, जैवसुरक्षा आणि जिल्हा रसदसाठी जलद प्रवेश.',
+            'निगरानी, प्रकोप अलर्ट, बायोसिक्योरिटी एवं ज़िला रसद के त्वरित मॉड्यूल।'
+          )}
         </Text>
 
         <View style={styles.shortcutsGrid}>
@@ -367,10 +370,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_SURVEILLANCE} style={[styles.shortcutIconImg, { tintColor: '#4338CA' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'Surveillance' : 'निगरानी'}
+              {tr('Surveillance', 'पाळत', 'निगरानी')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Triage & Cases' : 'ट्रायज व केस'}
+              {tr('Triage & Cases', 'ट्रायज व केसेस', 'ट्रायज व केस')}
             </Text>
           </TouchableOpacity>
 
@@ -384,10 +387,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_ALERT} style={[styles.shortcutIconImg, { tintColor: '#B45309' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'Outbreak Alerts' : 'प्रकोप अलर्ट'}
+              {tr('Outbreak Alerts', 'उद्रेक इशारे', 'प्रकोप अलर्ट')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Proximity Alarms' : 'सक्रिय क्लस्टर'}
+              {tr('Proximity Alarms', 'सक्रिय क्लस्टर', 'सक्रिय क्लस्टर')}
             </Text>
           </TouchableOpacity>
 
@@ -401,10 +404,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_SHIELD} style={[styles.shortcutIconImg, { tintColor: '#7C3AED' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'Containment' : 'कंटेनमेंट'}
+              {tr('Containment', 'प्रतिबंधक क्षेत्र', 'कंटेनमेंट')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Quarantine Zones' : 'घेराबंदी व परिधि'}
+              {tr('Quarantine Zones', 'विलगीकरण परिघ', 'घेराबंदी व परिधि')}
             </Text>
           </TouchableOpacity>
 
@@ -418,10 +421,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_VACCINE} style={[styles.shortcutIconImg, { tintColor: '#059669' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'Vaccination' : 'टीकाकरण'}
+              {tr('Vaccination', 'लसीकरण', 'टीकाकरण')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Camps & Logistics' : 'शिविर एवं रसद'}
+              {tr('Camps & Logistics', 'शिबिरे व रसद', 'शिविर एवं रसद')}
             </Text>
           </TouchableOpacity>
 
@@ -435,10 +438,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_LOCATION} style={[styles.shortcutIconImg, { tintColor: '#0284C7' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'GIS Radar Map' : 'जीआईएस मैप'}
+              {tr('GIS Radar Map', 'जीआयएस नकाशा', 'जीआईएस मैप')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Spatial Heatmaps' : 'नक्शा व क्लस्टर'}
+              {tr('Spatial Heatmaps', 'स्थानिक हीटमॅप', 'नक्शा व क्लस्टर')}
             </Text>
           </TouchableOpacity>
 
@@ -452,10 +455,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_BELL} style={[styles.shortcutIconImg, { tintColor: '#CA8A04' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'Advisories' : 'आधिकारिक परामर्श'}
+              {tr('Advisories', 'अधिकृत सूचना', 'आधिकारिक परामर्श')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Farmer Directives' : 'बायोसिक्योरिटी'}
+              {tr('Farmer Directives', 'शेतकरी मार्गदर्शक', 'बायोसिक्योरिटी')}
             </Text>
           </TouchableOpacity>
 
@@ -469,27 +472,10 @@ export default function OfficerProfileScreen() {
               <Image source={ICON_WARN} style={[styles.shortcutIconImg, { tintColor: '#DC2626' }]} resizeMode="contain" />
             </View>
             <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? 'NADRES Radar' : 'नाड्रेस पूर्व-चेतावनी'}
+              {tr('NADRES Radar', 'नाड्रेस पूर्वसूचना', 'नाड्रेस पूर्व-चेतावनी')}
             </Text>
             <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'ICAR Risk Matrix' : 'आईसीआर मैट्रिक्स'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Module 8: 1962 Emergency Hotline */}
-          <TouchableOpacity
-            style={[styles.shortcutCard, { borderColor: '#CBD5E1' }]}
-            onPress={() => handleCall('1962', 'National Veterinary Emergency')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.shortcutIconBox, { backgroundColor: '#F1F5F9' }]}>
-              <Image source={ICON_PHONE} style={[styles.shortcutIconImg, { tintColor: '#334155' }]} resizeMode="contain" />
-            </View>
-            <Text style={styles.shortcutCardTitle} numberOfLines={1}>
-              {isEnglish ? '1962 Helpline' : '1962 हेल्पलाइन'}
-            </Text>
-            <Text style={styles.shortcutCardSub} numberOfLines={1}>
-              {isEnglish ? 'Emergency Direct' : 'आपातकालीन सहायता'}
+              {tr('ICAR Risk Matrix', 'आयसीएआर जोखीम', 'आईसीआर मैट्रिक्स')}
             </Text>
           </TouchableOpacity>
         </View>

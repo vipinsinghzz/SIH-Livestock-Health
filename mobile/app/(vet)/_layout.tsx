@@ -87,6 +87,12 @@ export default function VetLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="advisories/index"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

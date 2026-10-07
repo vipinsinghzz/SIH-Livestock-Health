@@ -10,14 +10,24 @@ import {
   ShieldAlert,
   ArrowRight,
   UserCheck,
-  Truck
+  Truck,
+  Trash2
 } from 'lucide-react';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
 import emergencyService, { EMERGENCY_STAGES } from '../services/emergencyService';
 import voiceService, { INDIAN_LANGUAGES } from '../services/voiceService';
 
 export default function EmergencySOSPage() {
+  const { user } = useAuth();
   const { t, i18n } = useTranslation();
+
+  // Emergency SOS is exclusively for farmers and veterinarians, not for administrative officers
+  if (user && user.role !== 'farmer' && user.role !== 'veterinarian' && user.role !== 'field_worker') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   const [activeSOS, setActiveSOS] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,7 +44,17 @@ export default function EmergencySOSPage() {
   const [isRecording, setIsRecording] = useState(false);
 
   // Recent SOS records
-  const [sosList, setSosList] = useState(emergencyService.getAllSOS());
+  const [sosList, setSosList] = useState(() => 
+    emergencyService.getAllSOS().filter((s) => s.id !== 'SOS-302220')
+  );
+
+  const handleDeleteSOS = (id) => {
+    const updated = emergencyService.deleteEmergencySOS(id);
+    setSosList(updated.filter((s) => s.id !== 'SOS-302220'));
+    if (activeSOS && activeSOS.id === id) {
+      setActiveSOS(null);
+    }
+  };
 
   const handleVoiceRecord = () => {
     if (isRecording) {
@@ -69,7 +89,7 @@ export default function EmergencySOSPage() {
       });
 
       setActiveSOS(created);
-      setSosList(emergencyService.getAllSOS());
+      setSosList(emergencyService.getAllSOS().filter((s) => s.id !== 'SOS-302220'));
       setIsSubmitting(false);
     }, 800);
   };
@@ -79,7 +99,7 @@ export default function EmergencySOSPage() {
     const nextIdx = Math.min(4, activeSOS.statusIndex + 1);
     const updated = emergencyService.updateSOSStatus(activeSOS.id, nextIdx);
     setActiveSOS(updated);
-    setSosList(emergencyService.getAllSOS());
+    setSosList(emergencyService.getAllSOS().filter((s) => s.id !== 'SOS-302220'));
   };
 
   return (
@@ -93,7 +113,7 @@ export default function EmergencySOSPage() {
                 <AlertTriangle className="w-4 h-4 animate-bounce" />
                 <span>24×7 {t('nav.emergency_sos')}</span>
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black">
+              <h1 className="text-2xl sm:text-4xl font-black text-white">
                 🚨 {t('nav.emergency_sos')}
               </h1>
               <p className="text-xs sm:text-sm text-red-100 max-w-xl leading-relaxed">
@@ -304,32 +324,54 @@ export default function EmergencySOSPage() {
 
         {/* Previous Emergency Alerts List */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-stone-200 space-y-4">
-          <h3 className="font-extrabold text-slate-900 text-base">
-            हाल के आपातकालीन रिकॉर्ड (Recent SOS History)
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-extrabold text-slate-900 text-base">
+              हाल के आपातकालीन रिकॉर्ड (Recent SOS History)
+            </h3>
+            <span className="text-xs text-slate-500 font-medium">
+              {sosList.filter((s) => s.id !== 'SOS-302220').length} {sosList.filter((s) => s.id !== 'SOS-302220').length === 1 ? 'रिकॉर्ड' : 'रिकॉर्ड्स'}
+            </span>
+          </div>
           <div className="space-y-3">
-            {sosList.map((sos) => (
-              <div
-                key={sos.id}
-                className="p-4 bg-stone-50 rounded-2xl border border-stone-200 flex flex-wrap items-center justify-between gap-3 text-xs"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-900">{sos.id}</span>
-                    <span className="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded">
-                      {sos.animalName} ({sos.species})
-                    </span>
+            {sosList.filter((s) => s.id !== 'SOS-302220').length === 0 ? (
+              <p className="text-sm text-slate-500 py-3 text-center">कोई आपातकालीन रिकॉर्ड नहीं है (No emergency records)</p>
+            ) : (
+              sosList
+                .filter((s) => s.id !== 'SOS-302220')
+                .map((sos) => (
+                  <div
+                    key={sos.id}
+                    className="p-4 bg-stone-50 rounded-2xl border border-stone-200 flex flex-wrap items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900">{sos.id}</span>
+                        <span className="bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded">
+                          {sos.animalName} ({sos.species})
+                        </span>
+                      </div>
+                      <p className="text-slate-600 mt-1">{sos.symptoms}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">
+                          {EMERGENCY_STAGES[sos.statusIndex]?.label || 'सक्रिय'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block mt-1">{sos.assignedDoctor}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSOS(sos.id)}
+                        title="रिकॉर्ड हटाएं (Delete Record)"
+                        aria-label="Delete Record"
+                        className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-slate-600 mt-1">{sos.symptoms}</p>
-                </div>
-                <div className="text-right">
-                  <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">
-                    {EMERGENCY_STAGES[sos.statusIndex]?.label || 'सक्रिय'}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block mt-1">{sos.assignedDoctor}</span>
-                </div>
-              </div>
-            ))}
+                ))
+            )}
           </div>
         </div>
       </div>

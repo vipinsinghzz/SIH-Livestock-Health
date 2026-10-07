@@ -64,8 +64,10 @@ type RiskFilter = 'ALL' | 'CRITICAL' | 'HIGH' | 'MODERATE';
 export default function OfficerOutbreaksScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { isEnglish } = useAppLanguage();
-  const district = user?.district;
+  const { isEnglish, isMarathi, isHindi, t } = useAppLanguage();
+  const tr = (en: string, mr: string, hi: string) => (isEnglish ? en : isMarathi ? (mr || en) : (hi || mr || en));
+  const rawDistrict = user?.district || 'Nagpur';
+  const district = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
 
   // State
   const [clusters, setClusters] = useState<OutbreakCluster[]>([]);
@@ -77,12 +79,6 @@ export default function OfficerOutbreaksScreen() {
   const [activeFilter, setActiveFilter] = useState<RiskFilter>('ALL');
 
   const loadOutbreakData = useCallback(async () => {
-    if (!district) {
-      setError(isEnglish ? 'District jurisdiction is not configured on this account.' : 'ज़िला कार्यक्षेत्र कॉन्फ़िगर नहीं है।');
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
 
     try {
       setError(null);
@@ -192,14 +188,14 @@ export default function OfficerOutbreaksScreen() {
             <View style={styles.cadreRow}>
               <View style={styles.pulseDot} />
               <Text style={styles.cadreText}>
-                {isEnglish ? 'OUTBREAK SURVEILLANCE & CLUSTERING' : 'प्रकोप निगरानी एवं स्थानिक क्लस्टर'}
+                {tr('OUTBREAK SURVEILLANCE & CLUSTERING', 'उद्रेक पाळत व स्थानिक क्लस्टर', 'प्रकोप निगरानी एवं स्थानिक क्लस्टर')}
               </Text>
             </View>
             <Text style={styles.headerMainTitle}>
-              {isEnglish ? 'Outbreak Alerts' : 'प्रकोप चेतावनी'}
+              {tr('Outbreak Alerts', 'रोग उद्रेक सूचना', 'प्रकोप चेतावनी')}
             </Text>
             <Text style={styles.headerSubTitle}>
-              {district ? `${district} ${isEnglish ? 'District' : 'ज़िला'} • ${clusters.length} ${isEnglish ? 'Clusters Detected' : 'क्लस्टर सक्रिय'}` : (isEnglish ? 'District Surveillance' : 'ज़िला निगरानी')}
+              {district ? `${district} ${tr('District', 'जिल्हा', 'ज़िला')} • ${clusters.length} ${tr('Clusters Detected', 'सक्रिय क्लस्टर', 'क्लस्टर सक्रिय')}` : tr('District Surveillance', 'जिल्हा पाळत', 'ज़िला निगरानी')}
             </Text>
           </View>
 
@@ -209,7 +205,7 @@ export default function OfficerOutbreaksScreen() {
             activeOpacity={0.8}
           >
             <Image source={ICON_LOCATION} style={styles.mapNavBtnIcon} />
-            <Text style={styles.mapNavBtnText}>{isEnglish ? 'GIS Radar' : 'जीआईएस'}</Text>
+            <Text style={styles.mapNavBtnText}>{tr('GIS Radar', 'जीआयएस', 'जीआईएस')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -217,9 +213,11 @@ export default function OfficerOutbreaksScreen() {
           <View style={styles.cacheBanner}>
             <Image source={ICON_WARN} style={styles.cacheBannerIcon} />
             <Text style={styles.cacheBannerText}>
-              {isEnglish
-                ? 'Offline Mode: Displaying saved outbreak clusters from device cache.'
-                : 'ऑफ़लाइन मोड: डिवाइस पर सहेजे गए प्रकोप क्लस्टर दिखाए जा रहे हैं।'}
+              {tr(
+                'Offline Mode: Displaying saved outbreak clusters from device cache.',
+                'ऑफलाइन मोड: डिव्हाइसवरील सहेजेलेले उद्रेक क्लस्टर दाखवले जात आहेत.',
+                'ऑफ़लाइन मोड: डिवाइस पर सहेजे गए प्रकोप क्लस्टर दिखाए जा रहे हैं।'
+              )}
             </Text>
           </View>
         )}
@@ -230,19 +228,19 @@ export default function OfficerOutbreaksScreen() {
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color="#4338CA" />
           <Text style={styles.loadingText}>
-            {isEnglish ? 'Analyzing spatial transmission clusters...' : 'स्थानिक संक्रमण क्लस्टरों का विश्लेषण किया जा रहा है...'}
+            {tr('Analyzing spatial transmission clusters...', 'स्थानिक संसर्ग क्लस्टर्सचे विश्लेषण सुरू आहे...', 'स्थानिक संक्रमण क्लस्टरों का विश्लेषण किया जा रहा है...')}
           </Text>
         </View>
       ) : error && clusters.length === 0 ? (
         <View style={styles.centerBox}>
           <Image source={ICON_WARN} style={styles.errorIcon} />
           <Text style={styles.errorTitle}>
-            {isEnglish ? 'Surveillance Feed Unavailable' : 'निगरानी डेटा अनुपलब्ध'}
+            {tr('Surveillance Feed Unavailable', 'पाळत डेटा अनुपलब्ध', 'निगरानी डेटा अनुपलब्ध')}
           </Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={loadOutbreakData} activeOpacity={0.85}>
             <Image source={ICON_REFRESH} style={styles.retryBtnIcon} />
-            <Text style={styles.retryBtnText}>{isEnglish ? 'Retry Analysis' : 'पुनः प्रयास करें'}</Text>
+            <Text style={styles.retryBtnText}>{tr('Retry Analysis', 'पुन्हा विश्लेषण करा', 'पुनः प्रयास करें')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -264,10 +262,10 @@ export default function OfficerOutbreaksScreen() {
               <View style={styles.riskHeader}>
                 <View>
                   <Text style={styles.riskCardTitle}>
-                    {isEnglish ? 'District Epidemiological Risk Gauge' : 'ज़िला महामारी विज्ञान जोखिम सूचकांक'}
+                    {tr('District Epidemiological Risk Gauge', 'जिल्हा साथी रोग जोखीम निर्देशांक', 'ज़िला महामारी विज्ञान जोखिम सूचकांक')}
                   </Text>
                   <Text style={styles.riskCardSub}>
-                    {isEnglish ? 'AI-computed contagion & density analysis' : 'एआई-संचालित संक्रमण एवं घनत्व विश्लेषण'}
+                    {tr('AI-computed contagion & density analysis', 'एआय-आधारित संसर्ग व घनता विश्लेषण', 'एआई-संचालित संक्रमण एवं घनत्व विश्लेषण')}
                   </Text>
                 </View>
                 <View
@@ -301,7 +299,7 @@ export default function OfficerOutbreaksScreen() {
               {Array.isArray(risk.factors) && risk.factors.length > 0 && (
                 <View style={styles.factorsList}>
                   <Text style={styles.factorsHeader}>
-                    {isEnglish ? 'Contributing Epidemiological Factors:' : 'प्रमुख महामारी विज्ञान कारक:'}
+                    {tr('Contributing Epidemiological Factors:', 'प्रमुख साथी रोग घटक:', 'प्रमुख महामारी विज्ञान कारक:')}
                   </Text>
                   {risk.factors.slice(0, 3).map((f: OfficerRiskFactor, idx: number) => (
                     <View key={`factor_${idx}`} style={styles.factorItem}>
@@ -323,9 +321,11 @@ export default function OfficerOutbreaksScreen() {
                   >
                     <Image source={ICON_SHIELD} style={styles.recPillIcon} />
                     <Text style={styles.recPillText}>
-                      {isEnglish
-                        ? `Containment (${risk.containmentRecommendation.suggestedRadiusKm}km advised)`
-                        : `कंटेनमेंट (${risk.containmentRecommendation.suggestedRadiusKm} किमी)`}
+                      {tr(
+                        `Containment (${risk.containmentRecommendation.suggestedRadiusKm}km advised)`,
+                        `प्रतिबंधक कक्ष (${risk.containmentRecommendation.suggestedRadiusKm} किमी शिफारस)`,
+                        `कंटेनमेंट (${risk.containmentRecommendation.suggestedRadiusKm} किमी)`
+                      )}
                     </Text>
                     <Image source={ICON_CHEVRON} style={styles.recChevron} />
                   </TouchableOpacity>
@@ -343,9 +343,11 @@ export default function OfficerOutbreaksScreen() {
                   >
                     <Image source={ICON_VACCINE} style={styles.recPillIcon} />
                     <Text style={[styles.recPillText, { color: '#0F766E' }]}>
-                      {isEnglish
-                        ? `Ring Vaccination (${risk.vaccinationRecommendation.targetRadiusKm}km)`
-                        : `रिंग टीकाकरण (${risk.vaccinationRecommendation.targetRadiusKm} किमी)`}
+                      {tr(
+                        `Ring Vaccination (${risk.vaccinationRecommendation.targetRadiusKm}km)`,
+                        `रिंग लसीकरण (${risk.vaccinationRecommendation.targetRadiusKm} किमी)`,
+                        `रिंग टीकाकरण (${risk.vaccinationRecommendation.targetRadiusKm} किमी)`
+                      )}
                     </Text>
                     <Image source={ICON_CHEVRON} style={[styles.recChevron, { tintColor: '#0F766E' }]} />
                   </TouchableOpacity>
@@ -357,7 +359,7 @@ export default function OfficerOutbreaksScreen() {
           {/* Filter Chips Bar */}
           <View style={styles.filterSection}>
             <Text style={styles.sectionTitle}>
-              {isEnglish ? `Active Transmission Clusters (${clusters.length})` : `सक्रिय संक्रमण क्लस्टर (${clusters.length})`}
+              {tr(`Active Transmission Clusters (${clusters.length})`, `सक्रिय संसर्ग क्लस्टर्स (${clusters.length})`, `सक्रिय संक्रमण क्लस्टर (${clusters.length})`)}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               <TouchableOpacity
@@ -366,7 +368,7 @@ export default function OfficerOutbreaksScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, activeFilter === 'ALL' && styles.filterChipTextActive]}>
-                  {isEnglish ? 'All' : 'सभी'} ({clusters.length})
+                  {tr('All', 'सर्व', 'सभी')} ({clusters.length})
                 </Text>
               </TouchableOpacity>
 
@@ -376,7 +378,7 @@ export default function OfficerOutbreaksScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, activeFilter === 'CRITICAL' && styles.filterChipTextActive]}>
-                  {isEnglish ? 'Critical' : 'गंभीर'} ({criticalCount})
+                  {tr('Critical', 'अति-गंभीर', 'गंभीर')} ({criticalCount})
                 </Text>
               </TouchableOpacity>
 
@@ -386,7 +388,7 @@ export default function OfficerOutbreaksScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, activeFilter === 'HIGH' && styles.filterChipTextActive]}>
-                  {isEnglish ? 'High Risk' : 'उच्च जोखिम'} ({highCount})
+                  {tr('High Risk', 'उच्च जोखीम', 'उच्च जोखिम')} ({highCount})
                 </Text>
               </TouchableOpacity>
 
@@ -396,7 +398,7 @@ export default function OfficerOutbreaksScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, activeFilter === 'MODERATE' && styles.filterChipTextActive]}>
-                  {isEnglish ? 'Moderate' : 'मध्यम'} ({moderateCount})
+                  {tr('Moderate', 'मध्यम', 'मध्यम')} ({moderateCount})
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -407,12 +409,14 @@ export default function OfficerOutbreaksScreen() {
             <View style={styles.emptyCard}>
               <Image source={ICON_SHIELD} style={styles.emptyCardIcon} />
               <Text style={styles.emptyTitle}>
-                {isEnglish ? 'Zero Active Clusters Detected' : 'कोई सक्रिय प्रकोप क्लस्टर नहीं'}
+                {tr('Zero Active Clusters Detected', 'कोणताही सक्रिय उद्रेक क्लस्टर नाही', 'कोई सक्रिय प्रकोप क्लस्टर नहीं')}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {isEnglish
-                  ? `No active DBSCAN outbreak clusters found matching the "${activeFilter}" filter in ${district}.`
-                  : `वर्तमान में इस फ़िल्टर के अंतर्गत कोई क्लस्टर नहीं मिला।`}
+                {tr(
+                  `No active DBSCAN outbreak clusters found matching the "${activeFilter}" filter in ${district}.`,
+                  `${district} मध्ये "${activeFilter}" निकषानुसार कोणतेही सक्रिय उद्रेक क्लस्टर आढळले नाहीत.`,
+                  `वर्तमान में ${district} में इस फ़िल्टर के अंतर्गत कोई सक्रिय क्लस्टर नहीं मिला।`
+                )}
               </Text>
             </View>
           ) : (
@@ -428,11 +432,11 @@ export default function OfficerOutbreaksScreen() {
                       <View style={styles.clusterTagRow}>
                         <View style={[styles.urgencyTag, isCrit ? styles.urgencyTagCrit : styles.urgencyTagHigh]}>
                           <Text style={[styles.urgencyTagText, isCrit ? styles.urgencyTextCrit : styles.urgencyTextHigh]}>
-                            {cluster.riskTier || cluster.risk || (isEnglish ? 'HIGH RISK' : 'उच्च जोखिम')}
+                            {cluster.riskTier || cluster.risk || tr('HIGH RISK', 'उच्च जोखीम', 'उच्च जोखिम')}
                           </Text>
                         </View>
                         <View style={styles.diseasePill}>
-                          <Text style={styles.diseasePillText}>{cluster.disease || (isEnglish ? 'Livestock Pathogen' : 'पशु रोग')}</Text>
+                          <Text style={styles.diseasePillText}>{cluster.disease || tr('Livestock Pathogen', 'पशु रोग', 'पशु रोग')}</Text>
                         </View>
                       </View>
                       <Text style={styles.clusterName}>
@@ -442,7 +446,7 @@ export default function OfficerOutbreaksScreen() {
 
                     <View style={styles.caseCountBadge}>
                       <Text style={styles.caseCountVal}>{count}</Text>
-                      <Text style={styles.caseCountLabel}>{isEnglish ? 'Cases' : 'मामले'}</Text>
+                      <Text style={styles.caseCountLabel}>{tr('Cases', 'प्रकरणे', 'मामले')}</Text>
                     </View>
                   </View>
 
@@ -450,7 +454,7 @@ export default function OfficerOutbreaksScreen() {
                   <View style={styles.clusterMetaRow}>
                     <Image source={ICON_PIN} style={styles.clusterPinIcon} />
                     <Text style={styles.clusterMetaText}>
-                      Centroid GPS: {cluster.centroidLat?.toFixed(4)}, {cluster.centroidLng?.toFixed(4)}
+                      {tr('Centroid GPS:', 'केंद्रस्थान GPS:', 'केंद्रस्थान GPS:')} {cluster.centroidLat?.toFixed(4)}, {cluster.centroidLng?.toFixed(4)}
                     </Text>
                   </View>
 
@@ -463,7 +467,7 @@ export default function OfficerOutbreaksScreen() {
                     >
                       <Image source={ICON_LOCATION} style={styles.actionBtnIcon} />
                       <Text style={styles.clusterMapBtnText}>
-                        {isEnglish ? 'View on GIS Radar' : 'जीआईएस रडार देखें'}
+                        {tr('View on GIS Radar', 'जीआयएस नकाशा पहा', 'जीआईएस रडार देखें')}
                       </Text>
                     </TouchableOpacity>
 
@@ -474,7 +478,7 @@ export default function OfficerOutbreaksScreen() {
                     >
                       <Image source={ICON_SHIELD} style={[styles.actionBtnIcon, { tintColor: '#7C3AED' }]} />
                       <Text style={styles.clusterContainmentBtnText}>
-                        {isEnglish ? 'Declare Containment' : 'कंटेनमेंट घोषित करें'}
+                        {tr('Declare Containment', 'प्रतिबंधक क्षेत्र घोषित करा', 'कंटेनमेंट घोषित करें')}
                       </Text>
                     </TouchableOpacity>
                   </View>

@@ -86,12 +86,8 @@ exports.getNearbyVeterinarians = async (req, res) => {
     const {
       lat,
       lng,
-      district,
       search,
-      specialization,
-      category,
-      emergencyOnly,
-      limit = 10
+      limit = 20
     } = req.query;
 
     const hasCoordinates =
@@ -105,42 +101,23 @@ exports.getNearbyVeterinarians = async (req, res) => {
     const userLat = hasCoordinates ? parseFloat(lat) : null;
     const userLng = hasCoordinates ? parseFloat(lng) : null;
 
-    let refLat = userLat;
-    let refLng = userLng;
-    let distanceSource = 'GPS';
+    let refLat = userLat || 21.1458; // Nagpur centroid
+    let refLng = userLng || 79.0882;
+    let distanceSource = hasCoordinates ? 'GPS' : 'NAGPUR_CENTROID';
 
-    if (!hasCoordinates) {
-      distanceSource = 'DISTRICT_FALLBACK';
-      if (district && DISTRICT_CENTROIDS[district]) {
-        refLat = DISTRICT_CENTROIDS[district].lat;
-        refLng = DISTRICT_CENTROIDS[district].lng;
-      } else if (req.user && req.user.district && DISTRICT_CENTROIDS[req.user.district]) {
-        refLat = DISTRICT_CENTROIDS[req.user.district].lat;
-        refLng = DISTRICT_CENTROIDS[req.user.district].lng;
-      } else {
-        refLat = 21.1458; // Nagpur centroid
-        refLng = 79.0882;
-      }
-    }
+    // Query verified Nagpur veterinarians (18 centers across Nagpur talukas)
+    let vets = await supabaseDb.veterinarians.findNearby(refLat, refLng, 'Nagpur');
 
-    // Module 5: Query Supabase public.profiles for veterinarians
-    let vets = await supabaseDb.veterinarians.findNearby(refLat, refLng, district);
+    // Filter strictly to Nagpur
+    vets = vets.filter(v => !v.district || v.district.toLowerCase().includes('nagpur'));
 
-    // Apply filtering
-    if (emergencyOnly === 'true' || emergencyOnly === true) {
-      vets = vets.filter(v => v.emergencyAvailable === true);
-    }
-    if (specialization && specialization !== 'All') {
-      const specLower = specialization.toLowerCase();
-      vets = vets.filter(v => (v.specialization || '').toLowerCase().includes(specLower));
-    }
     if (search && search.trim()) {
       const s = search.toLowerCase().trim();
       vets = vets.filter(v =>
         (v.name || '').toLowerCase().includes(s) ||
-        (v.district || '').toLowerCase().includes(s) ||
         (v.block || '').toLowerCase().includes(s) ||
-        (v.clinicName || '').toLowerCase().includes(s)
+        (v.clinicName || '').toLowerCase().includes(s) ||
+        (v.specialization || '').toLowerCase().includes(s)
       );
     }
 
@@ -156,7 +133,7 @@ exports.getNearbyVeterinarians = async (req, res) => {
         distanceSource,
         userCoordinates: hasCoordinates ? { lat: userLat, lng: userLng } : null,
         referenceCoordinates: { lat: refLat, lng: refLng },
-        district: district || (req.user && req.user.district) || null
+        district: 'Nagpur'
       },
       nearestVets,
       veterinarians: paginatedVets

@@ -85,8 +85,11 @@ export default function OfficerHomeScreen() {
     setErrorMessage(null);
 
     try {
+      const rawDistrict = user?.district || 'Nagpur';
+      const cleanDistrict = rawDistrict.split(' ')[0].replace(/[(),]/g, '') || 'Nagpur';
+
       const result = await officerService.getDashboardSummary(userId, {
-        district: user?.district,
+        district: cleanDistrict,
         block: block !== 'All' ? block : undefined,
       });
 

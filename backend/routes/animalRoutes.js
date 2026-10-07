@@ -4,7 +4,8 @@ const {
   getAnimals,
   getAnimalById,
   createAnimal,
-  updateAnimal
+  updateAnimal,
+  deleteAnimal
 } = require('../controllers/animalController');
 const { protect } = require('../middleware/auth');
 
@@ -16,6 +17,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getAnimalById)
-  .patch(updateAnimal);
+  .patch(updateAnimal)
+  .delete(deleteAnimal);
 
 module.exports = router;

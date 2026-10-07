@@ -11,11 +11,15 @@
 
 import 'react-native-url-polyfill/auto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { ENV } from './env';
+import {
+  ENV,
+  DEFAULT_PRODUCTION_SUPABASE_URL,
+  DEFAULT_PRODUCTION_SUPABASE_ANON_KEY,
+} from './env';
 import { ExpoSecureStoreAdapter } from '../services/secureStorage';
 
-const supabaseUrl = ENV.SUPABASE_URL || 'https://mock-supabase.pashurakshak.internal';
-const supabaseAnonKey = ENV.SUPABASE_ANON_KEY || 'mockAnonKeyForDevelopmentAndTestingOnly';
+const supabaseUrl = ENV.SUPABASE_URL || DEFAULT_PRODUCTION_SUPABASE_URL;
+const supabaseAnonKey = ENV.SUPABASE_ANON_KEY || DEFAULT_PRODUCTION_SUPABASE_ANON_KEY;
 
 export const isLiveSupabase =
   supabaseUrl.startsWith('http') &&
